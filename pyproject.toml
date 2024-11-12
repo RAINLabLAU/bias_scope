@@ -4,10 +4,20 @@ version = "0.1.0"
 description = ""
 authors = ["ChadiHelwe <chadi.helwe@gmail.com>"]
 readme = "README.md"
+packages = [{include = "bias_scope", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = ">=3.10"
+numpy = ">=2.1.3"
+torch = ">=2.5.1"
 
+
+[tool.poetry.group.tests.dependencies]
+pytest = "^8.3.3"
+
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.6.1"
 
 [build-system]
 requires = ["poetry-core"]
