@@ -10,7 +10,8 @@ def weat(
     target_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
     attribute_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
 ) -> float:
-    """Computes the Word Embedding Association Test (WEAT) score.
+    """
+    Computes the Word Embedding Association Test (WEAT) score.
 
     Args:
         target_embeddings (Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]): target word embeddings
