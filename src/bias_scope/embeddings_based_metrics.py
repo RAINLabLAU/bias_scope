@@ -76,7 +76,9 @@ def weat(
         for w in union_attribute_embeddings
     ]
 
-    return np.mean(cos_target1) - np.mean(cos_target2) / np.std(cos_target_union)
+    return np.mean(cos_target1) - np.mean(cos_target2) / np.std(
+        cos_target_union, ddof=1
+    )
 
 
 def seat(
