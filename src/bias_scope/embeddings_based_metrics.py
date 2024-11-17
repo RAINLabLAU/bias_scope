@@ -1,35 +1,37 @@
+from typing import Tuple
+
 import numpy as np
 import torch
 
-from bias_scope.utils import cosine_similarity
+from bias_scope.utils import cosine_similarity, to_numpy
 
 
 def weat(
-    target_embeddings1: torch.Tensor | np.ndarray,
-    target_embeddings2: torch.Tensor | np.ndarray,
-    attribute_embeddings1: torch.Tensor | np.ndarray,
-    attribute_embeddings2: torch.Tensor | np.ndarray,
+    target_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+    attribute_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
 ) -> float:
     """Computes the Word Embedding Association Test (WEAT) score.
 
     Args:
-        target_embeddings1 (torch.Tensor | np.ndarray): target embeddings for the first target group
-        target_embeddings2 (torch.Tensor | np.ndarray): target embeddings for the second target group
-        attribute_embeddings1 (torch.Tensor | np.ndarray): attribute embeddings for the first attribute group
-        attribute_embeddings2 (torch.Tensor | np.ndarray): attribute embeddings for the second attribute group
+        target_embeddings (Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]): target word embeddings
+        attribute_embeddings (Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]): attribute word embeddings
 
     Returns:
         float: weat score
     """
 
-    if isinstance(target_embeddings1, torch.Tensor):
-        target_embeddings1 = target_embeddings1.cpu().numpy()
-    if isinstance(target_embeddings2, torch.Tensor):
-        target_embeddings2 = target_embeddings2.cpu().numpy()
-    if isinstance(attribute_embeddings1, torch.Tensor):
-        attribute_embeddings1 = attribute_embeddings1.cpu().numpy()
-    if isinstance(attribute_embeddings2, torch.Tensor):
-        attribute_embeddings2 = attribute_embeddings2.cpu().numpy()
+    if len(target_embeddings) != 2 or len(attribute_embeddings) != 2:
+        raise ValueError(
+            "The target_embeddings and attribute_embeddings must have two elements each."
+        )
+
+    target_embeddings1, target_embeddings2 = target_embeddings
+    attribute_embeddings1, attribute_embeddings2 = attribute_embeddings
+
+    target_embeddings1 = to_numpy(target_embeddings1)
+    target_embeddings2 = to_numpy(target_embeddings2)
+    attribute_embeddings1 = to_numpy(attribute_embeddings1)
+    attribute_embeddings2 = to_numpy(attribute_embeddings2)
 
     def __similarity_measure(
         w: np.ndarray, a_embeddings1: np.ndarray, a_embeddings2: np.ndarray
