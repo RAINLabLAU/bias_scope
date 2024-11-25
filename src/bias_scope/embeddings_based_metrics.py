@@ -96,3 +96,10 @@ def seat(
     """
 
     return weat(target_sentence_embeddings, attributes_sentence_embeddings)
+
+
+def sentence_bias(
+    sentence_embeddings: Tuple[torch.tensor | np.ndarray],
+    words: Tuple[torch.tensor | np.numpy],
+):
+    pass
