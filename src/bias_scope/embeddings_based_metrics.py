@@ -64,32 +64,29 @@ def weat(
         for w in target_word_embeddings2
     ]
 
-    union_attribute_embeddings = np.union1d(
-        (target_word_embeddings1.flatten(), target_word_embeddings2.flatten())
-    )
-    union_attribute_embeddings = union_attribute_embeddings(
-        -1, target_word_embeddings1.shape[1]
+    union_target_embeddings = np.concatenate(
+        [target_word_embeddings1, target_word_embeddings2]
     )
 
     cos_target_union = [
         __similarity_measure(w, attribute_word_embeddings1, attribute_word_embeddings2)
-        for w in union_attribute_embeddings
+        for w in union_target_embeddings
     ]
 
-    return np.mean(cos_target1) - np.mean(cos_target2) / np.std(
+    return (np.mean(cos_target1) - np.mean(cos_target2)) / np.std(
         cos_target_union, ddof=1
     )
 
 
 def seat(
-    target_sentence_embeddings: Tuple[torch.tensor | np.ndarray],
-    attributes_sentence_embeddings: Tuple[torch.tensor | np.ndarray],
+    target_sentence_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+    attributes_sentence_embeddings: Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
 ) -> float:
     """
     Compute the Sentence Embedding Association Test (SEAT) score.
     Args:
-        target_sentence_embeddings (Tuple[torch.tensor  |  np.ndarray]): target sentence embeddings
-        attributes_sentence_embeddings (Tuple[torch.tensor  |  np.ndarray]): attribute sentence embeddings
+        target_sentence_embeddings (Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]): target sentence embeddings
+        attributes_sentence_embeddings (Tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray]): attribute sentence embeddings
 
     Returns:
         float: seat score
