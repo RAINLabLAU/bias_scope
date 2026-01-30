@@ -96,8 +96,8 @@ def seat(
 
 
 def sentence_bias(
-    words_sentence_embeddings: Tuple[torch.tensor | np.ndarray],
-    gendered_words: Tuple[torch.tensor | np.numpy],
-    words_importance: torch.tensor | np.ndarray,
+    words_sentence_embeddings: Tuple[torch.Tensor | np.ndarray],
+    gendered_words: Tuple[torch.Tensor | np.ndarray],
+    words_importance: torch.Tensor | np.ndarray,
 ) -> float:
     pass
