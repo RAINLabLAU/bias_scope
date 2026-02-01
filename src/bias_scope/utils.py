@@ -28,4 +28,6 @@ def to_numpy(x: torch.Tensor | np.ndarray) -> np.ndarray:
     """
     if isinstance(x, torch.Tensor):
         return x.cpu().numpy()
+    if not isinstance(x, np.ndarray):
+        return np.array(x)
     return x

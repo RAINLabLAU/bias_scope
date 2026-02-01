@@ -36,6 +36,23 @@ def weat(
     -----
     Based on Caliskan et al. (2017). Effect size formula:
         d = (mean_X - mean_Y) / std(X ∪ Y)
+
+    Examples
+    --------
+    Basic usage with word embeddings:
+
+    >>> import numpy as np
+    >>> # Male/Female names vs Career/Family words
+    >>> male_names = np.random.randn(5, 300)  # 300-dim embeddings
+    >>> female_names = np.random.randn(5, 300)
+    >>> career_words = np.random.randn(5, 300)
+    >>> family_words = np.random.randn(5, 300)
+    >>> 
+    >>> effect_size = weat(
+    ...     (male_names, female_names),
+    ...     (career_words, family_words)
+    ... )
+    >>> print(f"Gender-career bias effect size: {effect_size:.3f}")
     """
 
     if len(target_word_embeddings) != 2 or len(attribute_word_embeddings) != 2:
@@ -50,6 +67,46 @@ def weat(
     target_word_embeddings2 = to_numpy(target_word_embeddings2)
     attribute_word_embeddings1 = to_numpy(attribute_word_embeddings1)
     attribute_word_embeddings2 = to_numpy(attribute_word_embeddings2)
+
+    # Check for empty arrays
+    if len(target_word_embeddings1) == 0 or len(target_word_embeddings2) == 0:
+        raise ValueError(
+            "Target embeddings cannot be empty. "
+            f"Got {len(target_word_embeddings1)} and {len(target_word_embeddings2)} embeddings."
+        )
+
+    if len(attribute_word_embeddings1) == 0 or len(attribute_word_embeddings2) == 0:
+        raise ValueError(
+            "Attribute embeddings cannot be empty. "
+            f"Got {len(attribute_word_embeddings1)} and {len(attribute_word_embeddings2)} embeddings."
+        )
+
+    # Check dimension consistency
+    embedding_dims = [
+        target_word_embeddings1.shape[1],
+        target_word_embeddings2.shape[1],
+        attribute_word_embeddings1.shape[1],
+        attribute_word_embeddings2.shape[1]
+    ]
+
+    if len(set(embedding_dims)) != 1:
+        raise ValueError(
+            f"All embeddings must have the same dimensionality. "
+            f"Got dimensions: target1={embedding_dims[0]}, target2={embedding_dims[1]}, "
+            f"attr1={embedding_dims[2]}, attr2={embedding_dims[3]}"
+        )
+
+    # Check for NaN/Inf
+    for name, arr in [
+        ("target_word_embeddings1", target_word_embeddings1),
+        ("target_word_embeddings2", target_word_embeddings2),
+        ("attribute_word_embeddings1", attribute_word_embeddings1),
+        ("attribute_word_embeddings2", attribute_word_embeddings2)
+    ]:
+        if np.isnan(arr).any():
+            raise ValueError(f"{name} contains NaN values")
+        if np.isinf(arr).any():
+            raise ValueError(f"{name} contains Inf values")
 
     def __similarity_measure(
         w: np.ndarray, a_embeddings1: np.ndarray, a_embeddings2: np.ndarray
@@ -88,9 +145,24 @@ def weat(
         for w in union_target_embeddings
     ]
 
-    return float((np.mean(cos_target1) - np.mean(cos_target2)) / np.std(
-        cos_target_union, ddof=1
-    ))
+    std_union = np.std(cos_target_union, ddof=1)
+
+    # Handle zero/near-zero standard deviation
+    if std_union < 1e-10:  # Numerical threshold
+        raise ValueError(
+            "Standard deviation of association scores is zero or near-zero. "
+            "This occurs when all target embeddings have identical associations "
+            "with the attribute embeddings. Cannot compute effect size."
+        )
+
+    # Handle single element case (ddof=1 makes std undefined)
+    if len(cos_target_union) < 2:
+        raise ValueError(
+            "Need at least 2 total target embeddings to compute effect size. "
+            f"Got {len(cos_target_union)} embeddings total."
+        )
+
+    return float((np.mean(cos_target1) - np.mean(cos_target2)) / std_union)
 
 
 def seat(
@@ -159,11 +231,46 @@ def sentence_bias(
         BiasScore_F = sum(cos(word, g) * importance) for cos > 0
         BiasScore_M = sum(cos(word, g) * importance) for cos < 0
     where g is the gender direction and gendered words are excluded.
+
+    Examples
+    --------
+    Compute bias for a sentence:
+
+    >>> import numpy as np
+    >>> # 5 words, 300-dimensional embeddings
+    >>> words = np.random.randn(5, 300)
+    >>> gender_dir = np.random.randn(300)  # From PCA
+    >>> importance = np.array([0.15, 0.25, 0.20, 0.30, 0.10])
+    >>> 
+    >>> # Mark first word as gendered (e.g., "she")
+    >>> mask = np.array([True, False, False, False, False])
+    >>> 
+    >>> female_bias, male_bias = sentence_bias(
+    ...     words, gender_dir, importance, mask
+    ... )
+    >>> print(f"Female bias: {female_bias:.4f}")
+    >>> print(f"Male bias: {male_bias:.4f}")
     """
     # Convert to numpy
     word_embeddings = to_numpy(word_embeddings)
     gender_direction = to_numpy(gender_direction)
     word_importance = to_numpy(word_importance)
+
+    # Validate no NaN/Inf values
+    if np.isnan(word_embeddings).any():
+        raise ValueError("word_embeddings contains NaN values")
+    if np.isinf(word_embeddings).any():
+        raise ValueError("word_embeddings contains Inf values")
+
+    if np.isnan(gender_direction).any():
+        raise ValueError("gender_direction contains NaN values")
+    if np.isinf(gender_direction).any():
+        raise ValueError("gender_direction contains Inf values")
+
+    if np.isnan(word_importance).any():
+        raise ValueError("word_importance contains NaN values")
+    if np.isinf(word_importance).any():
+        raise ValueError("word_importance contains Inf values")
     
     # Input validation
     num_words = word_embeddings.shape[0]
@@ -180,9 +287,25 @@ def sentence_bias(
             f"Importance array length {word_importance.shape[0]} "
             f"does not match number of words {num_words}"
         )
+
+    # Validate importance values are non-negative
+    if (word_importance < 0).any():
+        raise ValueError(
+            "Word importance values must be non-negative. "
+            f"Found {np.sum(word_importance < 0)} negative values. "
+            f"Min value: {np.min(word_importance)}"
+        )
     
     # Normalize gender direction
-    gender_direction = gender_direction / np.linalg.norm(gender_direction)
+    gender_norm = np.linalg.norm(gender_direction)
+
+    if gender_norm < 1e-10:  # Numerical threshold
+        raise ValueError(
+            "Gender direction vector has zero or near-zero magnitude. "
+            "Cannot normalize. Please provide a non-zero gender direction vector."
+        )
+
+    gender_direction = gender_direction / gender_norm
     
     # Compute cosine similarity for each word
     word_biases = np.array([
@@ -193,11 +316,27 @@ def sentence_bias(
     # Exclude gendered words if mask provided
     if gender_words_mask is not None:
         gender_words_mask = to_numpy(gender_words_mask)
+        
+        # Validate mask length
         if gender_words_mask.shape[0] != num_words:
             raise ValueError(
                 f"Mask length {gender_words_mask.shape[0]} "
                 f"does not match number of words {num_words}"
             )
+        
+        # Validate mask is boolean type
+        if gender_words_mask.dtype != bool:
+            raise TypeError(
+                f"gender_words_mask must be boolean array. "
+                f"Got dtype: {gender_words_mask.dtype}. "
+                f"Convert using .astype(bool) if needed."
+            )
+        
+        # Validate not all masked
+        if gender_words_mask.all():
+            # This is valid - return zero bias
+            return 0.0, 0.0
+
         word_biases = word_biases * (~gender_words_mask)
     
     # Weight by importance
