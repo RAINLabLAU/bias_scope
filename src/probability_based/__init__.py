@@ -1,1 +1,1 @@
-from .disco import DisCoMetric
+from ..probability_based import DisCoMetric
