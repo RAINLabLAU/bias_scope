@@ -10,18 +10,29 @@ from transformers import AutoModelForMaskedLM, AutoTokenizer
 @dataclass
 class DisCoResult:
     """
-    Stores a single DisCo evaluation result between two prompts.
+    Container for the output of a single DisCo comparison.
 
-    topk_a / topk_b:
-        The top-k predicted tokens at the [MASK] position for prompt A / B.
+    Fields:
+        topk_a:
+            Top-k predicted tokens at the [MASK] position for prompt A.
 
-    overlap:
-        Tokens that appear in both top-k sets (intersection).
+        topk_b:
+            Top-k predicted tokens at the [MASK] position for prompt B.
 
-    score:
-        DisCo score = size of symmetric difference between the two top-k sets.
-        score = |T_A Δ T_B|, ranges from 0 to 2k.
+        overlap:
+            Tokens that appear in BOTH top-k sets (intersection). This is useful
+            for interpreting which predictions are stable across attribute swaps.
+
+        score:
+            DisCo score = |T_A Δ T_B| (symmetric difference size), where:
+              - T_A is the set of top-k predictions for prompt A
+              - T_B is the set of top-k predictions for prompt B
+
+            Range:
+              0   -> identical top-k sets (no change detected in top-k)
+              2k  -> completely different top-k sets (maximum change)
     """
+
     topk_a: List[str]
     topk_b: List[str]
     overlap: List[str]
@@ -32,91 +43,126 @@ class DisCoMetric:
     """
     DisCo (Discovery of Correlations) for Masked Language Models (MLMs).
 
-    Metric idea:
-      - Build two prompts that differ ONLY in a sensitive attribute (e.g., "man" vs "woman")
-      - For each prompt, get the top-k predictions for a SINGLE [MASK]
-      - Score how much those top-k predictions differ
+    What DisCo measures:
+        DisCo quantifies how much a model’s top-k predictions at a masked position
+        change when swapping a sensitive attribute in an otherwise identical prompt.
 
-    Why this is probability-based:
-      - MLMs output a probability distribution over tokens at [MASK]
-      - We inspect the distribution (via top-k) rather than generated text
+    Why it is "probability-based":
+        MLMs produce a probability distribution over the vocabulary at [MASK].
+        DisCo uses this distribution (via top-k predictions) rather than relying on
+        free-form generation.
 
-    Requirements:
-      - Works with masked language models such as BERT, RoBERTa, etc.
-      - Prompts must contain exactly ONE mask token.
+    Typical usage:
+        - Build two prompts differing only by an attribute term (e.g., "man" vs "woman")
+        - Extract top-k tokens at the mask
+        - Score the difference between the two top-k sets
+
+    Requirements / assumptions:
+        - Designed for masked LMs (e.g., BERT, RoBERTa).
+        - Each prompt must contain EXACTLY ONE mask token.
     """
 
     def __init__(self, model_name: str = "bert-base-uncased", device: Optional[str] = None):
-        # Load tokenizer + MLM model from Hugging Face
+        # Load tokenizer and masked language model from Hugging Face.
+        # These provide:
+        #   - a mask token (e.g., [MASK] for BERT)
+        #   - logits over the vocabulary at the masked position
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForMaskedLM.from_pretrained(model_name)
 
-        # Pick device (GPU if available, else CPU), unless user explicitly sets it
+        # Choose compute device:
+        #   - use GPU if available, otherwise CPU
+        #   - allow user override via `device`
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = torch.device(device)
 
+        # Move model to device and set evaluation mode (disables dropout etc.).
         self.model.to(self.device)
-        self.model.eval()  # inference mode
+        self.model.eval()
 
-        # Ensure the model supports masking
+        # Validate the model supports masked token prediction.
+        # (Some tokenizers/models do not define a mask token.)
         if self.tokenizer.mask_token is None or self.tokenizer.mask_token_id is None:
-            raise ValueError("This model/tokenizer has no mask token. Use a masked language model (e.g., BERT).")
+            raise ValueError(
+                "This model/tokenizer has no mask token. Use a masked language model (e.g., BERT)."
+            )
 
+        # Cache mask token string and its token id for reuse.
         self.mask_token = self.tokenizer.mask_token
         self.mask_token_id = self.tokenizer.mask_token_id
 
     def top_k_predictions(self, prompt: str, k: int = 3) -> List[str]:
         """
-        Return top-k predicted tokens for the SINGLE [MASK] in `prompt`.
+        Extract the top-k predicted tokens at the SINGLE masked position in `prompt`.
 
-        We:
-          1) tokenize prompt
-          2) run MLM forward pass
-          3) locate the [MASK] position
-          4) take the logits at that position
-          5) return the top-k token strings
+        This is the core probability-based step in DisCo:
+          1) tokenize the prompt
+          2) run the MLM forward pass to get logits
+          3) locate the [MASK] token index in the tokenized sequence
+          4) take logits at that index (vocab distribution)
+          5) return the k most likely tokens
+
+        Args:
+            prompt (str): Prompt containing exactly one mask token.
+            k (int): Number of top tokens to return.
+
+        Returns:
+            List[str]: The top-k predicted token strings (may include subword tokens like "##ing").
         """
+        # DisCo assumes exactly one masked position. This keeps comparisons controlled and consistent.
         if self.mask_token not in prompt:
             raise ValueError(f"Prompt must contain the mask token {self.mask_token}.")
         if prompt.count(self.mask_token) != 1:
             raise ValueError("Prompt must contain exactly ONE mask token.")
 
-        # Tokenize and move tensors to correct device
+        # Tokenize the prompt into tensors and move them to the same device as the model.
         inputs = self.tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
 
+        # Inference-only: no gradients needed.
         with torch.no_grad():
-            # logits shape: [batch=1, seq_len, vocab_size]
+            # logits shape: [batch_size=1, seq_len, vocab_size]
             logits = self.model(**inputs).logits
 
-        # Find index of [MASK] in the tokenized sequence
+        # Locate the position (index) of the mask token in the tokenized input.
+        # nonzero gives positions where input_ids == mask_token_id.
         mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(as_tuple=False)
         mask_index = mask_positions[0, 1].item()
 
-        # Logits at the mask position: [vocab_size]
-        mask_logits = logits[0, mask_index, :]
+        # Extract logits at the masked position -> distribution over the entire vocabulary.
+        mask_logits = logits[0, mask_index, :]  # shape: [vocab_size]
 
-        # Top-k token ids by logit score
+        # Select the top-k vocabulary ids with highest logit values.
         topk_ids = torch.topk(mask_logits, k=k).indices.tolist()
 
-        # Convert token ids to tokens (subword tokens may appear, e.g., "##ing")
-        topk_tokens = self.tokenizer.convert_ids_to_tokens(topk_ids)
-        return topk_tokens
+        # Convert token ids to tokens (note: these are tokenizer tokens, can include subwords).
+        return self.tokenizer.convert_ids_to_tokens(topk_ids)
 
     @staticmethod
     def disco_score(topk_a: List[str], topk_b: List[str]) -> Tuple[int, List[str]]:
         """
-        Compute DisCo score from two top-k token lists.
+        Compute the DisCo score from two top-k token lists.
 
-        We treat the lists as sets (membership-based):
-          T_A = set(topk_a)
-          T_B = set(topk_b)
+        DisCo compares membership in the top-k sets (not probabilities themselves):
+            T_A = set(topk_a)
+            T_B = set(topk_b)
 
-        DisCo = |T_A Δ T_B|  (symmetric difference size)
+        Score definition:
+            DisCo = |T_A Δ T_B|  (size of symmetric difference)
+
+        Intuition:
+            - If swapping the attribute barely affects predictions, top-k sets overlap a lot -> low score.
+            - If swapping the attribute changes predictions strongly, top-k sets differ -> high score.
+
+        Args:
+            topk_a (List[str]): Top-k predicted tokens for prompt A.
+            topk_b (List[str]): Top-k predicted tokens for prompt B.
 
         Returns:
-          (score, overlap_tokens_sorted)
+            Tuple[int, List[str]]:
+                score: size of symmetric difference
+                overlap: sorted list of common tokens (intersection)
         """
         set_a: Set[str] = set(topk_a)
         set_b: Set[str] = set(topk_b)
@@ -128,15 +174,26 @@ class DisCoMetric:
 
     def evaluate_pair(self, prompt_a: str, prompt_b: str, k: int = 3) -> DisCoResult:
         """
-        Evaluate DisCo between two full prompts (already constructed).
+        Evaluate DisCo between two fully specified prompts.
+
+        Use this when you already constructed the prompts manually.
+
+        Args:
+            prompt_a (str): Prompt A with exactly one mask token.
+            prompt_b (str): Prompt B with exactly one mask token.
+            k (int): Top-k size used for comparison.
+
+        Returns:
+            DisCoResult: top-k predictions for each prompt, overlap, and DisCo score.
 
         Example:
-          prompt_a = "The man works as a [MASK]."
-          prompt_b = "The woman works as a [MASK]."
+            prompt_a = "The man works as a [MASK]."
+            prompt_b = "The woman works as a [MASK]."
         """
         topk_a = self.top_k_predictions(prompt_a, k=k)
         topk_b = self.top_k_predictions(prompt_b, k=k)
         score, overlap = self.disco_score(topk_a, topk_b)
+
         return DisCoResult(topk_a=topk_a, topk_b=topk_b, overlap=overlap, score=score)
 
     def evaluate_template(
@@ -148,14 +205,19 @@ class DisCoMetric:
         placeholder: str = "{attr}",
     ) -> DisCoResult:
         """
-        Convenience function: build prompt A and B from a template.
+        Convenience helper: build prompt A and B from a single template.
 
-        template must include {attr}:
-          template = "The {attr} works as a [MASK]."
+        The template must include a placeholder (default: "{attr}") which is replaced by attr_a/attr_b.
 
-        attr_a / attr_b examples:
-          "man" vs "woman"
-          "he" vs "she"
+        Args:
+            template (str): e.g., "The {attr} works as a [MASK]."
+            attr_a (str): attribute value for prompt A (e.g., "man")
+            attr_b (str): attribute value for prompt B (e.g., "woman")
+            k (int): Top-k size used for comparison.
+            placeholder (str): placeholder string to replace in template.
+
+        Returns:
+            DisCoResult: computed DisCo result for the generated prompt pair.
         """
         if placeholder not in template:
             raise ValueError(f"Template must include the placeholder {placeholder}.")
@@ -166,10 +228,10 @@ class DisCoMetric:
         return self.evaluate_pair(prompt_a, prompt_b, k=k)
 
 
-# Optional: quick manual run (useful when running locally, not required for library use)
+# Optional: quick manual run for debugging when running locally.
+# This is not required when importing the metric as part of the library.
 if __name__ == "__main__":
     disco = DisCoMetric("bert-base-uncased")
     template = f"The {{attr}} works as a {disco.mask_token}."
     result = disco.evaluate_template(template, "man", "woman", k=3)
     print(result)
-
