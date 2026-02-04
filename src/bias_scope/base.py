@@ -46,7 +46,6 @@ class BiasMetric(ABC):
         """
         pass
     
-    @property
     @abstractmethod
     def name(self) -> str:
         """
@@ -59,7 +58,6 @@ class BiasMetric(ABC):
         """
         pass
     
-    @property
     @abstractmethod
     def category(self) -> str:
         """
@@ -72,7 +70,6 @@ class BiasMetric(ABC):
         """
         pass
     
-    @property
     def reference(self) -> Optional[str]:
         """
         Citation for the original paper.
@@ -84,7 +81,6 @@ class BiasMetric(ABC):
         """
         return None
     
-    @property
     def complexity(self) -> str:
         """
         Implementation complexity rating.
