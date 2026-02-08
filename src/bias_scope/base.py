@@ -132,3 +132,81 @@ class EmbeddingMetric(BiasMetric):
         
         if np.isinf(embeddings).any():
             raise ValueError(f"{name} contains Inf values")
+
+
+class ProbabilityMetric(BiasMetric):
+    """
+    Base class for probability-based bias metrics.
+    
+    Provides common validation methods for probabilities and sentence pairs.
+    All probability-based metrics (CrowS-Pairs, CAT, AUL, iCAT, AULA, LMB)
+    should inherit from this class.
+    """
+    
+    def category(self) -> str:
+        """Category is automatically set to 'probability'."""
+        return 'probability'
+    
+    def _validate_probabilities(
+        self,
+        probabilities: np.ndarray,
+        name: str = "probabilities"
+    ) -> None:
+        """
+        Validate probability array (PRIVATE helper).
+        
+        Checks that probabilities are valid: in [0,1], no NaN/Inf.
+        
+        Parameters
+        ----------
+        probabilities : np.ndarray
+            Probability array to validate
+        name : str, default="probabilities"
+            Name for error messages
+            
+        Raises
+        ------
+        ValueError
+            If probabilities are invalid
+        """
+        if len(probabilities) == 0:
+            raise ValueError(f"{name} cannot be empty")
+        
+        if np.isnan(probabilities).any():
+            raise ValueError(f"{name} contains NaN values")
+        
+        if np.isinf(probabilities).any():
+            raise ValueError(f"{name} contains Inf values")
+        
+        if (probabilities < 0).any() or (probabilities > 1).any():
+            raise ValueError(
+                f"{name} must be in range [0, 1]. "
+                f"Got min={np.min(probabilities)}, max={np.max(probabilities)}"
+            )
+    
+    def _validate_sentence_pair(
+        self,
+        sentence1: list,
+        sentence2: list
+    ) -> None:
+        """
+        Validate sentence pair for pseudo-log-likelihood metrics (PRIVATE).
+        
+        Parameters
+        ----------
+        sentence1, sentence2 : list
+            Tokenized sentences to validate
+            
+        Raises
+        ------
+        ValueError
+            If sentences are invalid (empty, different lengths)
+        """
+        if len(sentence1) == 0 or len(sentence2) == 0:
+            raise ValueError("Sentences cannot be empty")
+        
+        if len(sentence1) != len(sentence2):
+            raise ValueError(
+                f"Sentence pairs must have same length. "
+                f"Got {len(sentence1)} and {len(sentence2)} tokens."
+            )
