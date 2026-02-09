@@ -18,20 +18,11 @@ class TestWEAT:
         
         # Test OO API
         weat_instance = WEAT()
-        score = weat_instance.compute((target1, target2), (attr1, attr2))
+        score = weat_instance.evaluate((target1, target2), (attr1, attr2))
         
         assert isinstance(score, float)
         assert not np.isnan(score)
         assert score > 0
-    
-    def test_metadata_properties(self):
-        """Test metric metadata is accessible."""
-        weat_instance = WEAT()
-        
-        assert weat_instance.name == "WEAT"
-        assert weat_instance.category == "embedding"
-        assert weat_instance.complexity == "medium"
-        assert "Caliskan" in weat_instance.reference
     
     def test_with_torch_tensors(self):
         """Test WEAT handles PyTorch tensors."""
@@ -42,7 +33,7 @@ class TestWEAT:
         attr1 = torch.randn(2, 10)
         attr2 = torch.randn(2, 10)
         
-        score = weat.compute((target1, target2), (attr1, attr2))
+        score = weat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
     
     def test_identical_targets(self):
@@ -53,7 +44,7 @@ class TestWEAT:
         attr1 = np.random.randn(3, 20)
         attr2 = np.random.randn(3, 20)
         
-        score = weat.compute((target, target), (attr1, attr2))
+        score = weat.evaluate((target, target), (attr1, attr2))
         assert abs(score) < 0.01
     
     def test_raises_on_wrong_input(self):
@@ -64,10 +55,10 @@ class TestWEAT:
         attr = np.random.randn(2, 10)
         
         with pytest.raises(ValueError, match="must have exactly 2 elements"):
-            weat.compute((target,), (attr, attr))
+            weat.evaluate((target,), (attr, attr))
         
         with pytest.raises(ValueError, match="must have exactly 2 elements"):
-            weat.compute((target, target), (attr,))
+            weat.evaluate((target, target), (attr,))
 
     def test_weat_single_embedding_per_group(self):
         """Test WEAT with single embedding in each group."""
@@ -79,7 +70,7 @@ class TestWEAT:
         attr2 = np.random.randn(1, 10)
         
         # Should return a valid score (float) as we have 2 embeddings total (1+1)
-        score = weat.compute((target1, target2), (attr1, attr2))
+        score = weat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
 
     def test_weat_empty_attribute_embeddings(self):
@@ -92,7 +83,7 @@ class TestWEAT:
         attr2 = np.random.randn(3, 10)
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_weat_zero_std(self):
         """Test WEAT raises error when standard deviation is zero."""
@@ -105,7 +96,7 @@ class TestWEAT:
         attr2 = -np.ones((1, 10))
         
         with pytest.raises(ValueError, match="Standard deviation .* is zero"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_weat_empty_embeddings(self):
         """Test WEAT raises error with empty arrays."""
@@ -117,7 +108,7 @@ class TestWEAT:
         attr2 = np.random.randn(3, 10)
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_weat_high_dimensional_embeddings(self):
         """Test WEAT with realistic embedding dimensions."""
@@ -130,7 +121,7 @@ class TestWEAT:
             attr1 = np.random.randn(5, dim)
             attr2 = np.random.randn(5, dim)
             
-            score = weat.compute((target1, target2), (attr1, attr2))
+            score = weat.evaluate((target1, target2), (attr1, attr2))
             assert isinstance(score, float)
 
     def test_weat_nan_in_embeddings(self):
@@ -144,7 +135,7 @@ class TestWEAT:
         attr2 = np.random.randn(3, 10)
         
         with pytest.raises(ValueError, match="contains NaN values"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_weat_inf_in_embeddings(self):
         """Test WEAT handles Inf values."""
@@ -157,7 +148,7 @@ class TestWEAT:
         attr2 = np.random.randn(3, 10)
         
         with pytest.raises(ValueError, match="contains Inf values"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_weat_mismatched_dimensions(self):
         """Test WEAT with mismatched embedding dimensions."""
@@ -169,7 +160,7 @@ class TestWEAT:
         attr2 = np.random.randn(3, 100)
         
         with pytest.raises(ValueError, match="must have same dimension"):
-            weat.compute((target1, target2), (attr1, attr2))
+            weat.evaluate((target1, target2), (attr1, attr2))
 
     def test_input_types_list(self):
         """Test functions handle Python lists (type conversion coverage)."""
@@ -181,7 +172,7 @@ class TestWEAT:
         attr2 = [[0.0, 1.0]]
         
         # WEAT with lists
-        score = weat.compute((target1, target2), (attr1, attr2))
+        score = weat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
     
     def test_different_group_sizes(self):
@@ -193,5 +184,5 @@ class TestWEAT:
         attr1 = np.random.randn(5, 10)
         attr2 = np.random.randn(2, 10)
         
-        score = weat.compute((target1, target2), (attr1, attr2))
+        score = weat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)

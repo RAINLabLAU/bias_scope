@@ -19,7 +19,7 @@ class TestCEAT:
         attr1 = np.random.randn(40, 768)
         attr2 = np.random.randn(40, 768)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -53,7 +53,7 @@ class TestCEAT:
         attr1 = np.random.randn(10, 300)
         attr2 = np.random.randn(10, 300)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=20,
@@ -74,7 +74,7 @@ class TestCEAT:
         attr1 = np.random.randn(80, 768)
         attr2 = np.random.randn(80, 768)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=100,
@@ -93,14 +93,14 @@ class TestCEAT:
         attr1 = np.random.randn(40, 300)
         attr2 = np.random.randn(40, 300)
         
-        result1 = ceat.compute(
+        result1 = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
             random_seed=42
         )
         
-        result2 = ceat.compute(
+        result2 = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -122,14 +122,14 @@ class TestCEAT:
         attr1 = np.random.randn(40, 300)
         attr2 = np.random.randn(40, 300)
         
-        result1 = ceat.compute(
+        result1 = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
             random_seed=42
         )
         
-        result2 = ceat.compute(
+        result2 = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -149,7 +149,7 @@ class TestCEAT:
         attr1 = np.random.randn(40, 300)
         attr2 = np.random.randn(40, 300)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -168,7 +168,7 @@ class TestCEAT:
         attr1 = np.random.randn(40, 300)
         attr2 = np.random.randn(40, 300)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -188,7 +188,7 @@ class TestCEAT:
         attr2 = np.random.randn(40, 300)
         
         # Small sample size should work
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=30,
@@ -209,7 +209,7 @@ class TestCEAT:
         attr2 = np.random.randn(20, 300)
         
         # Should auto-select sample_size = min(10, 7) = 7
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=20,
@@ -229,7 +229,7 @@ class TestCEAT:
         attr2 = np.random.randn(5, 300)
         
         with pytest.raises(ValueError, match="sample_size"):
-            ceat.compute(
+            ceat.evaluate(
                 (target1, target2),
                 (attr1, attr2),
                 sample_size=10
@@ -245,7 +245,7 @@ class TestCEAT:
         attr2 = np.random.randn(40, 100)
         
         with pytest.raises(ValueError, match="dimension"):
-            ceat.compute((target1, target2), (attr1, attr2))
+            ceat.evaluate((target1, target2), (attr1, attr2))
     
     def test_validates_n_samples_positive(self):
         """Test n_samples must be positive."""
@@ -258,7 +258,7 @@ class TestCEAT:
         
         # Zero samples
         with pytest.raises(ValueError, match="positive"):
-            ceat.compute(
+            ceat.evaluate(
                 (target1, target2),
                 (attr1, attr2),
                 n_samples=0
@@ -266,7 +266,7 @@ class TestCEAT:
         
         # Negative samples
         with pytest.raises(ValueError, match="positive"):
-            ceat.compute(
+            ceat.evaluate(
                 (target1, target2),
                 (attr1, attr2),
                 n_samples=-1
@@ -283,7 +283,7 @@ class TestCEAT:
         attr2 = np.random.randn(40, 300)
         
         with pytest.raises(ValueError, match="NaN"):
-            ceat.compute((target1, target2), (attr1, attr2))
+            ceat.evaluate((target1, target2), (attr1, attr2))
     
     def test_inf_in_embeddings(self):
         """Test Inf detection."""
@@ -296,7 +296,7 @@ class TestCEAT:
         attr2 = np.random.randn(40, 300)
         
         with pytest.raises(ValueError, match="Inf"):
-            ceat.compute((target1, target2), (attr1, attr2))
+            ceat.evaluate((target1, target2), (attr1, attr2))
     
     def test_high_dimensional_embeddings(self):
         """Test with realistic BERT dimensions (768-dim)."""
@@ -307,7 +307,7 @@ class TestCEAT:
         attr1 = np.random.randn(40, 768)
         attr2 = np.random.randn(40, 768)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=50,
@@ -326,7 +326,7 @@ class TestCEAT:
         attr1 = np.random.randn(40, 300)
         attr2 = np.random.randn(40, 300)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=1,
@@ -337,16 +337,6 @@ class TestCEAT:
         # Variance should be undefined but handled gracefully
         assert isinstance(result['ceat_score'], float)
     
-    def test_metadata_properties(self):
-        """Test metric metadata is accessible."""
-        ceat = CEAT()
-        
-        assert ceat.name == "CEAT"
-        assert ceat.category == "embedding"
-        assert ceat.complexity == "hard"
-        assert "Guo" in ceat.reference
-        assert "Caliskan" in ceat.reference
-    
     def test_with_torch_tensors(self):
         """Test CEAT handles PyTorch tensors."""
         ceat = CEAT()
@@ -356,7 +346,7 @@ class TestCEAT:
         attr1 = torch.randn(40, 300)
         attr2 = torch.randn(40, 300)
         
-        result = ceat.compute(
+        result = ceat.evaluate(
             (target1, target2),
             (attr1, attr2),
             n_samples=30,
@@ -374,8 +364,8 @@ class TestCEAT:
         
         # Wrong number of target groups
         with pytest.raises(ValueError, match="exactly 2 elements"):
-            ceat.compute((target,), (attr, attr))
+            ceat.evaluate((target,), (attr, attr))
         
         # Wrong number of attribute groups
         with pytest.raises(ValueError, match="exactly 2 elements"):
-            ceat.compute((target, target), (attr,))
+            ceat.evaluate((target, target), (attr,))

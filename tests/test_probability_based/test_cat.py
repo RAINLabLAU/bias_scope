@@ -30,7 +30,7 @@ class TestCAT:
             }
         ]
         
-        result = cat.compute(tests, biased_predict)
+        result = cat.evaluate(tests, biased_predict)
         
         assert 'lms' in result
         assert 'ss' in result
@@ -58,20 +58,11 @@ class TestCAT:
             }
         ]
         
-        result = cat.compute(tests, unbiased_predict)
+        result = cat.evaluate(tests, unbiased_predict)
         
         assert result['lms'] == 100.0  # Always chose meaningful
         # With equal probs, tie-breaking might vary
         assert 0.0 <= result['ss'] <= 100.0
-    
-    def test_metadata_properties(self):
-        """Test metric metadata."""
-        cat = CAT()
-        
-        assert cat.name() == "CAT"
-        assert cat.category() == "probability"
-        assert cat.complexity() == "medium"
-        assert "Nadeem" in cat.reference()
     
     def test_empty_test_cases_raises_error(self):
         """Test empty test cases raises error."""
@@ -81,7 +72,7 @@ class TestCAT:
             return 0.5
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            cat.compute([], mock_predict)
+            cat.evaluate([], mock_predict)
     
     def test_missing_context_key_raises_error(self):
         """Test missing context key raises error."""
@@ -97,7 +88,7 @@ class TestCAT:
         }]
         
         with pytest.raises(ValueError, match="missing required key 'context'"):
-            cat.compute(tests, mock_predict)
+            cat.evaluate(tests, mock_predict)
     
     def test_missing_stereotype_key_raises_error(self):
         """Test missing stereotype key raises error."""
@@ -113,7 +104,7 @@ class TestCAT:
         }]
         
         with pytest.raises(ValueError, match="missing required key 'stereotype'"):
-            cat.compute(tests, mock_predict)
+            cat.evaluate(tests, mock_predict)
     
     def test_no_mask_token_raises_error(self):
         """Test context without [MASK] raises error."""
@@ -130,7 +121,7 @@ class TestCAT:
         }]
         
         with pytest.raises(ValueError, match="must contain \\[MASK\\] token"):
-            cat.compute(tests, mock_predict)
+            cat.evaluate(tests, mock_predict)
     
     def test_invalid_probabilities_raise_error(self):
         """Test invalid probabilities raise error."""
@@ -147,7 +138,7 @@ class TestCAT:
         }]
         
         with pytest.raises(ValueError, match="must be in range"):
-            cat.compute(tests, bad_predict)
+            cat.evaluate(tests, bad_predict)
     
     def test_negative_probabilities_raise_error(self):
         """Test negative probabilities raise error."""
@@ -164,7 +155,7 @@ class TestCAT:
         }]
         
         with pytest.raises(ValueError, match="must be in range"):
-            cat.compute(tests, bad_predict)
+            cat.evaluate(tests, bad_predict)
     
     def test_multiple_test_cases(self):
         """Test with multiple test cases."""
@@ -190,7 +181,7 @@ class TestCAT:
             }
         ]
         
-        result = cat.compute(tests, mock_predict)
+        result = cat.evaluate(tests, mock_predict)
         
         assert result['n_examples'] == 2
         assert result['lms'] == 100.0
@@ -211,7 +202,7 @@ class TestCAT:
             'meaningless': "tree"
         }]
         
-        result = cat.compute(tests, bad_predict)
+        result = cat.evaluate(tests, bad_predict)
         
         assert result['lms'] == 0.0  # Chose meaningless
     
@@ -234,7 +225,7 @@ class TestCAT:
             'meaningless': "tree"
         }]
         
-        result = cat.compute(tests, anti_bias_predict)
+        result = cat.evaluate(tests, anti_bias_predict)
         
         assert result['lms'] == 100.0
         assert result['ss'] == 0.0  # Chose anti-stereotype
@@ -254,8 +245,8 @@ class TestCAT:
             'meaningless': "tree"
         }]
         
-        result1 = cat.compute(tests, deterministic_predict)
-        result2 = cat.compute(tests, deterministic_predict)
+        result1 = cat.evaluate(tests, deterministic_predict)
+        result2 = cat.evaluate(tests, deterministic_predict)
         
         assert result1 == result2
     
@@ -273,7 +264,7 @@ class TestCAT:
             'meaningless': "tree"
         }]
         
-        result = cat.compute(tests, mock_predict)
+        result = cat.evaluate(tests, mock_predict)
         
         assert isinstance(result['lms'], float)
         assert isinstance(result['ss'], float)
@@ -292,7 +283,7 @@ class TestCAT:
             'meaningless': "tree"
         } for _ in range(10)]
         
-        result = cat.compute(tests, mock_predict)
+        result = cat.evaluate(tests, mock_predict)
         
         assert 0.0 <= result['lms'] <= 100.0
         assert 0.0 <= result['ss'] <= 100.0

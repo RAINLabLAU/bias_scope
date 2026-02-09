@@ -21,7 +21,7 @@ class TestSentenceBiasScore:
         
         # Test OO API
         sbs = SentenceBiasScore()
-        female_bias, male_bias = sbs.compute(
+        female_bias, male_bias = sbs.evaluate(
             word_embeddings, gender_direction, importance
         )
         
@@ -29,15 +29,6 @@ class TestSentenceBiasScore:
         assert isinstance(male_bias, float)
         assert female_bias > 0
         assert male_bias < 0
-    
-    def test_metadata_properties(self):
-        """Test metric metadata is accessible."""
-        sbs = SentenceBiasScore()
-        
-        assert sbs.name == "Sentence Bias Score"
-        assert sbs.category == "embedding"
-        assert sbs.complexity == "easy"
-        assert "Dolci" in sbs.reference
     
     def test_gender_word_exclusion(self):
         """Test that masked words are excluded."""
@@ -51,10 +42,10 @@ class TestSentenceBiasScore:
         importance = np.array([0.5, 0.5])
         mask = np.array([True, False])
         
-        bias_with_mask, _ = sbs.compute(
+        bias_with_mask, _ = sbs.evaluate(
             word_embeddings, gender_direction, importance, mask
         )
-        bias_without_mask, _ = sbs.compute(
+        bias_without_mask, _ = sbs.evaluate(
             word_embeddings, gender_direction, importance
         )
         
@@ -73,8 +64,8 @@ class TestSentenceBiasScore:
         importance_low = np.array([0.1, 0.1])
         importance_high = np.array([0.9, 0.9])
         
-        bias_low, _ = sbs.compute(word_embeddings, gender_direction, importance_low)
-        bias_high, _ = sbs.compute(word_embeddings, gender_direction, importance_high)
+        bias_low, _ = sbs.evaluate(word_embeddings, gender_direction, importance_low)
+        bias_high, _ = sbs.evaluate(word_embeddings, gender_direction, importance_high)
         
         assert bias_high > bias_low
     
@@ -86,7 +77,7 @@ class TestSentenceBiasScore:
         gender_direction = torch.randn(100)
         importance = torch.rand(5)
         
-        female_bias, male_bias = sbs.compute(
+        female_bias, male_bias = sbs.evaluate(
             word_embeddings, gender_direction, importance
         )
         
@@ -101,7 +92,7 @@ class TestSentenceBiasScore:
         gender_direction = np.array([1.0, 0.0])
         importance = np.array([1.0, 0.0])
         
-        female_bias, _ = sbs.compute(
+        female_bias, _ = sbs.evaluate(
             word_embeddings, gender_direction, importance
         )
         
@@ -116,7 +107,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.2] * 5)
         
         with pytest.raises(ValueError, match="does not match embedding dimension"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
     
     def test_validates_importance_length(self):
         """Test raises error on wrong importance length."""
@@ -127,7 +118,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.2] * 3)  # Wrong length
         
         with pytest.raises(ValueError, match="does not match number of words"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
     
     def test_validates_mask_length(self):
         """Test raises error on wrong mask length."""
@@ -139,7 +130,7 @@ class TestSentenceBiasScore:
         mask = np.array([True, False, True])  # Wrong length
         
         with pytest.raises(ValueError, match="does not match number of words"):
-            sbs.compute(word_embeddings, gender_direction, importance, mask)
+            sbs.evaluate(word_embeddings, gender_direction, importance, mask)
 
     def test_sentence_bias_all_words_masked(self):
         """Test behavior when all words are masked."""
@@ -151,7 +142,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.2] * num_words)
         mask = np.ones(num_words, dtype=bool)  # All True
         
-        female_bias, male_bias = sbs.compute(
+        female_bias, male_bias = sbs.evaluate(
             word_embeddings, gender_direction, importance, mask
         )
         assert female_bias == 0.0
@@ -168,9 +159,9 @@ class TestSentenceBiasScore:
         mask = np.zeros(num_words, dtype=bool)  # All False
         
         # With mask
-        fb1, mb1 = sbs.compute(word_embeddings, gender_direction, importance, mask)
+        fb1, mb1 = sbs.evaluate(word_embeddings, gender_direction, importance, mask)
         # Without mask argument
-        fb2, mb2 = sbs.compute(word_embeddings, gender_direction, importance)
+        fb2, mb2 = sbs.evaluate(word_embeddings, gender_direction, importance)
         
         assert fb1 == fb2
         assert mb1 == mb2
@@ -183,7 +174,7 @@ class TestSentenceBiasScore:
         gender_direction = np.random.randn(100)
         importance = np.array([1.0])
         
-        fb, mb = sbs.compute(word_embeddings, gender_direction, importance)
+        fb, mb = sbs.evaluate(word_embeddings, gender_direction, importance)
         assert isinstance(fb, float)
         assert isinstance(mb, float)
 
@@ -197,7 +188,7 @@ class TestSentenceBiasScore:
         importance = np.random.rand(num_words)
         importance /= importance.sum()  # Normalize
         
-        fb, mb = sbs.compute(word_embeddings, gender_direction, importance)
+        fb, mb = sbs.evaluate(word_embeddings, gender_direction, importance)
         assert isinstance(fb, float)
 
     def test_sentence_bias_negative_importance(self):
@@ -209,7 +200,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.5, 0.6, -0.1])
         
         with pytest.raises(ValueError, match="must be non-negative"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
 
     def test_sentence_bias_nan_in_embeddings(self):
         """Test handles NaN in word embeddings."""
@@ -221,7 +212,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.3, 0.3, 0.4])
         
         with pytest.raises(ValueError, match="contains NaN values"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
 
     def test_sentence_bias_inf_error(self):
         """Test handles Inf values in inputs."""
@@ -234,14 +225,14 @@ class TestSentenceBiasScore:
         word_embeddings = np.random.randn(3, 100)
         word_embeddings[0, 0] = np.inf
         with pytest.raises(ValueError, match="contains Inf values"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
             
         # Inf in importance
         word_embeddings = np.random.randn(3, 100)
         importance_inf = importance.copy()
         importance_inf[0] = np.inf
         with pytest.raises(ValueError, match="contains Inf values"):
-            sbs.compute(word_embeddings, gender_direction, importance_inf)
+            sbs.evaluate(word_embeddings, gender_direction, importance_inf)
 
     def test_sentence_bias_importance_normalization(self):
         """Test works with importance not summing to 1.0."""
@@ -252,7 +243,7 @@ class TestSentenceBiasScore:
         # Importance sums to 10.0, should still work
         importance = np.array([3.0, 3.0, 4.0]) 
         
-        fb, mb = sbs.compute(word_embeddings, gender_direction, importance)
+        fb, mb = sbs.evaluate(word_embeddings, gender_direction, importance)
         assert isinstance(fb, float)
 
     def test_sentence_bias_zero_gender_direction(self):
@@ -264,7 +255,7 @@ class TestSentenceBiasScore:
         importance = np.array([0.3, 0.3, 0.4])
         
         with pytest.raises(ValueError, match="zero or near-zero magnitude"):
-            sbs.compute(word_embeddings, gender_direction, importance)
+            sbs.evaluate(word_embeddings, gender_direction, importance)
 
     def test_sentence_bias_non_boolean_mask(self):
         """Test sentence_bias with non-boolean mask values."""
@@ -276,7 +267,7 @@ class TestSentenceBiasScore:
         mask = np.array([1, 0, 1])  # Integers
         
         with pytest.raises(TypeError, match="must be boolean array"):
-            sbs.compute(word_embeddings, gender_direction, importance, mask)
+            sbs.evaluate(word_embeddings, gender_direction, importance, mask)
 
 
 class TestIntegration:
@@ -293,8 +284,8 @@ class TestIntegration:
         gender_direction = np.random.randn(300)
         importance = np.array([0.2] * 5)
         
-        fb1, mb1 = sbs.compute(word_embeddings, gender_direction, importance)
-        fb2, mb2 = sbs.compute(word_embeddings, gender_direction, importance)
+        fb1, mb1 = sbs.evaluate(word_embeddings, gender_direction, importance)
+        fb2, mb2 = sbs.evaluate(word_embeddings, gender_direction, importance)
         
         assert fb1 == fb2
         assert mb1 == mb2

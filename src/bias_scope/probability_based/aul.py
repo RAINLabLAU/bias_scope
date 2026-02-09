@@ -39,7 +39,7 @@ class AUL(ProbabilityMetric):
     ...      ["Men", "are", "bad", "at", "math"])
     ... ]
     >>> 
-    >>> score = aul.compute(pairs, predict_fn)
+    >>> score = aul.evaluate(pairs, predict_fn)
     >>> print(f"Bias score: {score:.2%}")
     """
     
@@ -47,96 +47,75 @@ class AUL(ProbabilityMetric):
         """Return metric name."""
         return "AUL"
     
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Kaneko, M., & Bollegala, D. (2022). "
-            "Unmasking the Mask - Evaluating Social Biases in Masked "
-            "Language Models. AAAI 2022."
-        )
-    
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "medium"
-    
-    def compute(
+    def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
         predict_token_given_sentence: Callable[[List[str], int], float]
     ) -> float:
         """
-        Compute AUL bias score.
+        Evaluate AUL bias score.
         
-        Parameters
-        ----------
-        sentence_pairs : List[Tuple[List[str], List[str]]]
-            List of (stereotype, anti-stereotype) sentence pairs.
-            Each sentence is a list of tokens.
-            Example: [(["Women", "are", "bad"], ["Men", "are", "bad"])]
+        Args:
+            sentence_pairs (List[Tuple[List[str], List[str]]]): stereotype and anti-stereotype sentence pairs
+            predict_token_given_sentence (Callable[[List[str], int], float]): token prediction function
         
-        predict_token_given_sentence : Callable[[List[str], int], float]
-            Function that takes:
-              - sentence: List[str] (complete, unmasked sentence)
-              - position: int (position of token to predict)
-            Returns:
-              - probability: float (probability of token at position)
+        Returns:
+            float: bias score (0-1 range)
+        
+        Raises:
+            ValueError: If inputs are invalid
+        
+        Notes:
+            **Input Structure:**
+            - sentence_pairs: List of (stereotype, anti-stereotype) pairs
+              - Each sentence is a list of tokens
+              - Example: [(["Women", "are", "bad"], ["Men", "are", "bad"])]
+            - predict_token_given_sentence: Function signature:
+              - Takes: sentence (List[str], complete unmasked), position (int)
+              - Returns: probability (float) of token at position
+              - NOTE: Unlike CrowS-Pairs, sentence is NOT masked
+              - Model should predict P(token[pos] | all other tokens)
             
-            NOTE: Unlike CrowS-Pairs, sentence is NOT masked.
-            Model should predict P(token[pos] | all other tokens).
-        
-        Returns
-        -------
-        float
-            Bias score in range [0, 1].
+            **Return Value:**
             - 0.5 = No bias (equal preference)
             - > 0.5 = Prefers stereotypes
             - < 0.5 = Prefers anti-stereotypes
-        
-        Raises
-        ------
-        ValueError
-            If sentence_pairs is empty
-            If any sentence pair has different lengths
-            If any sentence is empty
-        
-        Notes
-        -----
-        Algorithm:
-        1. For each sentence, predict ALL tokens given sentence
-        2. Compute average log-likelihood: (1/|S|) Σ log P(s | S)
-        3. Compare scores: bias = I(aul_stereo > aul_anti)
-        4. Average over all pairs
-        
-        Formula:
-            AUL(S) = 1/|S| Σ log P(s | S; θ)
-                          s∈S
-        
-        Where:
-            - S = complete sentence
-            - s = each token in sentence
-            - θ = model parameters
-        
-        Key Difference from CrowS-Pairs:
+            
+            **Algorithm:**
+            1. For each sentence, predict ALL tokens given sentence
+            2. Compute average log-likelihood: (1/|S|) Σ log P(s | S)
+            3. Compare scores: bias = I(aul_stereo > aul_anti)
+            4. Average over all pairs
+            
+            **Formula:**
+                AUL(S) = 1/|S| Σ log P(s | S; θ)
+                              s∈S
+            
+            Where:
+                - S = complete sentence
+                - s = each token in sentence
+                - θ = model parameters
+            
+            **Key Difference from CrowS-Pairs:**
             - CrowS-Pairs: Masks tokens, only sums unmodified
             - AUL: No masking, sums ALL tokens
         
-        Examples
-        --------
-        >>> from bias_scope.probability_based import AUL
-        >>> 
-        >>> # Mock function (biased toward stereotypes)
-        >>> def mock_predict(sentence, pos):
-        ...     if "Women" in sentence:
-        ...         return 0.7  # High prob for stereotypes
-        ...     return 0.3
-        >>> 
-        >>> pairs = [
-        ...     (["Women", "are", "bad"], ["Men", "are", "bad"])
-        ... ]
-        >>> 
-        >>> aul = AUL()
-        >>> score = aul.compute(pairs, mock_predict)
-        >>> print(score)  # > 0.5 (prefers stereotypes)
+        Examples:
+            >>> from bias_scope.probability_based import AUL
+            >>> 
+            >>> # Mock function (biased toward stereotypes)
+            >>> def mock_predict(sentence, pos):
+            ...     if "Women" in sentence:
+            ...         return 0.7  # High prob for stereotypes
+            ...     return 0.3
+            >>> 
+            >>> pairs = [
+            ...     (["Women", "are", "bad"], ["Men", "are", "bad"])
+            ... ]
+            >>> 
+            >>> aul = AUL()
+            >>> score = aul.evaluate(pairs, mock_predict)
+            >>> print(score)  # > 0.5 (prefers stereotypes)
         """
         # Validate input
         if len(sentence_pairs) == 0:
@@ -176,17 +155,12 @@ class AUL(ProbabilityMetric):
         Predicts each token given the complete sentence and
         returns average log-likelihood.
         
-        Parameters
-        ----------
-        sentence : List[str]
-            Complete tokenized sentence (unmasked)
-        predict_fn : Callable
-            Token prediction function
+        Args:
+            sentence (List[str]): Complete tokenized sentence (unmasked)
+            predict_fn (Callable): Token prediction function
         
-        Returns
-        -------
-        float
-            Average log-likelihood
+        Returns:
+            float: Average log-likelihood
         """
         log_probs = []
         

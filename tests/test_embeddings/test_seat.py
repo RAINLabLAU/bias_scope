@@ -18,19 +18,10 @@ class TestSEAT:
         
         # Test OO API
         seat_instance = SEAT()
-        score = seat_instance.compute((target1, target2), (attr1, attr2))
+        score = seat_instance.evaluate((target1, target2), (attr1, attr2))
         
         assert isinstance(score, float)
         assert not np.isnan(score)
-    
-    def test_metadata_properties(self):
-        """Test metric metadata is accessible."""
-        seat_instance = SEAT()
-        
-        assert seat_instance.name == "SEAT"
-        assert seat_instance.category == "embedding"
-        assert seat_instance.complexity == "easy"
-        assert "May" in seat_instance.reference
     
     def test_calls_weat(self):
         """Test SEAT produces same result as WEAT."""
@@ -44,8 +35,8 @@ class TestSEAT:
         weat = WEAT()
         seat = SEAT()
         
-        weat_score = weat.compute((target1, target2), (attr1, attr2))
-        seat_score = seat.compute((target1, target2), (attr1, attr2))
+        weat_score = weat.evaluate((target1, target2), (attr1, attr2))
+        seat_score = seat.evaluate((target1, target2), (attr1, attr2))
         
         assert weat_score == seat_score
     
@@ -58,7 +49,7 @@ class TestSEAT:
         attr1 = np.random.randn(3, 768)
         attr2 = np.random.randn(3, 768)
         
-        score = seat.compute((target1, target2), (attr1, attr2))
+        score = seat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
         assert not np.isnan(score)
 
@@ -71,7 +62,7 @@ class TestSEAT:
         attr1 = np.random.randn(3, 768)
         attr2 = np.random.randn(3, 768)
         
-        score = seat.compute((target1, target2), (attr1, attr2))
+        score = seat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
 
     def test_seat_different_group_sizes(self):
@@ -83,7 +74,7 @@ class TestSEAT:
         attr1 = np.random.randn(5, 768)
         attr2 = np.random.randn(2, 768)
         
-        score = seat.compute((target1, target2), (attr1, attr2))
+        score = seat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
     
     def test_with_torch_tensors(self):
@@ -95,5 +86,5 @@ class TestSEAT:
         attr1 = torch.randn(3, 768)
         attr2 = torch.randn(3, 768)
         
-        score = seat.compute((target1, target2), (attr1, attr2))
+        score = seat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)

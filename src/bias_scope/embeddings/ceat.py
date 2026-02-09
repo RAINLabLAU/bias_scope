@@ -1,6 +1,6 @@
 """Contextualized Embedding Association Test (CEAT)."""
 
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 import numpy as np
 import torch
 
@@ -46,7 +46,7 @@ class CEAT(EmbeddingMetric):
     >>> career_embeddings = np.random.randn(40, 768)
     >>> family_embeddings = np.random.randn(40, 768)
     >>> 
-    >>> result = ceat.compute(
+    >>> result = ceat.evaluate(
     ...     (male_embeddings, female_embeddings),
     ...     (career_embeddings, family_embeddings),
     ...     n_samples=100,
@@ -63,21 +63,7 @@ class CEAT(EmbeddingMetric):
         """Return metric name."""
         return "CEAT"
     
-    @property
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Guo, W., & Caliskan, A. (2021). Detecting Emergent Intersectional "
-            "Biases: Contextualized Word Embeddings Contain a Distribution of "
-            "Human-like Biases. AIES '21, pp. 122-133."
-        )
-    
-    @property
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "hard"
-    
-    def compute(
+    def evaluate(
         self,
         target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],
         attribute_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],
@@ -86,90 +72,79 @@ class CEAT(EmbeddingMetric):
         random_seed: Optional[int] = None
     ) -> Dict[str, float]:
         """
-        Compute CEAT score with distribution of WEAT effect sizes.
+        Evaluate CEAT score with distribution of WEAT effect sizes.
         
-        Parameters
-        ----------
-        target_embeddings : Tuple of 2 arrays
-            (target_group1, target_group2) contextualized embeddings.
-            Each array shape: (n_contexts, embedding_dim)
-            Need sufficient contexts for sampling (recommended: 30+)
-        attribute_embeddings : Tuple of 2 arrays
-            (attribute_group1, attribute_group2) contextualized embeddings.
-            Each array shape: (n_contexts, embedding_dim)
-            Need sufficient contexts for sampling (recommended: 30+)
-        n_samples : int, default=100
-            Number of random samples to draw for distribution.
-            More samples = more stable results but slower.
-            Recommended: 50-200
-        sample_size : int, optional
-            Number of embeddings per group in each sample.
-            If None, uses min(10, smallest_group_size)
-        random_seed : int, optional
-            Random seed for reproducibility. If provided, results will
-            be deterministic.
+        Args:
+            target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group contextualized embeddings
+            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group contextualized embeddings
+            n_samples (int): number of random samples
+            sample_size (int, optional): embeddings per group per sample
+            random_seed (int, optional): seed for reproducibility
         
-        Returns
-        -------
-        Dict[str, float]
-            Dictionary containing:
+        Returns:
+            Dict[str, float]: CEAT scores and statistics
+        
+        Raises:
+            ValueError: If inputs are invalid
+        
+        Notes:
+            **Input Structure:**
+            - target_embeddings: (target_group1, target_group2)
+              - Each array shape: (n_contexts, embedding_dim)
+              - Need sufficient contexts for sampling (recommended: 30+)
+            - attribute_embeddings: (attribute_group1, attribute_group2)
+              - Each array shape: (n_contexts, embedding_dim)
+              - Need sufficient contexts for sampling (recommended: 30+)
+            
+            **Parameters:**
+            - n_samples: More samples = more stable results but slower (recommended: 50-200)
+            - sample_size: If None, uses min(10, smallest_group_size)
+            - random_seed: If provided, results will be deterministic
+            
+            **Return Dictionary:**
             - 'ceat_score': Weighted average of WEAT scores (main metric)
             - 'weat_mean': Simple mean of WEAT scores
             - 'weat_std': Standard deviation of WEAT scores
             - 'weat_variance': Variance of WEAT scores
             - 'n_samples': Number of samples actually used
+            
+            **CEAT Formula:**
+                CEAT = (Σ vᵢ × WEATᵢ) / (Σ vᵢ)
+            
+            Where:
+                - WEATᵢ = WEAT score for sample i
+                - vᵢ = inverse-variance weight from random-effects model
+                - N = n_samples
+            
+            Random-effects model accounts for heterogeneity across contexts,
+            giving more weight to samples with lower variance.
         
-        Raises
-        ------
-        ValueError
-            If inputs are invalid:
-            - Tuples don't have exactly 2 elements
-            - Any array is empty
-            - Arrays have mismatched dimensions
-            - Insufficient data for sampling
-            - n_samples <= 0
-            - Arrays contain NaN or Inf values
-        
-        Notes
-        -----
-        CEAT formula:
-            CEAT = (Σ vᵢ × WEATᵢ) / (Σ vᵢ)
-        
-        Where:
-            - WEATᵢ = WEAT score for sample i
-            - vᵢ = inverse-variance weight from random-effects model
-            - N = n_samples
-        
-        Random-effects model accounts for heterogeneity across contexts,
-        giving more weight to samples with lower variance.
-        
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from bias_scope.embeddings import CEAT
-        >>> 
-        >>> ceat = CEAT()
-        >>> 
-        >>> # Generate contextualized embeddings (50 contexts each)
-        >>> male = np.random.randn(50, 768)
-        >>> female = np.random.randn(50, 768)
-        >>> career = np.random.randn(40, 768)
-        >>> family = np.random.randn(40, 768)
-        >>> 
-        >>> # Compute with 100 random samples
-        >>> result = ceat.compute(
-        ...     (male, female),
-        ...     (career, family),
-        ...     n_samples=100,
-        ...     sample_size=10,
-        ...     random_seed=42
-        ... )
-        >>> 
-        >>> # Main bias score
-        >>> print(f"CEAT: {result['ceat_score']:.3f}")
-        >>> 
-        >>> # Variance shows context-dependency
-        >>> print(f"Variance: {result['weat_variance']:.3f}")
+        Examples:
+            >>> import numpy as np
+            >>> from bias_scope.embeddings import CEAT
+            >>> 
+            >>> ceat = CEAT()
+            >>> 
+            >>> # Generate contextualized embeddings (50 contexts each)
+            >>> male = np.random.randn(50, 768)
+            >>> female = np.random.randn(50, 768)
+            >>> career = np.random.randn(40, 768)
+            >>> family = np.random.randn(40, 768)
+            >>> 
+            >>> # Compute with 100 random samples
+            >>> result = ceat.evaluate(
+            ...     (male, female),
+            ...     (career, family),
+            ...     n_samples=100,
+            ...     sample_size=10,
+            ...     random_seed=42
+            ... )
+            >>> 
+            >>> # Main bias score
+            >>> print(f"CEAT: {result['ceat_score']:.3f}")
+            >>> 
+            >>> # Variance shows context-dependency
+            >>> print(f"Variance: {result['weat_variance']:.3f}")
         """
         # Validate inputs
         _validate_tuple_length(target_embeddings, "target_embeddings")
@@ -240,17 +215,12 @@ class CEAT(EmbeddingMetric):
         """
         Validate sufficient data for sampling (PRIVATE).
         
-        Parameters
-        ----------
-        arrays : list of np.ndarray
-            All embedding arrays
-        sample_size : int
-            Required sample size
+        Args:
+            arrays (list): All embedding arrays
+            sample_size (int): Required sample size
             
-        Raises
-        ------
-        ValueError
-            If any array has fewer embeddings than sample_size
+        Raises:
+            ValueError: If any array has fewer embeddings than sample_size
         """
         names = [
             "target_embeddings[0]",
@@ -275,25 +245,20 @@ class CEAT(EmbeddingMetric):
         attr2: np.ndarray,
         n_samples: int,
         sample_size: int
-    ) -> list:
+    ) -> List[float]:
         """
-        Compute distribution of WEAT scores via random sampling (PRIVATE).
+        Compute distribution of WEAT scores via sampling (PRIVATE).
         
-        Parameters
-        ----------
-        target1, target2 : np.ndarray
-            Target group embeddings
-        attr1, attr2 : np.ndarray
-            Attribute group embeddings
-        n_samples : int
-            Number of random samples
-        sample_size : int
-            Size of each sample
+        Args:
+            target1 (np.ndarray): first target group embeddings
+            target2 (np.ndarray): second target group embeddings
+            attr1 (np.ndarray): first attribute group embeddings
+            attr2 (np.ndarray): second attribute group embeddings
+            n_samples (int): number of samples
+            sample_size (int): embeddings per sample
         
-        Returns
-        -------
-        list of float
-            WEAT scores for each random sample
+        Returns:
+            List[float]: WEAT scores from samples
         """
         weat = WEAT()
         weat_scores = []
@@ -306,7 +271,7 @@ class CEAT(EmbeddingMetric):
             a2_sample = attr2[np.random.choice(len(attr2), sample_size, replace=False)]
             
             # Compute WEAT for this sample
-            weat_score = weat.compute(
+            weat_score = weat.evaluate(
                 (t1_sample, t2_sample),
                 (a1_sample, a2_sample)
             )

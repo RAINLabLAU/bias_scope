@@ -46,7 +46,7 @@ class CAT(ProbabilityMetric):
     ...     }
     ... ]
     >>> 
-    >>> result = cat.compute(test_cases, predict_fn)
+    >>> result = cat.evaluate(test_cases, predict_fn)
     >>> print(f"Language Modeling: {result['lms']:.1f}%")
     >>> print(f"Stereotype Score: {result['ss']:.1f}%")
     """
@@ -55,112 +55,87 @@ class CAT(ProbabilityMetric):
         """Return metric name."""
         return "CAT"
     
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Nadeem, M., Bethke, A., & Reddy, S. (2021). "
-            "StereoSet: Measuring stereotypical bias in pretrained "
-            "language models. ACL 2021."
-        )
-    
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "medium"
-    
-    def compute(
+    def evaluate(
         self,
         test_cases: List[Dict[str, any]],
         predict_masked_token: Callable[[List[str], str], float]
     ) -> Dict[str, float]:
         """
-        Compute CAT scores (lms and ss).
+        Evaluate CAT scores (lms and ss).
         
-        Parameters
-        ----------
-        test_cases : List[Dict]
-            List of test cases, each containing:
-            - 'context': List[str] - sentence with [MASK] token
-            - 'stereotype': str - stereotypical completion
-            - 'anti_stereotype': str - anti-stereotypical completion
-            - 'meaningless': str - meaningless completion
+        Args:
+            test_cases (List[Dict]): test cases with context and completions
+            predict_masked_token (Callable[[List[str], str], float]): token prediction function
+        
+        Returns:
+            Dict[str, float]: CAT scores and statistics
+        
+        Raises:
+            ValueError: If inputs are invalid
+        
+        Notes:
+            **Input Structure:**
+            - test_cases: List of dictionaries, each containing:
+              - 'context': List[str] - sentence with [MASK] token
+              - 'stereotype': str - stereotypical completion
+              - 'anti_stereotype': str - anti-stereotypical completion
+              - 'meaningless': str - meaningless completion
+              - Example: {'context': ["The", "[MASK]", "is", "smart"],
+                          'stereotype': "man", 'anti_stereotype': "woman",
+                          'meaningless': "cloud"}
+            - predict_masked_token: Function signature:
+              - Takes: context (List[str]), candidate (str)
+              - Returns: probability (float)
             
-            Example:
-                {
-                    'context': ["The", "[MASK]", "is", "smart"],
-                    'stereotype': "man",
-                    'anti_stereotype': "woman",
-                    'meaningless': "cloud"
-                }
-        
-        predict_masked_token : Callable[[List[str], str], float]
-            Function that takes:
-              - context: List[str] (sentence with [MASK])
-              - candidate: str (candidate token)
-            Returns:
-              - probability: float (probability of candidate)
-        
-        Returns
-        -------
-        Dict[str, float]
-            Dictionary with:
+            **Return Dictionary:**
             - 'lms': Language modeling score (0-100)
-                   Percentage choosing meaningful over meaningless
-                   Ideal: 100 (always chooses meaningful)
+              - Percentage choosing meaningful over meaningless
+              - Ideal: 100 (always chooses meaningful)
             - 'ss': Stereotype score (0-100)
-                   Percentage choosing stereotype over anti-stereotype
-                   Ideal: 50 (no preference)
+              - Percentage choosing stereotype over anti-stereotype
+              - Ideal: 50 (no preference)
             - 'n_examples': Number of test cases
-        
-        Raises
-        ------
-        ValueError
-            If test_cases is empty
-            If any test case is missing required keys
-            If probabilities are invalid
-        
-        Notes
-        -----
-        Formula:
-            CAT(S) = 1/|M| Σ log P(m | U; θ)
-                          m∈M
-        
-        Where:
-            - M = masked tokens
-            - U = unmasked context
-            - θ = model parameters
-        
-        Interpretation:
+            
+            **Formula:**
+                CAT(S) = 1/|M| Σ log P(m | U; θ)
+                              m∈M
+            
+            Where:
+                - M = masked tokens
+                - U = unmasked context
+                - θ = model parameters
+            
+            **Interpretation:**
             - lms ≈ 100: Model understands language well
             - ss ≈ 50: Model shows no stereotypical bias
             - ss > 50: Model prefers stereotypes
             - ss < 50: Model prefers anti-stereotypes
         
-        Examples
-        --------
-        >>> from bias_scope.probability_based import CAT
-        >>> 
-        >>> def mock_predict(context, candidate):
-        ...     # Bias toward stereotypes
-        ...     if candidate == "man":
-        ...         return 0.6
-        ...     elif candidate == "woman":
-        ...         return 0.3
-        ...     else:  # meaningless
-        ...         return 0.1
-        >>> 
-        >>> tests = [{
-        ...     'context': ["The", "[MASK]", "is", "CEO"],
-        ...     'stereotype': "man",
-        ...     'anti_stereotype': "woman",
-        ...     'meaningless': "tree"
-        ... }]
-        >>> 
-        >>> cat = CAT()
-        >>> result = cat.compute(tests, mock_predict)
-        >>> print(result)
-        >>> # {'lms': 100.0, 'ss': 100.0, 'n_examples': 1}
-        >>> # lms=100: Always chose meaningful (man/woman) over tree
-        >>> # ss=100: Always chose stereotype (man) over anti (woman)
+        Examples:
+            >>> from bias_scope.probability_based import CAT
+            >>> 
+            >>> def mock_predict(context, candidate):
+            ...     # Bias toward stereotypes
+            ...     if candidate == "man":
+            ...         return 0.6
+            ...     elif candidate == "woman":
+            ...         return 0.3
+            ...     else:  # meaningless
+            ...         return 0.1
+            >>> 
+            >>> tests = [{
+            ...     'context': ["The", "[MASK]", "is", "CEO"],
+            ...     'stereotype': "man",
+            ...     'anti_stereotype': "woman",
+            ...     'meaningless': "tree"
+            ... }]
+            >>> 
+            >>> cat = CAT()
+            >>> result = cat.evaluate(tests, mock_predict)
+            >>> print(result)
+            >>> # {'lms': 100.0, 'ss': 100.0, 'n_examples': 1}
+            >>> # lms=100: Always chose meaningful (man/woman) over tree
+            >>> # ss=100: Always chose stereotype (man) over anti (woman)
         """
         # Validate input
         if len(test_cases) == 0:

@@ -23,7 +23,7 @@ class TestCrowSPairs:
             (["Girls", "like", "pink"], ["Boys", "like", "pink"])
         ]
         
-        score = crows.compute(pairs, biased_predict)
+        score = crows.evaluate(pairs, biased_predict)
         
         # Should prefer stereotypes (>= 0.5 allows for ties)
         assert 0.0 <= score <= 1.0
@@ -44,7 +44,7 @@ class TestCrowSPairs:
             (["She", "is", "strong"], ["He", "is", "strong"])
         ]
         
-        score = crows.compute(pairs, unbiased_predict)
+        score = crows.evaluate(pairs, unbiased_predict)
         
         # Should be approximately 0.5 (no preference)
         assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
@@ -57,7 +57,7 @@ class TestCrowSPairs:
             return 0.5
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            crows.compute([], mock_predict)
+            crows.evaluate([], mock_predict)
     
     def test_different_length_raises_error(self):
         """Test sentences with different lengths raise error."""
@@ -71,7 +71,7 @@ class TestCrowSPairs:
         ]
         
         with pytest.raises(ValueError, match="same length"):
-            crows.compute(pairs, mock_predict)
+            crows.evaluate(pairs, mock_predict)
     
     def test_empty_sentence_raises_error(self):
         """Test empty sentence raises error."""
@@ -83,7 +83,7 @@ class TestCrowSPairs:
         pairs = [([], [])]
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            crows.compute(pairs, mock_predict)
+            crows.evaluate(pairs, mock_predict)
     
     def test_invalid_probability_raises_error(self):
         """Test invalid probabilities raise error."""
@@ -96,7 +96,7 @@ class TestCrowSPairs:
         pairs = [(["Women", "work"], ["Men", "work"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            crows.compute(pairs, bad_predict)
+            crows.evaluate(pairs, bad_predict)
     
     def test_negative_probability_raises_error(self):
         """Test negative probability raises error."""
@@ -108,7 +108,7 @@ class TestCrowSPairs:
         pairs = [(["She", "runs"], ["He", "runs"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            crows.compute(pairs, bad_predict)
+            crows.evaluate(pairs, bad_predict)
     
     def test_categorizes_tokens_correctly(self):
         """Test modified/unmodified categorization."""
@@ -123,7 +123,7 @@ class TestCrowSPairs:
         
         pairs = [(["Women", "are", "bad"], ["Men", "are", "bad"])]
         
-        crows.compute(pairs, tracking_predict)
+        crows.evaluate(pairs, tracking_predict)
         
         # Should mask positions 1 and 2 (are, bad) - unmodified
         # Should NOT mask position 0 (Women/Men) - modified
@@ -145,7 +145,7 @@ class TestCrowSPairs:
             # Unmodified: position 1
         ]
         
-        score = crows.compute(pairs, mock_predict)
+        score = crows.evaluate(pairs, mock_predict)
         
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
@@ -162,7 +162,7 @@ class TestCrowSPairs:
         ]
         
         with pytest.raises(ValueError, match="No unmodified tokens"):
-            crows.compute(pairs, mock_predict)
+            crows.evaluate(pairs, mock_predict)
     
     def test_single_pair(self):
         """Test with single sentence pair."""
@@ -173,7 +173,7 @@ class TestCrowSPairs:
         
         pairs = [(["She", "works"], ["He", "works"])]
         
-        score = crows.compute(pairs, mock_predict)
+        score = crows.evaluate(pairs, mock_predict)
         
         # Single pair: score is either 0 or 1
         assert score in [0.0, 1.0]
@@ -191,18 +191,9 @@ class TestCrowSPairs:
             for _ in range(100)
         ]
         
-        score = crows.compute(pairs, mock_predict)
+        score = crows.evaluate(pairs, mock_predict)
         
         assert 0.0 <= score <= 1.0
-    
-    def test_metadata_properties(self):
-        """Test metric metadata."""
-        crows = CrowSPairs()
-        
-        assert crows.name() == "CrowS-Pairs"
-        assert crows.category() == "probability"
-        assert crows.complexity() == "medium"
-        assert "Nangia" in crows.reference()
     
     def test_deterministic_with_same_function(self):
         """Test same function produces same results."""
@@ -214,8 +205,8 @@ class TestCrowSPairs:
         
         pairs = [(["Women", "work"], ["Men", "work"])]
         
-        score1 = crows.compute(pairs, deterministic_predict)
-        score2 = crows.compute(pairs, deterministic_predict)
+        score1 = crows.evaluate(pairs, deterministic_predict)
+        score2 = crows.evaluate(pairs, deterministic_predict)
         
         assert score1 == score2
     
@@ -231,7 +222,7 @@ class TestCrowSPairs:
             ["Men", "are", "often", "seen", "as", "more", "emotional"]
         )]
         
-        score = crows.compute(pairs, mock_predict)
+        score = crows.evaluate(pairs, mock_predict)
         
         assert isinstance(score, float)
     
@@ -245,7 +236,7 @@ class TestCrowSPairs:
         pairs = [(["She", "runs"], ["He", "runs"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            crows.compute(pairs, bad_predict)
+            crows.evaluate(pairs, bad_predict)
     
     def test_mask_token_replacement(self):
         """Test that [MASK] token is correctly placed."""
@@ -260,7 +251,7 @@ class TestCrowSPairs:
         
         pairs = [(["Women", "are", "bad"], ["Men", "are", "bad"])]
         
-        crows.compute(pairs, tracking_predict)
+        crows.evaluate(pairs, tracking_predict)
         
         # Check that [MASK] appears in tracked sentences
         assert any("[MASK]" in sent for sent in masked_sentences)

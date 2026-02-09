@@ -1,7 +1,7 @@
 """Abstract base classes for bias detection metrics."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Dict, Optional, Tuple, List
 import numpy as np
 
 
@@ -9,7 +9,7 @@ class BiasMetric(ABC):
     """
     Abstract base class for all bias detection metrics.
     
-    All bias metrics must implement the `compute` method and provide
+    All bias metrics must implement the `evaluate` method and provide
     metadata about the metric through properties.
     
     Examples
@@ -23,26 +23,30 @@ class BiasMetric(ABC):
     ...     def category(self):
     ...         return "embedding"
     ...     
-    ...     def compute(self, inputs):
+    ...     def evaluate(self, inputs):
     ...         # Implementation
     ...         return 0.5
     """
     
     @abstractmethod
-    def compute(self, *args, **kwargs) -> float | Dict[str, float]:
+    def evaluate(self, *args, **kwargs) -> float | Dict[str, float]:
         """
-        Compute the bias metric.
+        Evaluate the bias metric.
         
-        Returns
-        -------
-        float or Dict[str, float]
-            Bias score(s). Simple metrics return float, complex metrics
-            return dictionary with multiple scores.
+        Args:
+            *args: metric-specific input data
+            **kwargs: additional metric parameters
         
-        Raises
-        ------
-        ValueError
-            If inputs are invalid
+        Returns:
+            float | Dict[str, float]: bias score(s)
+        
+        Raises:
+            ValueError: If inputs are invalid
+        
+        Notes:
+            - Simple metrics return a single float score
+            - Complex metrics return a dictionary with multiple scores
+            - Subclasses must implement with their specific signature and validation
         """
         pass
     
@@ -51,10 +55,8 @@ class BiasMetric(ABC):
         """
         Metric name.
         
-        Returns
-        -------
-        str
-            Name of the metric (e.g., 'WEAT', 'SEAT', 'CEAT')
+        Returns:
+            str: Name of the metric (e.g., 'WEAT', 'SEAT', 'CEAT')
         """
         pass
     
@@ -63,34 +65,12 @@ class BiasMetric(ABC):
         """
         Metric category.
         
-        Returns
-        -------
-        str
-            One of: 'embedding', 'probability', 'generated_text'
+        Returns:
+            str: One of: 'embedding', 'probability', 'generated_text'
         """
         pass
     
-    def reference(self) -> Optional[str]:
-        """
-        Citation for the original paper.
-        
-        Returns
-        -------
-        str or None
-            Full citation with authors, year, and title
-        """
-        return None
-    
-    def complexity(self) -> str:
-        """
-        Implementation complexity rating.
-        
-        Returns
-        -------
-        str
-            One of: 'easy', 'medium', 'hard'
-        """
-        return 'medium'
+
 
 
 class EmbeddingMetric(BiasMetric):
@@ -106,23 +86,18 @@ class EmbeddingMetric(BiasMetric):
     
     def _validate_embeddings(
         self, 
-        embeddings: np.ndarray,
-        name: str = "embeddings"
+        embeddings: Tuple[np.ndarray, np.ndarray],
+        name: str
     ) -> None:
         """
-        Validate embedding array (PRIVATE helper).
+        Validate embedding tuple structure (PRIVATE).
         
-        Parameters
-        ----------
-        embeddings : np.ndarray
-            Embedding array to validate
-        name : str
-            Name for error messages
+        Args:
+            embeddings (Tuple[np.ndarray, np.ndarray]): embedding array tuple
+            name (str): name for error messages
             
-        Raises
-        ------
-        ValueError
-            If embeddings are invalid (empty, NaN, Inf)
+        Raises:
+            ValueError: If validation fails
         """
         if len(embeddings) == 0:
             raise ValueError(f"{name} cannot be empty")
@@ -157,17 +132,12 @@ class ProbabilityMetric(BiasMetric):
         
         Checks that probabilities are valid: in [0,1], no NaN/Inf.
         
-        Parameters
-        ----------
-        probabilities : np.ndarray
-            Probability array to validate
-        name : str, default="probabilities"
-            Name for error messages
+        Args:
+            probabilities (np.ndarray): Probability array to validate
+            name (str): Name for error messages (default: "probabilities")
             
-        Raises
-        ------
-        ValueError
-            If probabilities are invalid
+        Raises:
+            ValueError: If probabilities are invalid
         """
         if len(probabilities) == 0:
             raise ValueError(f"{name} cannot be empty")
@@ -186,21 +156,18 @@ class ProbabilityMetric(BiasMetric):
     
     def _validate_sentence_pair(
         self,
-        sentence1: list,
-        sentence2: list
+        sentence1: List[str],
+        sentence2: List[str]
     ) -> None:
         """
-        Validate sentence pair for pseudo-log-likelihood metrics (PRIVATE).
+        Validate sentence pair has same length (PRIVATE).
         
-        Parameters
-        ----------
-        sentence1, sentence2 : list
-            Tokenized sentences to validate
+        Args:
+            sentence1 (List[str]): first tokenized sentence
+            sentence2 (List[str]): second tokenized sentence
             
-        Raises
-        ------
-        ValueError
-            If sentences are invalid (empty, different lengths)
+        Raises:
+            ValueError: If validation fails
         """
         if len(sentence1) == 0 or len(sentence2) == 0:
             raise ValueError("Sentences cannot be empty")

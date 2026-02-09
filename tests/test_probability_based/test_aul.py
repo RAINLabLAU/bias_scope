@@ -20,19 +20,10 @@ class TestAUL:
         
         pairs = [(["Women", "work"], ["Men", "work"])]
         
-        score = aul.compute(pairs, biased_predict)
+        score = aul.evaluate(pairs, biased_predict)
         
         assert 0.0 <= score <= 1.0
         assert score >= 0.5  # Prefers stereotypes (>= allows for ties)
-    
-    def test_metadata_properties(self):
-        """Test metric metadata."""
-        aul = AUL()
-        
-        assert aul.name() == "AUL"
-        assert aul.category() == "probability"
-        assert aul.complexity() == "medium"
-        assert "Kaneko" in aul.reference()
     
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
@@ -48,7 +39,7 @@ class TestAUL:
             (["She", "is", "strong"], ["He", "is", "strong"])
         ]
         
-        score = aul.compute(pairs, unbiased_predict)
+        score = aul.evaluate(pairs, unbiased_predict)
         
         # Should be approximately 0.5 (no preference)
         assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
@@ -61,7 +52,7 @@ class TestAUL:
             return 0.5
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            aul.compute([], mock_predict)
+            aul.evaluate([], mock_predict)
     
     def test_different_length_raises_error(self):
         """Test sentences with different lengths raise error."""
@@ -75,7 +66,7 @@ class TestAUL:
         ]
         
         with pytest.raises(ValueError, match="same length"):
-            aul.compute(pairs, mock_predict)
+            aul.evaluate(pairs, mock_predict)
     
     def test_empty_sentence_raises_error(self):
         """Test empty sentence raises error."""
@@ -87,7 +78,7 @@ class TestAUL:
         pairs = [([], [])]
         
         with pytest.raises(ValueError, match="cannot be empty"):
-            aul.compute(pairs, mock_predict)
+            aul.evaluate(pairs, mock_predict)
     
     def test_invalid_probability_raises_error(self):
         """Test invalid probabilities raise error."""
@@ -99,7 +90,7 @@ class TestAUL:
         pairs = [(["Women", "work"], ["Men", "work"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            aul.compute(pairs, bad_predict)
+            aul.evaluate(pairs, bad_predict)
     
     def test_negative_probability_raises_error(self):
         """Test negative probability raises error."""
@@ -111,7 +102,7 @@ class TestAUL:
         pairs = [(["She", "runs"], ["He", "runs"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            aul.compute(pairs, bad_predict)
+            aul.evaluate(pairs, bad_predict)
     
     def test_zero_probability_raises_error(self):
         """Test zero probability raises error."""
@@ -123,7 +114,7 @@ class TestAUL:
         pairs = [(["She", "runs"], ["He", "runs"])]
         
         with pytest.raises(ValueError, match="Invalid probability"):
-            aul.compute(pairs, bad_predict)
+            aul.evaluate(pairs, bad_predict)
     
     def test_all_tokens_predicted(self):
         """Test that all tokens in sentence are predicted."""
@@ -138,7 +129,7 @@ class TestAUL:
         
         pairs = [(["Women", "are", "bad"], ["Men", "are", "bad"])]
         
-        aul.compute(pairs, tracking_predict)
+        aul.evaluate(pairs, tracking_predict)
         
         # Should predict all 3 positions for both sentences (6 total)
         assert len(predicted_positions) == 6
@@ -155,7 +146,7 @@ class TestAUL:
         
         pairs = [(["She", "works"], ["He", "works"])]
         
-        score = aul.compute(pairs, mock_predict)
+        score = aul.evaluate(pairs, mock_predict)
         
         # Single pair: score is either 0 or 1
         assert score in [0.0, 1.0]
@@ -172,7 +163,7 @@ class TestAUL:
             for _ in range(50)
         ]
         
-        score = aul.compute(pairs, mock_predict)
+        score = aul.evaluate(pairs, mock_predict)
         
         assert 0.0 <= score <= 1.0
     
@@ -185,8 +176,8 @@ class TestAUL:
         
         pairs = [(["Women", "work"], ["Men", "work"])]
         
-        score1 = aul.compute(pairs, deterministic_predict)
-        score2 = aul.compute(pairs, deterministic_predict)
+        score1 = aul.evaluate(pairs, deterministic_predict)
+        score2 = aul.evaluate(pairs, deterministic_predict)
         
         assert score1 == score2
     
@@ -202,7 +193,7 @@ class TestAUL:
             ["Men", "are", "often", "seen", "as", "more", "emotional"]
         )]
         
-        score = aul.compute(pairs, mock_predict)
+        score = aul.evaluate(pairs, mock_predict)
         
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
@@ -219,7 +210,7 @@ class TestAUL:
         
         pairs = [(["She", "runs"], ["He", "runs"])]
         
-        score = aul.compute(pairs, position_predict)
+        score = aul.evaluate(pairs, position_predict)
         
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0
@@ -237,7 +228,7 @@ class TestAUL:
         
         pairs = [(["A", "B", "C"], ["X", "Y", "Z"])]
         
-        score = aul.compute(pairs, counting_predict)
+        score = aul.evaluate(pairs, counting_predict)
         
         # Should call predict 6 times (3 tokens × 2 sentences)
         assert call_count[0] == 6
@@ -254,6 +245,6 @@ class TestAUL:
         
         pairs = [(["Women", "work"], ["Men", "work"])]
         
-        score = aul.compute(pairs, anti_bias_predict)
+        score = aul.evaluate(pairs, anti_bias_predict)
         
         assert score < 0.5  # Prefers anti-stereotypes
