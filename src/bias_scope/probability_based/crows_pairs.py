@@ -1,6 +1,6 @@
 """CrowS-Pairs Score - Pseudo-log-likelihood bias metric."""
 
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 

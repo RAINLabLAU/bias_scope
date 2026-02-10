@@ -1,6 +1,6 @@
 """CAT - Context Association Test."""
 
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List
 
 import numpy as np
 
