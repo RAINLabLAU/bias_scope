@@ -24,6 +24,8 @@ isort = ">=5.13.2"
 pytest = ">=8.3.3"
 coverage = ">=7.6.4"
 black = ">=26.1.0"
+nox = ">=2025.11.12"
+
 
 [build-system]
 requires = ["poetry-core"]
