@@ -1,31 +1,85 @@
+"""Utility functions for bias detection metrics."""
+
+from typing import Union
+
 import numpy as np
 import torch
 
 
-def cosine_similarity(x: np.ndarray, y: np.ndarray) -> float:
+def to_numpy(arr: Union[np.ndarray, torch.Tensor, list]) -> np.ndarray:
+    """
+    Convert input to numpy array.
+
+    Handles PyTorch tensors, lists, and numpy arrays.
+
+    Parameters
+    ----------
+    arr : array-like
+        Input array (numpy array, PyTorch tensor, or list)
+
+    Returns
+    -------
+    np.ndarray
+        Numpy array
+
+    Examples
+    --------
+    >>> import torch
+    >>> tensor = torch.randn(3, 5)
+    >>> arr = to_numpy(tensor)
+    >>> isinstance(arr, np.ndarray)
+    True
+    """
+    if isinstance(arr, torch.Tensor):
+        return arr.detach().cpu().numpy()
+    elif isinstance(arr, list):
+        return np.array(arr)
+    elif isinstance(arr, np.ndarray):
+        return arr
+    else:
+        # Try to convert to numpy
+        return np.array(arr)
+
+
+def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     """
     Compute cosine similarity between two vectors.
 
-    Args:
-        x (np.ndarray): first vector
-        y (np.ndarray): second vector
+    Formula: cos(θ) = (A · B) / (||A|| × ||B||)
 
-    Returns:
-        float: cosine similarity between x and y
+    Parameters
+    ----------
+    vec1 : np.ndarray
+        First vector
+    vec2 : np.ndarray
+        Second vector
+
+    Returns
+    -------
+    float
+        Cosine similarity in range [-1, 1]
+        1 = identical direction
+        0 = orthogonal
+        -1 = opposite direction
+
+    Examples
+    --------
+    >>> vec1 = np.array([1.0, 0.0, 0.0])
+    >>> vec2 = np.array([1.0, 0.0, 0.0])
+    >>> cosine_similarity(vec1, vec2)
+    1.0
+
+    >>> vec1 = np.array([1.0, 0.0])
+    >>> vec2 = np.array([0.0, 1.0])
+    >>> cosine_similarity(vec1, vec2)
+    0.0
     """
-    return np.dot(x, y) / (np.linalg.norm(x) * np.linalg.norm(y))
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
 
+    # Avoid division by zero
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
 
-def to_numpy(x: torch.Tensor | np.ndarray) -> np.ndarray:
-    """
-    Convert torch.Tensor to np.ndarray if necessary.
-
-    Args:
-        x (torch.Tensor | np.ndarray): input tensor
-
-    Returns:
-        np.ndarray: converted tensor
-    """
-    if isinstance(x, torch.Tensor):
-        return x.cpu().numpy()
-    return x
+    return float(dot_product / (norm1 * norm2))
