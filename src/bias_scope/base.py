@@ -1,7 +1,11 @@
-"""Abstract base classes for bias detection metrics."""
+"""
+Abstract base classes for bias detection metrics.
+"""
+
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -25,7 +29,6 @@ class BiasMetric(ABC):
     ...         return "embedding"
     ...
     ...     def evaluate(self, inputs):
-    ...         # Implementation
     ...         return 0.5
     """
 
@@ -49,8 +52,9 @@ class BiasMetric(ABC):
             - Complex metrics return a dictionary with multiple scores
             - Subclasses must implement with their specific signature and validation
         """
-        pass
+        raise NotImplementedError
 
+    @property
     @abstractmethod
     def category(self) -> str:
         """
@@ -59,7 +63,7 @@ class BiasMetric(ABC):
         Returns:
             str: One of: 'embedding', 'probability', 'generated_text'
         """
-        pass
+        raise NotImplementedError
 
 
 class EmbeddingMetric(BiasMetric):
@@ -71,11 +75,10 @@ class EmbeddingMetric(BiasMetric):
 
     @property
     def category(self) -> str:
+        """Category is automatically set to 'embedding'."""
         return "embedding"
 
-    def _validate_embeddings(
-        self, embeddings: Tuple[np.ndarray, np.ndarray], name: str
-    ) -> None:
+    def _validate_embeddings(self, embeddings: Tuple[np.ndarray, np.ndarray], name: str) -> None:
         """
         Validate embedding tuple structure (PRIVATE).
 
@@ -105,13 +108,12 @@ class ProbabilityMetric(BiasMetric):
     should inherit from this class.
     """
 
+    @property
     def category(self) -> str:
         """Category is automatically set to 'probability'."""
         return "probability"
 
-    def _validate_probabilities(
-        self, probabilities: np.ndarray, name: str = "probabilities"
-    ) -> None:
+    def _validate_probabilities(self, probabilities: np.ndarray, name: str = "probabilities") -> None:
         """
         Validate probability array (PRIVATE helper).
 
@@ -139,9 +141,7 @@ class ProbabilityMetric(BiasMetric):
                 f"Got min={np.min(probabilities)}, max={np.max(probabilities)}"
             )
 
-    def _validate_sentence_pair(
-        self, sentence1: List[str], sentence2: List[str]
-    ) -> None:
+    def _validate_sentence_pair(self, sentence1: List[str], sentence2: List[str]) -> None:
         """
         Validate sentence pair has same length (PRIVATE).
 
@@ -157,6 +157,6 @@ class ProbabilityMetric(BiasMetric):
 
         if len(sentence1) != len(sentence2):
             raise ValueError(
-                f"Sentence pairs must have same length. "
+                "Sentence pairs must have same length. "
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
