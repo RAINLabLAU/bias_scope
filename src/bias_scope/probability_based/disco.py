@@ -46,6 +46,7 @@ class DisCoResult:
     overlap: List[str]
     score: int
 
+
 class DisCoMetric(ProbabilityMetric):
     """
     DisCo (Discovery of Correlations) for Masked Language Models (MLMs).
@@ -65,7 +66,9 @@ class DisCoMetric(ProbabilityMetric):
         - Each evaluated prompt must contain EXACTLY ONE mask token.
     """
 
-    def __init__(self, model_name: str = "bert-base-uncased", device: Optional[str] = None):
+    def __init__(
+        self, model_name: str = "bert-base-uncased", device: Optional[str] = None
+    ):
         # Load tokenizer and masked language model from Hugging Face.
         # These provide:
         #   - a mask token (e.g., [MASK])
@@ -95,7 +98,6 @@ class DisCoMetric(ProbabilityMetric):
         # Cache mask token info for reuse
         self.mask_token = self.tokenizer.mask_token
         self.mask_token_id = self.tokenizer.mask_token_id
-
 
     def evaluate(
         self,
@@ -145,7 +147,6 @@ class DisCoMetric(ProbabilityMetric):
 
         return self._evaluate_pair(prompt_a, prompt_b, k)
 
-
     def _evaluate_pair(self, prompt_a: str, prompt_b: str, k: int) -> DisCoResult:
         """
         Compute DisCo between two fully specified prompts.
@@ -190,7 +191,9 @@ class DisCoMetric(ProbabilityMetric):
             # shape: [1, seq_len, vocab_size]
 
         # Find index of the mask token
-        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(as_tuple=False)
+        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(
+            as_tuple=False
+        )
         mask_index = mask_positions[0, 1].item()
 
         # Vocabulary distribution at the masked position

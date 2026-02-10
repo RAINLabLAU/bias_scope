@@ -78,7 +78,9 @@ class CBS(ProbabilityMetric):
         - Target words must be single-token under the tokenizer (else we raise).
     """
 
-    def __init__(self, model_name: str = "bert-base-uncased", device: Optional[str] = None):
+    def __init__(
+        self, model_name: str = "bert-base-uncased", device: Optional[str] = None
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForMaskedLM.from_pretrained(model_name)
 
@@ -90,7 +92,9 @@ class CBS(ProbabilityMetric):
         self.model.eval()
 
         if self.tokenizer.mask_token is None or self.tokenizer.mask_token_id is None:
-            raise ValueError("This model/tokenizer has no mask token. Use a masked language model.")
+            raise ValueError(
+                "This model/tokenizer has no mask token. Use a masked language model."
+            )
 
         self.mask_token = self.tokenizer.mask_token
         self.mask_token_id = self.tokenizer.mask_token_id
@@ -103,7 +107,6 @@ class CBS(ProbabilityMetric):
         placeholder: str = "{attr}",
         return_details: bool = False,
         allow_multi_token_targets: bool = False,
-
     ) -> float | Dict[str, float]:
         """
         Evaluate CBS.
@@ -146,7 +149,9 @@ class CBS(ProbabilityMetric):
         # - strict mode: each target must map to exactly 1 token id
         # - allow_multi_token_targets=True: targets can map to multiple token ids
         target_token_id_lists = [
-            self._word_to_token_ids(w, allow_multi_token_targets=allow_multi_token_targets)
+            self._word_to_token_ids(
+                w, allow_multi_token_targets=allow_multi_token_targets
+            )
             for w in target_words
         ]
 
@@ -167,7 +172,6 @@ class CBS(ProbabilityMetric):
                     prompt_prior=prompt_prior,
                     target_token_id_lists=target_token_id_lists,
                 )
-
 
                 # Variance across target categories (multi-class unevenness)
                 var_value = float(np.var(log_norm_probs))
@@ -206,13 +210,21 @@ class CBS(ProbabilityMetric):
 
         for t in templates:
             if self.mask_token not in t:
-                raise ValueError(f"Each template must include the mask token {self.mask_token}.")
+                raise ValueError(
+                    f"Each template must include the mask token {self.mask_token}."
+                )
             if t.count(self.mask_token) != 1:
-                raise ValueError("Each template must contain exactly ONE mask token (target slot).")
+                raise ValueError(
+                    "Each template must contain exactly ONE mask token (target slot)."
+                )
             if placeholder not in t:
-                raise ValueError(f"Each template must include the placeholder {placeholder}.")
+                raise ValueError(
+                    f"Each template must include the placeholder {placeholder}."
+                )
 
-    def _word_to_token_ids(self, word: str, allow_multi_token_targets: bool) -> List[int]:
+    def _word_to_token_ids(
+        self, word: str, allow_multi_token_targets: bool
+    ) -> List[int]:
         """
         Convert a target word/phrase to tokenizer token ids (no special tokens).
 
@@ -233,10 +245,10 @@ class CBS(ProbabilityMetric):
         return ids
 
     def _log_normalized_target_scores(
-            self,
-            prompt_target: str,
-            prompt_prior: str,
-            target_token_id_lists: List[List[int]],
+        self,
+        prompt_target: str,
+        prompt_prior: str,
+        target_token_id_lists: List[List[int]],
     ) -> np.ndarray:
         """
         Compute one log-normalized score per TARGET WORD (not per token id).
@@ -273,7 +285,9 @@ class CBS(ProbabilityMetric):
         with torch.no_grad():
             logits = self.model(**inputs).logits  # [1, seq_len, vocab]
 
-        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(as_tuple=False)
+        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(
+            as_tuple=False
+        )
         if mask_positions.numel() == 0:
             raise ValueError("Mask token not found after tokenization (unexpected).")
 
@@ -281,10 +295,10 @@ class CBS(ProbabilityMetric):
         return logits[0, mask_index, :]  # [vocab]
 
     def _log_normalized_probs(
-            self,
-            prompt_target: str,
-            prompt_prior: str,
-            target_token_ids: List[int],
+        self,
+        prompt_target: str,
+        prompt_prior: str,
+        target_token_ids: List[int],
     ) -> np.ndarray:
         """
         Compute log P'(target) for each target token:
