@@ -11,10 +11,10 @@ Public API for bias detection metrics organized by category:
 __version__ = "0.1.0"
 
 # Public API: Import metric classes
-from bias_scope.embeddings import WEAT, SEAT, CEAT, SentenceBiasScore
+from bias_scope.embeddings import CEAT, SEAT, WEAT, SentenceBiasScore
 
 # Import probability metrics
-from bias_scope.probability_based import CrowSPairs, CAT, AUL
+from bias_scope.probability_based import AUL, CAT, CrowSPairs
 
 # Import generated text metrics
 from bias_scope.generated_text import (
@@ -25,7 +25,7 @@ from bias_scope.generated_text import (
 )
 
 # Public utilities
-from bias_scope.utils import to_numpy, cosine_similarity
+from bias_scope.utils import cosine_similarity, to_numpy
 
 __all__ = [
     # Embedding metrics (classes)
@@ -33,18 +33,15 @@ __all__ = [
     "SEAT",
     "CEAT",
     "SentenceBiasScore",
-    
     # Probability metrics
     "CrowSPairs",
     "CAT",
     "AUL",
-    
     # Generated text metrics
     "ToxicityFraction",
     "ToxicityProbability",
     "RegardScore",
     "ScoreParity",
-    
     # Utilities
     "to_numpy",
     "cosine_similarity",
