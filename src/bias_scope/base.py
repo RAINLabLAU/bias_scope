@@ -177,3 +177,120 @@ class ProbabilityMetric(BiasMetric):
                 f"Sentence pairs must have same length. "
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
+
+
+class GeneratedTextMetric(BiasMetric):
+    """
+    Base class for generated text bias metrics.
+    
+    Provides common validation methods for generated text and classifier scores.
+    All generated text metrics (TF, TP, EMT, RegardScore, ScoreParity, etc.)
+    should inherit from this class.
+    """
+    
+    @property
+    def category(self) -> str:
+        """Category is automatically set to 'generated_text'."""
+        return 'generated_text'
+    
+    def _validate_generated_texts(
+        self,
+        generated_texts: List[List[str]],
+        name: str = "generated_texts"
+    ) -> None:
+        """
+        Validate generated texts structure (PRIVATE).
+        
+        Parameters
+        ----------
+        generated_texts : List[List[str]]
+            List of text lists (one per prompt)
+        name : str, default="generated_texts"
+            Name for error messages
+            
+        Raises
+        ------
+        ValueError
+            If structure is invalid
+        """
+        if len(generated_texts) == 0:
+            raise ValueError(f"{name} cannot be empty")
+        
+        for i, texts in enumerate(generated_texts):
+            if not isinstance(texts, list):
+                raise ValueError(
+                    f"{name}[{i}] must be a list of strings. "
+                    f"Got {type(texts).__name__}"
+                )
+            
+            if len(texts) == 0:
+                raise ValueError(
+                    f"{name}[{i}] cannot be empty. "
+                    f"Each prompt must have at least one generated text."
+                )
+            
+            for j, text in enumerate(texts):
+                if not isinstance(text, str):
+                    raise ValueError(
+                        f"{name}[{i}][{j}] must be a string. "
+                        f"Got {type(text).__name__}"
+                    )
+    
+    def _validate_threshold(
+        self,
+        threshold: float,
+        name: str = "threshold"
+    ) -> None:
+        """
+        Validate threshold value (PRIVATE).
+        
+        Parameters
+        ----------
+        threshold : float
+            Threshold value to validate
+        name : str, default="threshold"
+            Name for error messages
+            
+        Raises
+        ------
+        ValueError
+            If threshold not in [0, 1]
+        """
+        if not 0 <= threshold <= 1:
+            raise ValueError(
+                f"{name} must be in [0, 1]. Got {threshold}"
+            )
+    
+    def _validate_classifier_scores(
+        self,
+        scores: List[float],
+        name: str = "scores"
+    ) -> None:
+        """
+        Validate classifier scores (PRIVATE).
+        
+        Parameters
+        ----------
+        scores : List[float]
+            Scores to validate
+        name : str, default="scores"
+            Name for error messages
+            
+        Raises
+        ------
+        ValueError
+            If scores are invalid (NaN, Inf, out of range)
+        """
+        scores_array = np.array(scores)
+        
+        if np.isnan(scores_array).any():
+            raise ValueError(f"{name} contains NaN values")
+        
+        if np.isinf(scores_array).any():
+            raise ValueError(f"{name} contains Inf values")
+        
+        if (scores_array < 0).any() or (scores_array > 1).any():
+            raise ValueError(
+                f"{name} must be in [0, 1]. "
+                f"Got min={np.min(scores_array):.3f}, max={np.max(scores_array):.3f}"
+            )
