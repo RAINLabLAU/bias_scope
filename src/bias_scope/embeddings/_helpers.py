@@ -48,7 +48,7 @@ def _validate_embedding_dimensions(arrays: list) -> None:
 
     if len(set(dims)) != 1:
         raise ValueError(
-            f"All embeddings must have same dimension. " f"Got dimensions: {dims}"
+            f"All embeddings must have same dimension. Got dimensions: {dims}"
         )
 
 
