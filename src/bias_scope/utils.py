@@ -3,10 +3,16 @@
 from typing import Union
 
 import numpy as np
-import torch
+
+try:
+    import torch
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+    torch = None
 
 
-def to_numpy(arr: Union[np.ndarray, torch.Tensor, list]) -> np.ndarray:
+def to_numpy(arr: Union[np.ndarray, list]) -> np.ndarray:
     """
     Convert input to numpy array.
 
@@ -30,7 +36,7 @@ def to_numpy(arr: Union[np.ndarray, torch.Tensor, list]) -> np.ndarray:
     >>> isinstance(arr, np.ndarray)
     True
     """
-    if isinstance(arr, torch.Tensor):
+    if _TORCH_AVAILABLE and isinstance(arr, torch.Tensor):
         return arr.detach().cpu().numpy()
     elif isinstance(arr, list):
         return np.array(arr)
