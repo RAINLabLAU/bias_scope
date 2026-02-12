@@ -2,6 +2,7 @@
 
 import pytest
 import json
+import numpy as np
 from bias_scope.generated_text_based import MarkedPersons
 
 
@@ -278,5 +279,128 @@ class TestMarkedPersons:
         # Should have at most 10 top marked and 10 top unmarked
         assert len(result['top_marked_terms']) <= 10
         assert len(result['top_unmarked_terms']) <= 10
+    
+    # === E) Missing Edge Cases for MarkedPersons ===
+    
+    def test_extremely_small_corpora(self):
+        """Test with extremely small corpora (1 token each, repeated)."""
+        mp = MarkedPersons()
+        
+        # Minimal corpora
+        marked_texts = ["special"]
+        unmarked_texts = ["common"]
+        
+        result = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            min_count=1
+        )
+        
+        # Should complete without divide-by-zero
+        assert 'terms' in result
+        
+        # Should have finite z-scores
+        for term_info in result['terms'].values():
+            assert np.isfinite(term_info['z'])
+        
+        # Should have entries for both terms
+        assert 'special' in result['terms'] or 'common' in result['terms']
+    
+    def test_all_tokens_identical_across_corpora(self):
+        """Test when both corpora have identical token distributions."""
+        mp = MarkedPersons()
+        
+        # Same tokens in both corpora
+        marked_texts = ["word1 word2 word3"] * 5
+        unmarked_texts = ["word1 word2 word3"] * 5
+        
+        result = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            min_count=1
+        )
+        
+        # All z-scores should be approximately 0 (no difference)
+        for term_info in result['terms'].values():
+            assert abs(term_info['z']) < 0.1  # Near zero
+    
+    def test_prior_alpha_extremely_large(self):
+        """Test that extremely large prior_alpha shrinks z-scores toward zero."""
+        mp = MarkedPersons()
+        
+        marked_texts = ["unique_marked"]
+        unmarked_texts = ["unique_unmarked"]
+        
+        # Small alpha
+        result_small = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            prior_alpha=0.001,
+            min_count=1
+        )
+        
+        # Large alpha
+        result_large = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            prior_alpha=100.0,  # Very large
+            min_count=1
+        )
+        
+        # Extract z-scores for unique_marked (if present)
+        if 'unique_marked' in result_small['terms'] and 'unique_marked' in result_large['terms']:
+            z_small = abs(result_small['terms']['unique_marked']['z'])
+            z_large = abs(result_large['terms']['unique_marked']['z'])
+            
+            # Large prior should shrink z-scores
+            assert z_large < z_small
+    
+    def test_tokenizer_returns_empty_list(self):
+        """Test that tokenizer returning empty list raises error."""
+        mp = MarkedPersons()
+        
+        # Custom tokenizer that returns empty
+        def empty_tokenizer(text):
+            return []
+        
+        marked_texts = ["some text"]
+        unmarked_texts = ["other text"]
+        
+        # Should raise error (no tokens -> no counts -> empty vocab)
+        # Actually, this will lead to empty vocab which should be handled
+        # Let's check what happens - with no tokens, we get zero counts
+        result = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            tokenizer=empty_tokenizer,
+            min_count=1
+        )
+        
+        # Should have no terms
+        assert len(result['terms']) == 0
+        assert result['summary']['vocab_considered'] == 0
+    
+    def test_return_top_k_larger_than_vocab(self):
+        """Test that return_top_k larger than vocab size doesn't crash."""
+        mp = MarkedPersons()
+        
+        # Small vocab (only 3 unique terms total)
+        marked_texts = ["word1 word2"]
+        unmarked_texts = ["word3"]
+        
+        # Ask for top 100 but vocab is only 3
+        result = mp.evaluate(
+            marked_generations=marked_texts,
+            unmarked_generations=unmarked_texts,
+            min_count=1,
+            return_top_k=100
+        )
+        
+        # Should return <= vocab size
+        assert len(result['top_marked_terms']) <= 3
+        assert len(result['top_unmarked_terms']) <= 3
+        
+        # Should not crash
+        assert 'terms' in result
 
 

@@ -369,5 +369,118 @@ class TestSocialGroupSubstitution:
         # Should not raise
         json_str = json.dumps(result)
         assert isinstance(json_str, str)
+    
+    # === A) Missing Edge Cases for SocialGroupSubstitution ===
+    
+    def test_multiple_placeholders_independence(self):
+        """Test that multiple placeholders produce independent unfairness values."""
+        sgs = SocialGroupSubstitution()
+        
+        prompts = ["{group} is a {role}"]
+        substitutions = {
+            'group': ['man', 'woman'],
+            'role': ['doctor', 'nurse']
+        }
+        
+        # Score depends on both group and role
+        def score_fn(text):
+            score = 0.0
+            if 'man' in text:
+                score += 2.0
+            if 'woman' in text:
+                score += 1.0
+            if 'doctor' in text:
+                score += 0.5
+            if 'nurse' in text:
+                score += 0.1
+            return score
+        
+        result = sgs.evaluate(
+            prompts=prompts,
+            substitutions=substitutions,
+            generate_fn=lambda x: x,
+            score_fn=score_fn
+        )
+        
+        # Check that both placeholders have unfairness computed
+        assert 'group' in result['individual_unfairness']
+        assert 'role' in result['individual_unfairness']
+        
+        # Unfairness values should differ (different substitutions create different score patterns)
+        if_group = result['individual_unfairness']['group'][0]
+        if_role = result['individual_unfairness']['role'][0]
+        
+        # They should be different because the scoring is asymmetric
+        # group affects score more (2.0 vs 1.0) than role (0.5 vs 0.1)
+        assert if_group != if_role
+        assert if_group > if_role
+    
+    def test_tie_case_deterministic(self):
+        """Test that all identical scores produce zero unfairness and disparity."""
+        sgs = SocialGroupSubstitution()
+        
+        prompts = ["Test {x}"]
+        substitutions = {'x': ['a', 'b', 'c']}
+        
+        # Always return same score regardless of input
+        def constant_score_fn(text):
+            return 5.0
+        
+        result = sgs.evaluate(
+            prompts=prompts,
+            substitutions=substitutions,
+            generate_fn=lambda x: x,
+            score_fn=constant_score_fn
+        )
+        
+        # All scores identical -> no unfairness
+        assert result['individual_unfairness_overall'] == 0.0
+        assert result['individual_unfairness']['x'][0] == 0.0
+        
+        # All group means identical -> no disparity
+        assert result['group_disparity']['x'] == 0.0
+        assert result['group_disparity']['_overall'] == 0.0
+    
+    def test_batched_vs_nonbatched_identical_output(self):
+        """Test that batched and non-batched generate functions produce identical results."""
+        sgs = SocialGroupSubstitution()
+        
+        prompts = ["Say {word}"]
+        substitutions = {'word': ['hello', 'goodbye']}
+        
+        def score_fn(text):
+            return len(text)
+        
+        # Non-batched version
+        def generate_single(prompt):
+            return f"Generated: {prompt}"
+        
+        result_single = sgs.evaluate(
+            prompts=prompts,
+            substitutions=substitutions,
+            generate_fn=generate_single,
+            score_fn=score_fn
+        )
+        
+        # Batched version (returns list)
+        def generate_batch(prompts_input):
+            if isinstance(prompts_input, list):
+                return [f"Generated: {p}" for p in prompts_input]
+            return f"Generated: {prompts_input}"
+        
+        result_batch = sgs.evaluate(
+            prompts=prompts,
+            substitutions=substitutions,
+            generate_fn=generate_batch,
+            score_fn=score_fn
+        )
+        
+        # Outputs should be identical
+        assert result_single['individual_unfairness_overall'] == result_batch['individual_unfairness_overall']
+        assert result_single['group_disparity']['_overall'] == result_batch['group_disparity']['_overall']
+        
+        # Scores should be same (both generate same text)
+        for word in ['hello', 'goodbye']:
+            assert result_single['scores']['word'][word] == result_batch['scores']['word'][word]
 
 

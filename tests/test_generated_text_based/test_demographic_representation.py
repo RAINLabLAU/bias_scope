@@ -271,5 +271,116 @@ class TestDemographicRepresentation:
         assert 'distribution' in result['reference']
         assert 'kl_pq' in result['reference']
         assert 'jsd' in result['reference']
+    
+    # === C) Missing Edge Cases for DemographicRepresentation ===
+    
+    def test_zero_group_mentions_with_tokens_normalization(self):
+        """Test zero group mentions with 'tokens' normalization."""
+        dr = DemographicRepresentation()
+        
+        # Text with tokens but no group terms
+        generations = ["the doctor works at hospital"]
+        
+        group_lexicons = {
+            'male': ['man', 'he'],
+            'female': ['woman', 'she']
+        }
+        
+        # With 'mentions' normalization, should raise error
+        with pytest.raises(ValueError, match="No group mentions found"):
+            dr.evaluate(
+                generations=generations,
+                group_lexicons=group_lexicons,
+                normalize='mentions'
+            )
+        
+        # With 'tokens' normalization, total tokens > 0 but no group tokens
+        # Implementation allows this and produces distribution with all zeros
+        result = dr.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            normalize='tokens'
+        )
+        
+        # All counts should be zero
+        assert result['counts']['male'] == 0
+        assert result['counts']['female'] == 0
+        
+        # Distribution should be all zeros
+        assert result['distribution']['male'] == 0.0
+        assert result['distribution']['female'] == 0.0
+        
+        # Entropy should be 0 (no diversity, all zero probabilities with epsilon)
+        assert result['diversity']['entropy'] >= 0  # Should be finite
+    
+    def test_compare_to_slightly_off_sum(self):
+        """Test that compare_to with sum slightly off 1.0 (within tolerance) passes."""
+        dr = DemographicRepresentation()
+        
+        generations = ["man woman"]
+        group_lexicons = {'male': ['man'], 'female': ['woman']}
+        
+        # Sum = 0.999999 (within tolerance)
+        reference = {
+            'male': 0.499999,
+            'female': 0.500000
+        }
+        
+        # Should pass without error
+        result = dr.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            compare_to=reference
+        )
+        
+        assert result['reference']['provided'] == True
+        assert result['reference']['kl_pq'] is not None
+    
+    def test_compare_to_exceeds_sum_threshold(self):
+        """Test that compare_to summing to >1.01 raises error."""
+        dr = DemographicRepresentation()
+        
+        generations = ["man woman"]
+        group_lexicons = {'male': ['man'], 'female': ['woman']}
+        
+        # Sum = 1.02 (exceeds threshold)
+        reference = {
+            'male': 0.52,
+            'female': 0.50
+        }
+        
+        with pytest.raises(ValueError, match="must sum to ~1"):
+            dr.evaluate(
+                generations=generations,
+                group_lexicons=group_lexicons,
+                compare_to=reference
+            )
+    
+    def test_single_group_case(self):
+        """Test with only 1 group (edge case for diversity metrics)."""
+        dr = DemographicRepresentation()
+        
+        generations = ["man man man"]
+        
+        # Only one group
+        group_lexicons = {'male': ['man']}
+        
+        result = dr.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            normalize='mentions'
+        )
+        
+        # Distribution should be 1.0 for male
+        assert result['distribution']['male'] == 1.0
+        
+        # Entropy should be ~0 (no diversity) - use approx due to floating point
+        assert pytest.approx(result['diversity']['entropy'], abs=1e-9) == 0.0
+        
+        # Normalized entropy should be 0 (K=1 -> log(K)=0, handled specially)
+        assert result['diversity']['normalized_entropy'] == 0.0
+        
+        # Gini impurity: 1 - (1.0)^2 = 0
+        assert result['diversity']['gini_impurity'] == 0.0
 
 

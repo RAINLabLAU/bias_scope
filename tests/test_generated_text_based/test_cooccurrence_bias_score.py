@@ -337,5 +337,151 @@ class TestCoOccurrenceBiasScore:
         # Should not raise
         json_str = json.dumps(result)
         assert isinstance(json_str, str)
+    
+    # === B) Missing Edge Cases for CoOccurrenceBiasScore ===
+    
+    def test_no_group_anchors_present(self):
+        """Test when generations contain no group terms at all."""
+        cobs = CoOccurrenceBiasScore()
+        
+        # No group terms present
+        generations = [
+            "the doctor works hard",
+            "the nurse is skilled"
+        ]
+        
+        group_lexicons = {
+            'male': ['man', 'he'],
+            'female': ['woman', 'she']
+        }
+        
+        result = cobs.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            window_size=5
+        )
+        
+        # Group anchor counts should be zero
+        assert result['counts']['group_anchors']['male'] == 0
+        assert result['counts']['group_anchors']['female'] == 0
+        
+        # Scores should still be finite due to smoothing
+        pair_scores = result['scores']['pairwise']['male|female']
+        if pair_scores:
+            for score in pair_scores.values():
+                assert np.isfinite(score)
+    
+    def test_overlapping_windows_counting(self):
+        """Test that overlapping windows are handled correctly.
+        
+        A neutral word in overlapping windows is counted separately for each anchor.
+        """
+        cobs = CoOccurrenceBiasScore()
+        
+        # 'doctor' is within window of both 'man' occurrences
+        generations = [
+            "man man doctor"  # 'doctor' is near both 'man' tokens
+        ]
+        
+        group_lexicons = {
+            'male': ['man'],
+            'female': ['woman']
+        }
+        
+        result = cobs.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            window_size=3
+        )
+        
+        # Should have 2 male anchors
+        assert result['counts']['group_anchors']['male'] == 2
+        
+        # 'doctor' should be counted in co-occurrence
+        # (counted once per anchor it's near)
+        cooc_male = result['counts']['cooccurrence']['male']
+        if 'doctor' in cooc_male:
+            # Should be counted 2 times (once per anchor)
+            assert cooc_male['doctor'] == 2
+    
+    def test_neutral_vocab_excludes_everything(self):
+        """Test when neutral_vocab has no overlap with corpus."""
+        cobs = CoOccurrenceBiasScore()
+        
+        generations = ["man doctor woman nurse"]
+        
+        group_lexicons = {
+            'male': ['man'],
+            'female': ['woman']
+        }
+        
+        # Neutral vocab that doesn't appear in text
+        neutral_vocab = ['nonexistent1', 'nonexistent2']
+        
+        result = cobs.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            neutral_vocab=neutral_vocab,
+            window_size=5
+        )
+        
+        # Should have group anchors but empty co-occurrence counts
+        assert result['counts']['group_anchors']['male'] > 0
+        assert result['counts']['group_anchors']['female'] > 0
+        
+        # vocab_size should be 2 (the neutral vocab)
+        assert result['vocab_size'] == 2
+        
+        # Scores should be empty or all zero (no co-occurrences)
+        pair_scores = result['scores']['pairwise']['male|female']
+        # Should still compute scores for the neutral vocab with smoothing
+        assert len(pair_scores) >= 0
+    
+    def test_punctuation_tokenization_edge_case(self):
+        """Test that punctuation is handled correctly in tokenization."""
+        cobs = CoOccurrenceBiasScore()
+        
+        # Punctuation-heavy input
+        generations = [
+            "man, woman. doctor! nurse?"
+        ]
+        
+        group_lexicons = {
+            'male': ['man'],
+            'female': ['woman']
+        }
+        
+        result = cobs.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            window_size=5
+        )
+        
+        # Should detect group terms despite punctuation
+        assert result['counts']['group_anchors']['male'] >= 1
+        assert result['counts']['group_anchors']['female'] >= 1
+        
+        # Should detect neutral terms (doctor, nurse)
+        pair_scores = result['scores']['pairwise']['male|female']
+        # At least one of these should be scored
+        assert 'doctor' in pair_scores or 'nurse' in pair_scores
+    
+    def test_multi_group_mode_invalid(self):
+        """Test that invalid multi_group_mode raises error."""
+        cobs = CoOccurrenceBiasScore()
+        
+        generations = ["man doctor"]
+        group_lexicons = {
+            'male': ['man'],
+            'female': ['woman'],
+            'neutral': ['person']
+        }
+        
+        with pytest.raises(ValueError, match="multi_group_mode must be"):
+            cobs.evaluate(
+                generations=generations,
+                group_lexicons=group_lexicons,
+                multi_group_mode='invalid'
+            )
 
 

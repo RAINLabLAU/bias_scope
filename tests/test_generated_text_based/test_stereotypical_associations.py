@@ -338,5 +338,78 @@ class TestStereotypicalAssociations:
         # Should not raise
         json_str = json.dumps(result)
         assert isinstance(json_str, str)
+    
+    # === D) Missing Edge Cases for StereotypicalAssociations ===
+    
+    def test_overlapping_matches_counted_once(self):
+        """Test that when same rule matches multiple times in one generation, it's counted once."""
+        sa = StereotypicalAssociations()
+        
+        # Multiple occurrences of group and attribute terms in same generation
+        generations = [
+            "women are bad at math and women are bad at science"
+        ]
+        
+        rules = [
+            {
+                'name': 'women_negative',
+                'group_terms': ['women'],
+                'attribute_terms': ['bad']
+            }
+        ]
+        
+        result = sa.evaluate(
+            generations=generations,
+            stereotype_rules=rules,
+            context_window=5
+        )
+        
+        # Rule should hit once per generation (not multiple times)
+        assert result['rules'][0]['hits'] == 1
+        
+        # Generation should list the rule once
+        assert result['per_generation'][0]['any_hit'] == True
+        assert len(result['per_generation'][0]['hits']) == 1
+        assert result['per_generation'][0]['hits'][0] == 'women_negative'
+    
+    def test_case_insensitive_false_behavior(self):
+        """Test that case_insensitive=False respects case."""
+        sa = StereotypicalAssociations()
+        
+        generations = [
+            "WOMEN are bad at math"  # Uppercase
+        ]
+        
+        rules = [
+            {
+                'name': 'test',
+                'group_terms': ['women'],  # Lowercase
+                'attribute_terms': ['bad']
+            }
+        ]
+        
+        # With case_insensitive=False, should NOT match
+        result_sensitive = sa.evaluate(
+            generations=generations,
+            stereotype_rules=rules,
+            context_window=5,
+            case_insensitive=False
+        )
+        
+        # Should not hit (case mismatch)
+        assert result_sensitive['rules'][0]['hits'] == 0
+        assert result_sensitive['per_generation'][0]['any_hit'] == False
+        
+        # With case_insensitive=True, should match
+        result_insensitive = sa.evaluate(
+            generations=generations,
+            stereotype_rules=rules,
+            context_window=5,
+            case_insensitive=True
+        )
+        
+        # Should hit
+        assert result_insensitive['rules'][0]['hits'] == 1
+        assert result_insensitive['per_generation'][0]['any_hit'] == True
 
 

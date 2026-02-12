@@ -175,8 +175,14 @@ class StereotypicalAssociations(GeneratedTextMetric):
                     f"rule '{rule_name}' attribute_terms"
                 )
                 
-                group_lex = normalize_lexicon(group_terms)
-                attr_lex = normalize_lexicon(attribute_terms)
+                # Normalize lexicons based on case sensitivity
+                if case_insensitive:
+                    group_lex = normalize_lexicon(group_terms)
+                    attr_lex = normalize_lexicon(attribute_terms)
+                else:
+                    # Case-sensitive: preserve case
+                    group_lex = set(group_terms)
+                    attr_lex = set(attribute_terms)
                 
                 processed_rules.append({
                     'name': rule_name,
@@ -220,7 +226,11 @@ class StereotypicalAssociations(GeneratedTextMetric):
             
             # Tokenize for token_window matcher
             if matcher == "token_window":
-                tokens = tokenize(text)
+                if case_insensitive:
+                    tokens = tokenize(text)  # Lowercase tokenization
+                else:
+                    # Case-sensitive tokenization: preserve case
+                    tokens = re.findall(r"[a-zA-Z0-9']+", text)
             else:
                 # For regex, we'll work with original text
                 text_to_match = text.lower() if case_insensitive else text
