@@ -1,11 +1,16 @@
 """Utility functions for bias detection metrics."""
 
 import numpy as np
-import torch
 from typing import Union
 
+try:
+    import torch
+    _torch_available = True
+except ImportError:
+    _torch_available = False
 
-def to_numpy(arr: Union[np.ndarray, torch.Tensor, list]) -> np.ndarray:
+
+def to_numpy(arr: Union[np.ndarray, list]) -> np.ndarray:
     """
     Convert input to numpy array.
     
@@ -23,13 +28,13 @@ def to_numpy(arr: Union[np.ndarray, torch.Tensor, list]) -> np.ndarray:
     
     Examples
     --------
-    >>> import torch
     >>> tensor = torch.randn(3, 5)
     >>> arr = to_numpy(tensor)
     >>> isinstance(arr, np.ndarray)
     True
     """
-    if isinstance(arr, torch.Tensor):
+    if _torch_available and hasattr(arr, 'detach'):
+        # It's a torch tensor
         return arr.detach().cpu().numpy()
     elif isinstance(arr, list):
         return np.array(arr)
