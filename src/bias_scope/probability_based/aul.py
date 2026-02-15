@@ -43,6 +43,11 @@ class AUL(ProbabilityMetric):
     >>> print(f"Bias score: {score:.2%}")
     """
 
+    @property
+    def name(self) -> str:
+        """Return metric name."""
+        return "AUL"
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],

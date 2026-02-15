@@ -78,6 +78,11 @@ class CBS(ProbabilityMetric):
         - Target words must be single-token under the tokenizer (else we raise).
     """
 
+    @property
+    def name(self) -> str:
+        """Return metric name."""
+        return "CBS"
+
     def __init__(
         self, model_name: str = "bert-base-uncased", device: Optional[str] = None
     ):

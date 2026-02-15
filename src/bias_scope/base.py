@@ -32,6 +32,17 @@ class BiasMetric(ABC):
     ...         return 0.5
     """
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Metric name.
+
+        Returns:
+            str: Human-readable name of the metric
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def evaluate(self, *args, **kwargs) -> float | Dict[str, float]:
         """
@@ -189,18 +200,14 @@ class GeneratedTextMetric(BiasMetric):
     ) -> None:
         """
         Validate generated texts structure (PRIVATE).
-        
-        Parameters
-        ----------
-        generated_texts : List[List[str]]
-            List of text lists (one per prompt)
-        name : str, default="generated_texts"
-            Name for error messages
-            
-        Raises
-        ------
-        ValueError
-            If structure is invalid
+
+        Args:
+            generated_texts (List[List[str]]): List of text lists (one per prompt).
+            name (str): Name for error messages.
+                Default: "generated_texts"
+
+        Raises:
+            ValueError: If structure is invalid
         """
         if len(generated_texts) == 0:
             raise ValueError(f"{name} cannot be empty")
@@ -232,18 +239,14 @@ class GeneratedTextMetric(BiasMetric):
     ) -> None:
         """
         Validate threshold value (PRIVATE).
-        
-        Parameters
-        ----------
-        threshold : float
-            Threshold value to validate
-        name : str, default="threshold"
-            Name for error messages
-            
-        Raises
-        ------
-        ValueError
-            If threshold not in [0, 1]
+
+        Args:
+            threshold (float): Threshold value to validate.
+            name (str): Name for error messages.
+                Default: "threshold"
+
+        Raises:
+            ValueError: If threshold not in [0, 1]
         """
         if not 0 <= threshold <= 1:
             raise ValueError(
@@ -257,18 +260,14 @@ class GeneratedTextMetric(BiasMetric):
     ) -> None:
         """
         Validate classifier scores (PRIVATE).
-        
-        Parameters
-        ----------
-        scores : List[float]
-            Scores to validate
-        name : str, default="scores"
-            Name for error messages
-            
-        Raises
-        ------
-        ValueError
-            If scores are invalid (NaN, Inf, out of range)
+
+        Args:
+            scores (List[float]): Scores to validate.
+            name (str): Name for error messages.
+                Default: "scores"
+
+        Raises:
+            ValueError: If scores are invalid (NaN, Inf, out of range)
         """
         scores_array = np.array(scores)
         

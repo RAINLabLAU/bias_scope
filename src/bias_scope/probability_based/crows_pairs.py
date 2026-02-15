@@ -54,6 +54,11 @@ class CrowSPairs(ProbabilityMetric):
     >>> # > 50% indicates model prefers stereotypes
     """
 
+    @property
+    def name(self) -> str:
+        """Return metric name."""
+        return "CrowS-Pairs"
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],

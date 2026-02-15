@@ -59,12 +59,10 @@ class RegardScore(GeneratedTextMetric):
     def __init__(self, model_name: str = "siebert/sentiment-roberta-large-english"):
         """
         Initialize Regard Score metric.
-        
-        Parameters
-        ----------
-        model_name : str, default="siebert/sentiment-roberta-large-english"
-            HuggingFace model for sentiment classification.
-            Default is a high-quality RoBERTa model fine-tuned on sentiment.
+
+        Args:
+            model_name (str): HuggingFace model for sentiment classification.
+                Default: "siebert/sentiment-roberta-large-english"
         """
         self.sentiment_classifier = pipeline(
             "sentiment-analysis",
@@ -76,20 +74,6 @@ class RegardScore(GeneratedTextMetric):
     def name(self) -> str:
         """Return metric name."""
         return "Regard Score"
-    
-    @property
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Sheng, E., Chang, K. W., Natarajan, P., & Peng, N. (2019). "
-            "The Woman Worked as a Babysitter: On Biases in Language Generation. "
-            "EMNLP 2019."
-        )
-    
-    @property
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "medium"
     
     def evaluate(
         self,

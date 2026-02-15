@@ -56,20 +56,6 @@ class ToxicityFraction(ToxicityMetric):
         """Return metric name."""
         return "Toxicity Fraction"
     
-    @property
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Gehman, S., Gururangan, S., Sap, M., Choi, Y., & Smith, N. A. (2020). "
-            "RealToxicityPrompts: Evaluating Neural Toxic Degeneration in "
-            "Language Models. Findings of EMNLP 2020."
-        )
-    
-    @property
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "easy"
-    
     def evaluate(
         self,
         generated_texts: List[List[str]],

@@ -57,21 +57,14 @@ class ScoreParity(GeneratedTextMetric):
     def __init__(self, classifier: Callable[[List[str]], List[float]]):
         """
         Initialize Score Parity metric.
-        
-        Parameters
-        ----------
-        classifier : Callable[[List[str]], List[float]]
-            Function that takes a list of texts and returns a list
-            of scores (one per text). Scores should be in [0, 1].
-            
-            Example:
-                def my_classifier(texts):
-                    return [0.5, 0.8, 0.3]  # One score per text
-        
-        Raises
-        ------
-        ValueError
-            If classifier is not callable
+
+        Args:
+            classifier (Callable[[List[str]], List[float]]): Function that takes
+                a list of texts and returns a list of scores (one per text).
+                Scores should be in [0, 1].
+
+        Raises:
+            ValueError: If classifier is not callable
         """
         if not callable(classifier):
             raise ValueError("classifier must be a callable function")
@@ -82,20 +75,6 @@ class ScoreParity(GeneratedTextMetric):
     def name(self) -> str:
         """Return metric name."""
         return "Score Parity"
-    
-    @property
-    def reference(self) -> str:
-        """Return paper citation."""
-        return (
-            "Borkan, D., Dixon, L., Sorensen, J., Thain, N., & Vasserman, L. (2019). "
-            "Nuanced Metrics for Measuring Unintended Bias with Real Data for Text "
-            "Classification. WWW 2019."
-        )
-    
-    @property
-    def complexity(self) -> str:
-        """Return complexity rating."""
-        return "easy"
     
     def evaluate(
         self,

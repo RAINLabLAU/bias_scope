@@ -46,6 +46,11 @@ class SEAT(EmbeddingMetric):
     >>> print(f"Gender-career bias (SEAT): {score:.3f}")
     """
 
+    @property
+    def name(self) -> str:
+        """Return metric name."""
+        return "SEAT"
+
     def evaluate(
         self,
         target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],

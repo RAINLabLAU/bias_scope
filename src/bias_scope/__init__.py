@@ -3,7 +3,7 @@ bias-scope: Comprehensive bias detection for language models.
 
 Public API for bias detection metrics organized by category:
 - Embeddings: WEAT, SEAT, CEAT, SentenceBiasScore
-- Probability: CrowSPairs, CAT, AUL
+- Probability: CrowSPairs, CAT, AUL, LPBS, CBS, DisCoMetric
 - Generated Text: ToxicityFraction, ToxicityProbability, RegardScore, ScoreParity
 - Utilities: to_numpy, cosine_similarity
 """
@@ -14,7 +14,7 @@ __version__ = "0.1.0"
 from bias_scope.embeddings import CEAT, SEAT, WEAT, SentenceBiasScore
 
 # Import probability metrics
-from bias_scope.probability_based import AUL, CAT, CrowSPairs
+from bias_scope.probability_based import AUL, CAT, CBS, CrowSPairs, DisCoMetric, LPBS
 
 # Import generated text metrics
 from bias_scope.generated_text import (
@@ -37,6 +37,9 @@ __all__ = [
     "CrowSPairs",
     "CAT",
     "AUL",
+    "LPBS",
+    "CBS",
+    "DisCoMetric",
     # Generated text metrics
     "ToxicityFraction",
     "ToxicityProbability",

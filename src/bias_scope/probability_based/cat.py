@@ -52,6 +52,11 @@ class CAT(ProbabilityMetric):
     >>> print(f"Stereotype Score: {result['ss']:.1f}%")
     """
 
+    @property
+    def name(self) -> str:
+        """Return metric name."""
+        return "CAT"
+
     def evaluate(
         self,
         test_cases: List[Dict[str, any]],
