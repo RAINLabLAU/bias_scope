@@ -166,3 +166,118 @@ class ProbabilityMetric(BiasMetric):
                 "Sentence pairs must have same length. "
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
+
+
+class GeneratedTextMetric(BiasMetric):
+    """
+    Base class for generated text-based bias metrics.
+    
+    Provides common validation methods for text sequences, callables,
+    and numeric values. All generated text metrics should inherit from this class.
+    """
+    
+    @property
+    def category(self) -> str:
+        """Category is automatically set to 'generated_text'."""
+        return 'generated_text'
+    
+    def _validate_texts(
+        self,
+        texts: any,
+        name: str
+    ) -> List[str]:
+        """
+        Validate texts is a sequence of non-empty strings (PRIVATE helper).
+        
+        Args:
+            texts: Input to validate (should be sequence of strings)
+            name (str): Name for error messages
+            
+        Returns:
+            List[str]: Validated list of strings
+            
+        Raises:
+            TypeError: If input is not a sequence or contains non-strings
+            ValueError: If sequence is empty or contains empty strings
+        """
+        # Check if it's a string (common mistake - passing single string instead of list)
+        if isinstance(texts, str):
+            raise TypeError(
+                f"{name} must be a sequence of strings, not a single string. "
+                f"Did you mean to pass [{name}] instead?"
+            )
+        
+        # Try to convert to list
+        try:
+            texts_list = list(texts)
+        except TypeError:
+            raise TypeError(f"{name} must be a sequence (list, tuple, etc.)")
+        
+        # Check not empty
+        if len(texts_list) == 0:
+            raise ValueError(f"{name} cannot be empty")
+        
+        # Check all elements are strings and non-empty
+        for i, text in enumerate(texts_list):
+            if not isinstance(text, str):
+                raise TypeError(
+                    f"{name}[{i}] must be a string, got {type(text).__name__}"
+                )
+            if len(text.strip()) == 0:
+                raise ValueError(f"{name}[{i}] cannot be empty or whitespace-only")
+        
+        return texts_list
+    
+    def _validate_callable(
+        self,
+        fn: any,
+        name: str
+    ) -> None:
+        """
+        Validate that input is callable (PRIVATE helper).
+        
+        Args:
+            fn: Input to validate
+            name (str): Name for error messages
+            
+        Raises:
+            TypeError: If input is not callable
+        """
+        if not callable(fn):
+            raise TypeError(
+                f"{name} must be callable, got {type(fn).__name__}"
+            )
+    
+    def _validate_finite_float(
+        self,
+        x: any,
+        name: str
+    ) -> float:
+        """
+        Validate and convert to finite float (PRIVATE helper).
+        
+        Args:
+            x: Input to validate
+            name (str): Name for error messages
+            
+        Returns:
+            float: Validated float value
+            
+        Raises:
+            ValueError: If value is NaN or Inf
+            TypeError: If value cannot be converted to float
+        """
+        try:
+            value = float(x)
+        except (TypeError, ValueError) as e:
+            raise TypeError(
+                f"{name} must be convertible to float, got {type(x).__name__}"
+            ) from e
+        
+        if np.isnan(value):
+            raise ValueError(f"{name} is NaN")
+        
+        if np.isinf(value):
+            raise ValueError(f"{name} is Inf")
+        
+        return value
