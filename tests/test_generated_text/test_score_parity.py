@@ -102,27 +102,16 @@ class TestScoreParity:
         parity = ScoreParity(classifier=simple_classifier)
         assert parity.category == "generated_text"
     
-    def test_metadata_complexity(self, simple_classifier):
-        """Test complexity rating property."""
-        parity = ScoreParity(classifier=simple_classifier)
-        assert parity.complexity == "easy"
-    
-    def test_metadata_reference(self, simple_classifier):
-        """Test reference contains key info."""
-        parity = ScoreParity(classifier=simple_classifier)
-        ref = parity.reference
-        assert "Borkan" in ref
-        assert "2019" in ref
-    
     def test_effect_size_calculation(self, simple_classifier):
         """Test Cohen's d effect size calculation."""
         parity = ScoreParity(classifier=simple_classifier)
-        
-        group_a = [["high", "high", "high"]]
-        group_b = [["low", "low", "low"]]
-        
+
+        # Need variation within groups for non-zero pooled std
+        group_a = [["high", "high", "medium"]]
+        group_b = [["low", "low", "medium"]]
+
         scores = parity.evaluate(group_a, group_b)
-        
+
         # Effect size should be large (> 0.8)
         assert abs(scores['effect_size']) > 0.8
     

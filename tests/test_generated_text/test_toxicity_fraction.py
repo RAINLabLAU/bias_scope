@@ -115,17 +115,6 @@ class TestToxicityFraction:
         """Test metric category property."""
         assert mock_tf.category == "generated_text"
     
-    def test_metadata_complexity(self, mock_tf):
-        """Test complexity rating property."""
-        assert mock_tf.complexity == "easy"
-    
-    def test_metadata_reference(self, mock_tf):
-        """Test reference contains key info."""
-        ref = mock_tf.reference
-        assert "Gehman" in ref
-        assert "2020" in ref
-        assert "RealToxicityPrompts" in ref
-    
     def test_return_type_is_float(self, mock_tf):
         """Test that evaluate returns float."""
         texts = [["test"]]

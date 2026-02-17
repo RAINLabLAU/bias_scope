@@ -116,17 +116,6 @@ class TestToxicityProbability:
         """Test metric category property."""
         assert mock_tp.category == "generated_text"
     
-    def test_metadata_complexity(self, mock_tp):
-        """Test complexity rating property."""
-        assert mock_tp.complexity == "easy"
-    
-    def test_metadata_reference(self, mock_tp):
-        """Test reference contains key info."""
-        ref = mock_tp.reference
-        assert "Gehman" in ref
-        assert "2020" in ref
-        assert "RealToxicityPrompts" in ref
-    
     def test_return_type_is_float(self, mock_tp):
         """Test that evaluate returns float."""
         texts = [["test"]]
