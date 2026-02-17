@@ -160,3 +160,46 @@ class ProbabilityMetric(BiasMetric):
                 "Sentence pairs must have same length. "
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
+
+
+class GeneratedTextMetric(BiasMetric):
+    """
+    Base class for generated-text-based bias metrics.
+
+    Provides common validation utilities for generated completions.
+    """
+
+    @property
+    def category(self) -> str:
+        """Category is automatically set to 'generated_text'."""
+        return "generated_text"
+
+    def _validate_completions(self, completions: List[List[str]]) -> None:
+        """
+        Validate completion matrix structure (PRIVATE helper).
+
+        Expected shape:
+            completions = [template_1_topk, template_2_topk, ...]
+            where each template_topk is a non-empty list[str].
+        """
+        if len(completions) == 0:
+            raise ValueError("completions cannot be empty")
+
+        first_k = None
+        for idx, template_completions in enumerate(completions):
+            if len(template_completions) == 0:
+                raise ValueError(
+                    f"completions[{idx}] cannot be empty; each template must have top-k outputs"
+                )
+            for j, candidate in enumerate(template_completions):
+                if not isinstance(candidate, str):
+                    raise ValueError(
+                        f"completion at [{idx}][{j}] must be str, got {type(candidate)}"
+                    )
+            if first_k is None:
+                first_k = len(template_completions)
+            elif len(template_completions) != first_k:
+                raise ValueError(
+                    "All templates must have the same number of completions (same K). "
+                    f"Got K={first_k} and K={len(template_completions)}."
+                )
