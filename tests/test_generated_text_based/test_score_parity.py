@@ -92,11 +92,6 @@ class TestScoreParity:
         for key in expected_keys:
             assert key in scores
     
-    def test_metadata_name(self, simple_classifier):
-        """Test metric name property."""
-        parity = ScoreParity(classifier=simple_classifier)
-        assert parity.name == "Score Parity"
-    
     def test_metadata_category(self, simple_classifier):
         """Test metric category property."""
         parity = ScoreParity(classifier=simple_classifier)

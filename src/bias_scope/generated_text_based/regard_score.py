@@ -70,11 +70,6 @@ class RegardScore(GeneratedTextMetric):
             return_all_scores=True
         )
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "Regard Score"
-    
     def evaluate(
         self,
         group_a_texts: List[List[str]],

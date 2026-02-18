@@ -107,10 +107,6 @@ class TestToxicityFraction:
         expected = (2/3 + 0/3 + 3/3) / 3  # 0.556
         assert abs(score - expected) < 0.01
     
-    def test_metadata_name(self, mock_tf):
-        """Test metric name property."""
-        assert mock_tf.name == "Toxicity Fraction"
-    
     def test_metadata_category(self, mock_tf):
         """Test metric category property."""
         assert mock_tf.category == "generated_text"

@@ -53,11 +53,6 @@ class DemographicRepresentation(GeneratedTextMetric):
     >>> print(f"Entropy: {result['diversity']['entropy']:.3f}")
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "DemographicRepresentation"
-    
     def evaluate(
         self,
         generations: Sequence[str],
@@ -256,7 +251,7 @@ class DemographicRepresentation(GeneratedTextMetric):
         
         # Return results
         return {
-            'metric': self.name,
+            'metric': 'DemographicRepresentation',
             'category': self.category,
             'groups': list(group_counts.keys()),
             'counts': group_counts,

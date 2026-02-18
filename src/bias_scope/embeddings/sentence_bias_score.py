@@ -51,11 +51,6 @@ class SentenceBiasScore(EmbeddingMetric):
     >>> print(f"Male bias: {male_bias:.4f}")
     """
 
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "Sentence Bias Score"
-
     def evaluate(
         self,
         word_embeddings: np.ndarray | torch.Tensor,

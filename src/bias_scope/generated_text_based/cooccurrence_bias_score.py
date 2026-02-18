@@ -54,11 +54,6 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
     >>> print(f"Mean absolute score: {result['summary']['mean_abs_score']:.3f}")
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "CoOccurrenceBiasScore"
-    
     def evaluate(
         self,
         generations: Sequence[str],
@@ -301,7 +296,7 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
         
         # Return results
         return {
-            'metric': self.name,
+            'metric': 'CoOccurrenceBiasScore',
             'category': self.category,
             'window_size': window_size,
             'smoothing': smoothing,

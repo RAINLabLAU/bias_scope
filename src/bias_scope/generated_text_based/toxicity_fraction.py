@@ -51,11 +51,6 @@ class ToxicityFraction(ToxicityMetric):
     >>> print(f"Toxicity fraction: {score:.2%}")  # e.g., "33.33%"
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "Toxicity Fraction"
-    
     def evaluate(
         self,
         generated_texts: List[List[str]],

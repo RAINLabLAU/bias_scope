@@ -14,16 +14,11 @@ class BiasMetric(ABC):
     """
     Abstract base class for all bias detection metrics.
 
-    All bias metrics must implement the `evaluate` method and provide
-    metadata about the metric through properties.
+    All bias metrics must implement the `evaluate` method.
 
     Examples
     --------
     >>> class MyMetric(BiasMetric):
-    ...     @property
-    ...     def name(self):
-    ...         return "My Custom Metric"
-    ...
     ...     @property
     ...     def category(self):
     ...         return "embedding"
@@ -31,17 +26,6 @@ class BiasMetric(ABC):
     ...     def evaluate(self, inputs):
     ...         return 0.5
     """
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """
-        Metric name.
-
-        Returns:
-            str: Human-readable name of the metric
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def evaluate(self, *args, **kwargs) -> float | Dict[str, float]:

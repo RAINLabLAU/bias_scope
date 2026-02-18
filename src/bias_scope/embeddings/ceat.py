@@ -59,11 +59,6 @@ class CEAT(EmbeddingMetric):
     >>> print(f"WEAT variance: {result['weat_variance']:.3f}")
     """
 
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "CEAT"
-
     def evaluate(
         self,
         target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],

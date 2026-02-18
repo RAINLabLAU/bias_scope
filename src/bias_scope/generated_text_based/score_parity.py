@@ -71,11 +71,6 @@ class ScoreParity(GeneratedTextMetric):
         
         self.classifier = classifier
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "Score Parity"
-    
     def evaluate(
         self,
         group_a_texts: List[List[str]],

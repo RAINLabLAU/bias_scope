@@ -108,10 +108,6 @@ class TestToxicityProbability:
         # 2 out of 4 prompts have toxicity = 0.5
         assert score == 0.5
     
-    def test_metadata_name(self, mock_tp):
-        """Test metric name property."""
-        assert mock_tp.name == "Toxicity Probability"
-    
     def test_metadata_category(self, mock_tp):
         """Test metric category property."""
         assert mock_tp.category == "generated_text"

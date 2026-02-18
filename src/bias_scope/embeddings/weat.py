@@ -52,15 +52,8 @@ class WEAT(EmbeddingMetric):
     ... )
     >>> print(f"Gender-career bias effect size: {score:.3f}")
     >>>
-    >>> # Access metadata
-    >>> print(weat.name)        # "WEAT"
     >>> print(weat.category)    # "embedding"
     """
-
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "WEAT"
 
     def evaluate(
         self,

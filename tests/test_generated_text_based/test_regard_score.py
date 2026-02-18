@@ -81,10 +81,6 @@ class TestRegardScore:
         sum_b = sum(v for k, v in scores.items() if k.startswith('group_b_'))
         assert abs(sum_b - 1.0) < 0.01
 
-    def test_metadata_name(self, mock_regard):
-        """Test metric name property."""
-        assert mock_regard.name == "Regard Score"
-
     def test_metadata_category(self, mock_regard):
         """Test metric category property."""
         assert mock_regard.category == "generated_text"

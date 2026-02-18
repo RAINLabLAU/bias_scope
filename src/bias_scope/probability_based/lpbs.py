@@ -55,11 +55,6 @@ class LPBS(ProbabilityMetric):
         - A sentence-level log-probability function must be supplied by the user.
     """
 
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "LPBS"
-
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],

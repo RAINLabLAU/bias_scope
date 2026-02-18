@@ -66,11 +66,6 @@ class DisCoMetric(ProbabilityMetric):
         - Each evaluated prompt must contain EXACTLY ONE mask token.
     """
 
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "DisCo"
-
     def __init__(
         self, model_name: str = "bert-base-uncased", device: Optional[str] = None
     ):
