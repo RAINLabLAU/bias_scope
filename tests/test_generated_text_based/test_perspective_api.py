@@ -1,7 +1,7 @@
 """Tests for Perspective API client."""
 
 import pytest
-from bias_scope.generated_text.perspective_api import PerspectiveAPIClient
+from bias_scope.generated_text_based.perspective_api import PerspectiveAPIClient
 
 
 class TestPerspectiveAPIClient:

@@ -1,7 +1,7 @@
 """Tests for Regard Score."""
 
 import pytest
-from bias_scope.generated_text import RegardScore
+from bias_scope.generated_text_based import RegardScore
 
 
 @pytest.mark.slow

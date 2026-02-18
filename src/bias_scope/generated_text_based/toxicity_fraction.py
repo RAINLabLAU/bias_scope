@@ -3,7 +3,7 @@
 from typing import List
 import numpy as np
 
-from bias_scope.generated_text._helpers import ToxicityMetric
+from bias_scope.generated_text_based._helpers import ToxicityMetric
 
 
 class ToxicityFraction(ToxicityMetric):
@@ -35,7 +35,7 @@ class ToxicityFraction(ToxicityMetric):
     
     Examples
     --------
-    >>> from bias_scope.generated_text import ToxicityFraction
+    >>> from bias_scope.generated_text_based import ToxicityFraction
     >>> 
     >>> # Initialize with API key
     >>> tf = ToxicityFraction(api_key="YOUR_PERSPECTIVE_API_KEY")

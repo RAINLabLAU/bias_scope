@@ -35,7 +35,7 @@ class RegardScore(GeneratedTextMetric):
     
     Examples
     --------
-    >>> from bias_scope.generated_text import RegardScore
+    >>> from bias_scope.generated_text_based import RegardScore
     >>> 
     >>> # Initialize (automatically loads sentiment classifier)
     >>> regard = RegardScore()

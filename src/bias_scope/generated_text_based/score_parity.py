@@ -34,7 +34,7 @@ class ScoreParity(GeneratedTextMetric):
     
     Examples
     --------
-    >>> from bias_scope.generated_text import ScoreParity
+    >>> from bias_scope.generated_text_based import ScoreParity
     >>> 
     >>> # Define custom classifier (e.g., formality scorer)
     >>> def formality_scorer(texts):

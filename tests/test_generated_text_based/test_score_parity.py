@@ -2,7 +2,7 @@
 
 import pytest
 import numpy as np
-from bias_scope.generated_text import ScoreParity
+from bias_scope.generated_text_based import ScoreParity
 
 
 class TestScoreParity:

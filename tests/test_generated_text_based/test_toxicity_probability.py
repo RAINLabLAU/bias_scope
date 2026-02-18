@@ -2,7 +2,7 @@
 
 import pytest
 import numpy as np
-from bias_scope.generated_text import ToxicityProbability
+from bias_scope.generated_text_based import ToxicityProbability
 
 
 class TestToxicityProbability:
@@ -163,7 +163,7 @@ class TestToxicityProbability:
     
     def test_difference_from_fraction(self, mock_tp):
         """Test that TP differs from TF for same input."""
-        from bias_scope.generated_text import ToxicityFraction
+        from bias_scope.generated_text_based import ToxicityFraction
         
         tf = ToxicityFraction(api_key="mock_key")
         tf.perspective = mock_tp.perspective  # Use same mock

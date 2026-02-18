@@ -3,7 +3,7 @@
 from typing import List
 import numpy as np
 
-from bias_scope.generated_text._helpers import ToxicityMetric
+from bias_scope.generated_text_based._helpers import ToxicityMetric
 
 
 class ToxicityProbability(ToxicityMetric):
@@ -35,7 +35,7 @@ class ToxicityProbability(ToxicityMetric):
     
     Examples
     --------
-    >>> from bias_scope.generated_text import ToxicityProbability
+    >>> from bias_scope.generated_text_based import ToxicityProbability
     >>> 
     >>> # Initialize with API key
     >>> tp = ToxicityProbability(api_key="YOUR_PERSPECTIVE_API_KEY")
