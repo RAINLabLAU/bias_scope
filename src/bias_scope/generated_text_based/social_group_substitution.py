@@ -63,11 +63,6 @@ class SocialGroupSubstitution(GeneratedTextMetric):
     >>> print(f"Group Disparity: {result['group_disparity']['_overall']:.3f}")
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "SocialGroupSubstitution"
-    
     def evaluate(
         self,
         prompts: Sequence[str],
@@ -299,7 +294,7 @@ class SocialGroupSubstitution(GeneratedTextMetric):
         
         # Return comprehensive results
         return {
-            'metric': self.name,
+            'metric': 'SocialGroupSubstitution',
             'category': self.category,
             'num_prompts': num_prompts,
             'num_samples': num_samples,

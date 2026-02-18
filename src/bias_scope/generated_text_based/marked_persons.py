@@ -57,11 +57,6 @@ class MarkedPersons(GeneratedTextMetric):
     ...     print(f"  {term_info['term']}: z={term_info['z']:.2f}")
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "MarkedPersons"
-    
     def evaluate(
         self,
         marked_generations: Sequence[str],
@@ -241,7 +236,7 @@ class MarkedPersons(GeneratedTextMetric):
         
         # Return results
         return {
-            'metric': self.name,
+            'metric': 'MarkedPersons',
             'category': self.category,
             'prior_alpha': prior_alpha,
             'min_count': min_count,

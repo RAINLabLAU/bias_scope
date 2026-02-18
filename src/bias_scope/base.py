@@ -14,16 +14,11 @@ class BiasMetric(ABC):
     """
     Abstract base class for all bias detection metrics.
 
-    All bias metrics must implement the `evaluate` method and provide
-    metadata about the metric through properties.
+    All bias metrics must implement the `evaluate` method.
 
     Examples
     --------
     >>> class MyMetric(BiasMetric):
-    ...     @property
-    ...     def name(self):
-    ...         return "My Custom Metric"
-    ...
     ...     @property
     ...     def category(self):
     ...         return "embedding"
@@ -170,10 +165,11 @@ class ProbabilityMetric(BiasMetric):
 
 class GeneratedTextMetric(BiasMetric):
     """
-    Base class for generated text-based bias metrics.
+    Base class for generated text bias metrics.
     
-    Provides common validation methods for text sequences, callables,
-    and numeric values. All generated text metrics should inherit from this class.
+    Provides common validation methods for generated text, classifier scores,
+    text sequences, callables, and numeric values. All generated text metrics
+    should inherit from this class.
     """
     
     @property
@@ -181,6 +177,96 @@ class GeneratedTextMetric(BiasMetric):
         """Category is automatically set to 'generated_text'."""
         return 'generated_text'
     
+    def _validate_generated_texts(
+        self,
+        generated_texts: List[List[str]],
+        name: str = "generated_texts"
+    ) -> None:
+        """
+        Validate generated texts structure (PRIVATE).
+
+        Args:
+            generated_texts (List[List[str]]): List of text lists (one per prompt).
+            name (str): Name for error messages.
+                Default: "generated_texts"
+
+        Raises:
+            ValueError: If structure is invalid
+        """
+        if len(generated_texts) == 0:
+            raise ValueError(f"{name} cannot be empty")
+        
+        for i, texts in enumerate(generated_texts):
+            if not isinstance(texts, list):
+                raise ValueError(
+                    f"{name}[{i}] must be a list of strings. "
+                    f"Got {type(texts).__name__}"
+                )
+            
+            if len(texts) == 0:
+                raise ValueError(
+                    f"{name}[{i}] cannot be empty. "
+                    f"Each prompt must have at least one generated text."
+                )
+            
+            for j, text in enumerate(texts):
+                if not isinstance(text, str):
+                    raise ValueError(
+                        f"{name}[{i}][{j}] must be a string. "
+                        f"Got {type(text).__name__}"
+                    )
+    
+    def _validate_threshold(
+        self,
+        threshold: float,
+        name: str = "threshold"
+    ) -> None:
+        """
+        Validate threshold value (PRIVATE).
+
+        Args:
+            threshold (float): Threshold value to validate.
+            name (str): Name for error messages.
+                Default: "threshold"
+
+        Raises:
+            ValueError: If threshold not in [0, 1]
+        """
+        if not 0 <= threshold <= 1:
+            raise ValueError(
+                f"{name} must be in [0, 1]. Got {threshold}"
+            )
+    
+    def _validate_classifier_scores(
+        self,
+        scores: List[float],
+        name: str = "scores"
+    ) -> None:
+        """
+        Validate classifier scores (PRIVATE).
+
+        Args:
+            scores (List[float]): Scores to validate.
+            name (str): Name for error messages.
+                Default: "scores"
+
+        Raises:
+            ValueError: If scores are invalid (NaN, Inf, out of range)
+        """
+        scores_array = np.array(scores)
+        
+        if np.isnan(scores_array).any():
+            raise ValueError(f"{name} contains NaN values")
+        
+        if np.isinf(scores_array).any():
+            raise ValueError(f"{name} contains Inf values")
+        
+        if (scores_array < 0).any() or (scores_array > 1).any():
+            raise ValueError(
+                f"{name} must be in [0, 1]. "
+                f"Got min={np.min(scores_array):.3f}, max={np.max(scores_array):.3f}"
+            )
+
     def _validate_texts(
         self,
         texts: any,
@@ -281,3 +367,4 @@ class GeneratedTextMetric(BiasMetric):
             raise ValueError(f"{name} is Inf")
         
         return value
+

@@ -59,11 +59,6 @@ class StereotypicalAssociations(GeneratedTextMetric):
     >>> print(f"Hit rate: {result['overall']['any_hit_rate_per_1k']:.1f} per 1k")
     """
     
-    @property
-    def name(self) -> str:
-        """Return metric name."""
-        return "StereotypicalAssociations"
-    
     def evaluate(
         self,
         generations: Sequence[str],
@@ -291,7 +286,7 @@ class StereotypicalAssociations(GeneratedTextMetric):
         
         # Return results
         return {
-            'metric': self.name,
+            'metric': 'StereotypicalAssociations',
             'category': self.category,
             'matcher': matcher,
             'context_window': context_window,
