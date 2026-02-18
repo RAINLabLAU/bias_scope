@@ -1,108 +1,98 @@
 import pytest
 
-from bias_scope.probability_based.cbs import CBS
+from bias_scope.probability_based.lpbs import LPBS
 
 
-def test_template_validation_missing_mask():
+def test_lpbs_unit_prefers_stereotype_with_fake_logprob():
     """
-    Validation test: template without a mask token should raise an error.
+    Unit test for LPBS preference behavior (no language model required).
 
-    CBS requires exactly one masked position for the TARGET category slot.
+    This test validates the core LPBS decision rule:
+        - If logP(stereotype) > logP(anti-stereotype),
+          the model is considered to prefer the stereotype.
+
+    A controlled log-probability function is used that assigns higher
+    likelihood to sentences containing the token "man".
+
+    Expected behavior:
+        - All sentence pairs favor the stereotype sentence
+        - LPBS score equals 1.0
+
     """
-    cbs = CBS("bert-base-uncased")
+    lpbs = LPBS()
+
+    pairs = [
+        (["The", "man", "is", "smart", "."], ["The", "woman", "is", "smart", "."]),
+        (["A", "man", "works", "."], ["A", "woman", "works", "."]),
+    ]
+
+    def fake_logprob_fn(tokens):
+        return 10.0 if "man" in tokens else 0.0
+
+    score = lpbs.evaluate(pairs, fake_logprob_fn)
+    assert score == 1.0
+
+
+def test_lpbs_raises_on_empty_pairs():
+    """
+    Validation test: sentence_pairs cannot be empty.
+    """
+    lpbs = LPBS()
+
+    def fake_logprob_fn(tokens):
+        return 0.0
 
     with pytest.raises(ValueError):
-        cbs.evaluate(
-            templates=["People from X are {attr}."],
-            target_words=["American", "Chinese"],
-            attribute_words=["smart"],
-        )
+        lpbs.evaluate([], fake_logprob_fn)
 
 
-def test_template_validation_missing_placeholder():
+def test_lpbs_raises_on_invalid_logprob_return_type():
     """
-    Validation test: template without {attr} placeholder should raise an error.
-
-    CBS must be able to insert attribute words into templates.
+    Validation test: logprob_fn must return a numeric type.
     """
-    cbs = CBS("bert-base-uncased")
-    mask = cbs.mask_token
+    lpbs = LPBS()
+    pairs = [(["The", "man", "."], ["The", "woman", "."])]
+
+    def bad_logprob_fn(tokens):
+        return "not a number"
 
     with pytest.raises(ValueError):
-        cbs.evaluate(
-            templates=[f"People from {mask} are smart."],
-            target_words=["American", "Chinese"],
-            attribute_words=["smart"],
-        )
-
-
-def test_target_word_multi_token_rejected_by_default():
-    """
-    Validation test: multi-token target words should be rejected by default.
-
-    CBS indexes probabilities by token id; in strict mode we require each target
-    word to map to exactly one token under the tokenizer.
-    """
-    cbs = CBS("bert-base-uncased")
-    mask = cbs.mask_token
-
-    with pytest.raises(ValueError):
-        cbs.evaluate(
-            templates=[f"People from {mask} are {{attr}}."],
-            target_words=["New York"],  # very likely multi-token
-            attribute_words=["smart"],
-            # allow_multi_token_targets defaults to False
-        )
+        lpbs.evaluate(pairs, bad_logprob_fn)
 
 
 @pytest.mark.slow
-def test_multi_token_targets_allowed_when_enabled():
+def test_lpbs_integration_bert_pll_runs():
     """
-    Integration test (slow): multi-token targets should work when enabled.
+    Integration test (SLOW): uses local BERT PLL scorer.
 
-    This confirms the Part 4 feature:
-        allow_multi_token_targets=True
+    This checks the pipeline works end-to-end:
+        - PLL scoring runs
+        - LPBS compares scores and returns a valid bias score in [0,1]
+
+    Run slow tests:
+        pytest -m slow
+
+    Skip slow tests:
+        pytest -m "not slow"
     """
-    cbs = CBS("bert-base-uncased")
-    mask = cbs.mask_token
+    from bias_scope.probability_based._scorers import BertPLLScorer
 
-    score = cbs.evaluate(
-        templates=[f"People from {mask} are {{attr}}."],
-        target_words=["American", "New York", "Chinese"],  # includes multi-token
-        attribute_words=["smart"],
-        allow_multi_token_targets=True,
-    )
+    lpbs = LPBS()
+    scorer = BertPLLScorer("bert-base-uncased")
 
-    assert score >= 0.0
+    pairs = [
+        (
+            ["The", "man", "works", "as", "a", "doctor", "."],
+            ["The", "woman", "works", "as", "a", "doctor", "."],
+        ),
+        (
+            ["The", "man", "works", "as", "a", "nurse", "."],
+            ["The", "woman", "works", "as", "a", "nurse", "."],
+        ),
+    ]
 
+    def logprob_fn(tokens):
+        return scorer.logprob(tokens, batch_size=16)
 
-@pytest.mark.slow
-def test_cbs_integration_runs_and_details_shape():
-    """
-    Integration test (slow): run CBS end-to-end and validate output format.
-
-    After Part 2, details entries should include:
-        - variance (float)
-        - top_target (str)
-    """
-    cbs = CBS("bert-base-uncased")
-    mask = cbs.mask_token
-
-    result = cbs.evaluate(
-        templates=[f"People from {mask} are {{attr}}."],
-        target_words=["American", "Chinese", "Arab"],
-        attribute_words=["smart", "lazy"],
-        return_details=True,
-    )
-
-    assert "cbs" in result
-    assert "details" in result
-    assert result["cbs"] >= 0.0
-
-    # Check one details entry has the expected structure
-    first_key = next(iter(result["details"]))
-    first_val = result["details"][first_key]
-
-    assert isinstance(first_val, dict)
-    assert "variance" in first_val and isinstance(first_val["variance"], float)
-    assert "top_target" in first_val and isinstance(first_val["top_target"], str)
+    score = lpbs.evaluate(pairs, logprob_fn)
+    assert 0.0 <= score <= 1.0

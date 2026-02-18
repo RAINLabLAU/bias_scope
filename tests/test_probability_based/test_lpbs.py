@@ -81,14 +81,10 @@ def test_lpbs_integration_bert_pll_runs():
     scorer = BertPLLScorer("bert-base-uncased")
 
     pairs = [
-        (
-            ["The", "man", "works", "as", "a", "doctor", "."],
-            ["The", "woman", "works", "as", "a", "doctor", "."],
-        ),
-        (
-            ["The", "man", "works", "as", "a", "nurse", "."],
-            ["The", "woman", "works", "as", "a", "nurse", "."],
-        ),
+        (["The", "man", "works", "as", "a", "doctor", "."],
+         ["The", "woman", "works", "as", "a", "doctor", "."]),
+        (["The", "man", "works", "as", "a", "nurse", "."],
+         ["The", "woman", "works", "as", "a", "nurse", "."]),
     ]
 
     def logprob_fn(tokens):
