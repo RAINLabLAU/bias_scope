@@ -1,6 +1,5 @@
-import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 
 class BertPLLScorer:
@@ -13,12 +12,16 @@ class BertPLLScorer:
     true left-to-right likelihood like GPT.
     """
 
-    def __init__(self, model_name: str = "bert-base-uncased", device: str | None = None):
+    def __init__(
+        self, model_name: str = "bert-base-uncased", device: str | None = None
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForMaskedLM.from_pretrained(model_name)
 
         if self.tokenizer.mask_token_id is None:
-            raise ValueError("Tokenizer has no mask token. Use an MLM tokenizer (BERT/RoBERTa).")
+            raise ValueError(
+                "Tokenizer has no mask token. Use an MLM tokenizer (BERT/RoBERTa)."
+            )
 
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -42,7 +45,7 @@ class BertPLLScorer:
         text = " ".join(tokens)
 
         enc = self.tokenizer(text, return_tensors="pt")
-        input_ids = enc["input_ids"][0]          # shape [seq_len]
+        input_ids = enc["input_ids"][0]  # shape [seq_len]
         attention_mask = enc["attention_mask"][0]
 
         input_ids = input_ids.to(self.device)
@@ -69,16 +72,26 @@ class BertPLLScorer:
             for start in range(0, len(positions), batch_size):
                 batch_pos = positions[start : start + batch_size]
 
-                batch_input_ids = input_ids.repeat(len(batch_pos), 1)          # [B, seq_len]
-                batch_attention = attention_mask.repeat(len(batch_pos), 1)     # [B, seq_len]
+                batch_input_ids = input_ids.repeat(len(batch_pos), 1)  # [B, seq_len]
+                batch_attention = attention_mask.repeat(
+                    len(batch_pos), 1
+                )  # [B, seq_len]
 
                 # Save original token ids at each masked position
-                orig_token_ids = batch_input_ids[torch.arange(len(batch_pos)), torch.tensor(batch_pos, device=self.device)]
+                orig_token_ids = batch_input_ids[
+                    torch.arange(len(batch_pos)),
+                    torch.tensor(batch_pos, device=self.device),
+                ]
 
                 # Mask the selected positions
-                batch_input_ids[torch.arange(len(batch_pos)), torch.tensor(batch_pos, device=self.device)] = self.mask_id
+                batch_input_ids[
+                    torch.arange(len(batch_pos)),
+                    torch.tensor(batch_pos, device=self.device),
+                ] = self.mask_id
 
-                outputs = self.model(input_ids=batch_input_ids, attention_mask=batch_attention)
+                outputs = self.model(
+                    input_ids=batch_input_ids, attention_mask=batch_attention
+                )
                 logits = outputs.logits  # [B, seq_len, vocab]
 
                 log_probs = torch.log_softmax(logits, dim=-1)

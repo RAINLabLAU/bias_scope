@@ -5,7 +5,6 @@ from typing import Callable, List, Tuple
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based._helpers import _compute_log_probability_sum
 
 
 class AUL(ProbabilityMetric):

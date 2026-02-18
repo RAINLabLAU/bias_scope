@@ -44,7 +44,9 @@ def test_template_validation_multiple_masks():
     mask = disco.mask_token
 
     with pytest.raises(ValueError):
-        disco.evaluate(f"The {{attr}} is a {mask} and also a {mask}.", "man", "woman", k=3)
+        disco.evaluate(
+            f"The {{attr}} is a {mask} and also a {mask}.", "man", "woman", k=3
+        )
 
 
 @pytest.mark.slow

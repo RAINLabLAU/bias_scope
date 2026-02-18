@@ -138,6 +138,11 @@ class CAT(ProbabilityMetric):
         if len(test_cases) == 0:
             raise ValueError("test_cases cannot be empty")
 
+        if not callable(predict_masked_token):
+            raise TypeError(
+                f"predict_masked_token must be callable, got {type(predict_masked_token).__name__}"
+            )
+
         lms_scores = []
         ss_scores = []
 
