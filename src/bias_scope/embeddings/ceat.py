@@ -94,7 +94,7 @@ class CEAT(EmbeddingMetric):
               - Each array shape: (n_contexts, embedding_dim)
               - Need sufficient contexts for sampling (recommended: 30+)
 
-            **Parameters:**
+            Args:
             - n_samples: More samples = more stable results but slower (recommended: 50-200)
             - sample_size: If None, uses min(10, smallest_group_size)
             - random_seed: If provided, results will be deterministic

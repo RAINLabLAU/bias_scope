@@ -35,6 +35,9 @@ from bias_scope.generated_text_based import (
     DemographicRepresentation,
     StereotypicalAssociations,
     MarkedPersons,
+    GenderPolarity,
+    HONEST,
+    PsycholinguisticNorms,
 )
 
 # Public utilities
@@ -66,6 +69,9 @@ __all__ = [
     "DemographicRepresentation",
     "StereotypicalAssociations",
     "MarkedPersons",
+    "GenderPolarity",
+    "HONEST",
+    "PsycholinguisticNorms",
     # Utilities
     "to_numpy",
     "cosine_similarity",
