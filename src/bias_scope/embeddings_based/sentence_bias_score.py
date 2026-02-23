@@ -27,7 +27,7 @@ class SentenceBiasScore(EmbeddingMetric):
 
     Examples
     --------
-    >>> from bias_scope.embeddings import SentenceBiasScore
+    >>> from bias_scope.embeddings_based import SentenceBiasScore
     >>> import numpy as np
     >>>
     >>> sbs = SentenceBiasScore()
@@ -114,7 +114,7 @@ class SentenceBiasScore(EmbeddingMetric):
 
         Examples:
             >>> import numpy as np
-            >>> from bias_scope.embeddings import SentenceBiasScore
+            >>> from bias_scope.embeddings_based import SentenceBiasScore
             >>>
             >>> sbs = SentenceBiasScore()
             >>>

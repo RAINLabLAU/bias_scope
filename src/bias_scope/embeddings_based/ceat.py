@@ -6,12 +6,12 @@ import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings._helpers import (
+from bias_scope.embeddings_based._helpers import (
     _compute_random_effects_weights,
     _validate_embedding_dimensions,
     _validate_tuple_length,
 )
-from bias_scope.embeddings.weat import WEAT
+from bias_scope.embeddings_based.weat import WEAT
 from bias_scope.utils import to_numpy
 
 
@@ -35,7 +35,7 @@ class CEAT(EmbeddingMetric):
 
     Examples
     --------
-    >>> from bias_scope.embeddings import CEAT
+    >>> from bias_scope.embeddings_based import CEAT
     >>> import numpy as np
     >>>
     >>> # Test with BERT contextualized embeddings
@@ -119,7 +119,7 @@ class CEAT(EmbeddingMetric):
 
         Examples:
             >>> import numpy as np
-            >>> from bias_scope.embeddings import CEAT
+            >>> from bias_scope.embeddings_based import CEAT
             >>>
             >>> ceat = CEAT()
             >>>

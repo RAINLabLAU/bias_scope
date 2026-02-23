@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings.weat import WEAT
+from bias_scope.embeddings_based.weat import WEAT
 
 
 class SEAT(EmbeddingMetric):
@@ -27,7 +27,7 @@ class SEAT(EmbeddingMetric):
 
     Examples
     --------
-    >>> from bias_scope.embeddings import SEAT
+    >>> from bias_scope.embeddings_based import SEAT
     >>> import numpy as np
     >>>
     >>> # Test with BERT sentence embeddings (768-dimensional)
@@ -87,7 +87,7 @@ class SEAT(EmbeddingMetric):
 
         Examples:
             >>> import numpy as np
-            >>> from bias_scope.embeddings import SEAT
+            >>> from bias_scope.embeddings_based import SEAT
             >>>
             >>> seat = SEAT()
             >>>

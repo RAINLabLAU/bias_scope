@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from bias_scope.embeddings import SentenceBiasScore
+from bias_scope.embeddings_based import SentenceBiasScore
 
 
 class TestSentenceBiasScore:

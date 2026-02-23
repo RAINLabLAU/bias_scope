@@ -15,7 +15,7 @@ __version__ = "0.1.0"
 # Public API: Import metric classes
 # Embedding and probability metrics require torch - make them optional
 try:
-    from bias_scope.embeddings import CEAT, SEAT, WEAT, SentenceBiasScore
+    from bias_scope.embeddings_based import CEAT, SEAT, WEAT, SentenceBiasScore
     from bias_scope.probability_based import AUL, AULA, CAT, CBS, CrowSPairs, DisCoMetric, ICAT, LMB, LPBS
     _TORCH_AVAILABLE = True
 except ImportError as e:

@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings._helpers import (
+from bias_scope.embeddings_based._helpers import (
     _compute_similarity_measure,
     _validate_embedding_dimensions,
     _validate_tuple_length,
@@ -33,7 +33,7 @@ class WEAT(EmbeddingMetric):
 
     Examples
     --------
-    >>> from bias_scope.embeddings import WEAT
+    >>> from bias_scope.embeddings_based import WEAT
     >>> import numpy as np
     >>>
     >>> # Test gender-career bias with Word2Vec embeddings
