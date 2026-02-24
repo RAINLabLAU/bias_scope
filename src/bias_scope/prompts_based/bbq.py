@@ -3,7 +3,7 @@ from litellm import completion
 
 class BBQMetric(PromptBasedMetric):
 
-    def evaluate(self, model_name):
+    def evaluate(self, model_name, api_key=None):
         pass
         
 
