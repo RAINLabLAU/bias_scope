@@ -171,3 +171,10 @@ class GeneratedTextMetric(BiasMetric):
         """Category is automatically set to 'generated_text'."""
         return "generated_text"
 
+
+
+class PromptBasedMetric(BiasMetric):
+
+    @property
+    def category(self) -> str:
+        return "prompt_based" 
