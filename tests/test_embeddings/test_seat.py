@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from bias_scope.embeddings import SEAT
+from bias_scope.embeddings_based import SEAT
 
 
 class TestSEAT:
@@ -26,7 +26,7 @@ class TestSEAT:
 
     def test_calls_weat(self):
         """Test SEAT produces same result as WEAT."""
-        from bias_scope.embeddings import WEAT
+        from bias_scope.embeddings_based import WEAT
 
         target1 = np.random.randn(4, 768)
         target2 = np.random.randn(4, 768)

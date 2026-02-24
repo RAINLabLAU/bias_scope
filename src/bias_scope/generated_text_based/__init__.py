@@ -9,6 +9,9 @@ from bias_scope.generated_text_based.toxicity_fraction import ToxicityFraction
 from bias_scope.generated_text_based.toxicity_probability import ToxicityProbability
 from bias_scope.generated_text_based.regard_score import RegardScore
 from bias_scope.generated_text_based.score_parity import ScoreParity
+from bias_scope.generated_text_based.gender_polarity import GenderPolarity
+from bias_scope.generated_text_based.honest import HONEST
+from bias_scope.generated_text_based.psycholinguistic_norms import PsycholinguisticNorms
 
 # Public API - classes only
 __all__ = [
@@ -21,4 +24,7 @@ __all__ = [
     "ToxicityProbability",
     "RegardScore",
     "ScoreParity",
+    "GenderPolarity",
+    "HONEST",
+    "PsycholinguisticNorms",
 ]

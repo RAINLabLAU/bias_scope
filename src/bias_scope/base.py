@@ -160,3 +160,14 @@ class ProbabilityMetric(BiasMetric):
                 "Sentence pairs must have same length. "
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
+
+class GeneratedTextMetric(BiasMetric):
+    """
+    Base class for generated text bias metrics.
+    """
+
+    @property
+    def category(self) -> str:
+        """Category is automatically set to 'generated_text'."""
+        return "generated_text"
+
