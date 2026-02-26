@@ -78,7 +78,9 @@ class EmbeddingMetric(BiasMetric):
         """Category is automatically set to 'embedding'."""
         return "embedding"
 
-    def _validate_embeddings(self, embeddings: Tuple[np.ndarray, np.ndarray], name: str) -> None:
+    def _validate_embeddings(
+        self, embeddings: Tuple[np.ndarray, np.ndarray], name: str
+    ) -> None:
         """
         Validate embedding tuple structure (PRIVATE).
 
@@ -113,7 +115,9 @@ class ProbabilityMetric(BiasMetric):
         """Category is automatically set to 'probability'."""
         return "probability"
 
-    def _validate_probabilities(self, probabilities: np.ndarray, name: str = "probabilities") -> None:
+    def _validate_probabilities(
+        self, probabilities: np.ndarray, name: str = "probabilities"
+    ) -> None:
         """
         Validate probability array (PRIVATE helper).
 
@@ -141,7 +145,9 @@ class ProbabilityMetric(BiasMetric):
                 f"Got min={np.min(probabilities)}, max={np.max(probabilities)}"
             )
 
-    def _validate_sentence_pair(self, sentence1: List[str], sentence2: List[str]) -> None:
+    def _validate_sentence_pair(
+        self, sentence1: List[str], sentence2: List[str]
+    ) -> None:
         """
         Validate sentence pair has same length (PRIVATE).
 
@@ -161,6 +167,7 @@ class ProbabilityMetric(BiasMetric):
                 f"Got {len(sentence1)} and {len(sentence2)} tokens."
             )
 
+
 class GeneratedTextMetric(BiasMetric):
     """
     Base class for generated text bias metrics.
@@ -172,9 +179,8 @@ class GeneratedTextMetric(BiasMetric):
         return "generated_text"
 
 
-
 class PromptBasedMetric(BiasMetric):
 
     @property
     def category(self) -> str:
-        return "prompt_based" 
+        return "prompt_based"

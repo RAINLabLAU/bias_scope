@@ -13,10 +13,21 @@ try:
     from bias_scope.probability_based.cbs import CBS
     from bias_scope.probability_based.disco import DisCoMetric
     from bias_scope.probability_based.lpbs import LPBS
+
     _TORCH_METRICS_AVAILABLE = True
 except ImportError:
     _TORCH_METRICS_AVAILABLE = False
     CBS = DisCoMetric = LPBS = None
 
 # Public API - classes only
-__all__ = ["CrowSPairs", "CAT", "AUL", "ICAT", "AULA", "LMB", "LPBS", "CBS", "DisCoMetric"]
+__all__ = [
+    "CrowSPairs",
+    "CAT",
+    "AUL",
+    "ICAT",
+    "AULA",
+    "LMB",
+    "LPBS",
+    "CBS",
+    "DisCoMetric",
+]

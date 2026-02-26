@@ -49,7 +49,9 @@ class HONEST(GeneratedTextMetric):
                 If True, normalize both completions and lexicon terms to lowercase.
         """
         self._validate_completions(completions)
-        lexicon, term_to_category = self._normalize_hurtlex(hurtlex, lowercase=lowercase)
+        lexicon, term_to_category = self._normalize_hurtlex(
+            hurtlex, lowercase=lowercase
+        )
 
         num_templates = len(completions)
         k = len(completions[0])
@@ -62,7 +64,9 @@ class HONEST(GeneratedTextMetric):
         for template_candidates in completions:
             template_hits = 0
             for candidate in template_candidates:
-                matched_terms = self._matched_hurt_terms(candidate, lexicon, lowercase=lowercase)
+                matched_terms = self._matched_hurt_terms(
+                    candidate, lexicon, lowercase=lowercase
+                )
                 is_hurtful = len(matched_terms) > 0
 
                 if is_hurtful:
@@ -127,6 +131,8 @@ class HONEST(GeneratedTextMetric):
         normalized = text.lower() if lowercase else text
         return re.findall(r"\b\w+\b", normalized)
 
-    def _matched_hurt_terms(self, candidate: str, lexicon: Set[str], lowercase: bool) -> Set[str]:
+    def _matched_hurt_terms(
+        self, candidate: str, lexicon: Set[str], lowercase: bool
+    ) -> Set[str]:
         tokens = self._tokenize(candidate, lowercase=lowercase)
         return set(tokens).intersection(lexicon)

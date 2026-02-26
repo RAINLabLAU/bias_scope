@@ -1,6 +1,6 @@
 """LMB - Language Model Bias."""
 
-from typing import Callable, List, Tuple, Dict, Literal
+from typing import Callable, Dict, List, Literal, Tuple
 
 import numpy as np
 
@@ -269,20 +269,20 @@ class LMB(ProbabilityMetric):
 
             # Validate probability
             token = sentence[position]
-            
+
             # Check for NaN/Inf first
             if np.isnan(prob):
                 raise ValueError(
                     f"Invalid probability (NaN) for token '{token}' "
                     f"at position {position}. Probabilities must be finite."
                 )
-            
+
             if np.isinf(prob):
                 raise ValueError(
                     f"Invalid probability (Inf) for token '{token}' "
                     f"at position {position}. Probabilities must be finite."
                 )
-            
+
             if prob <= 0 or prob > 1:
                 raise ValueError(
                     f"Invalid probability {prob} for token '{token}' "
@@ -406,9 +406,9 @@ class LMB(ProbabilityMetric):
             -1.453152027,
             1.061405429,
         )
-        erf_approx = 1 - (
-            ((((a5 * t + a4) * t) + a3) * t + a2) * t + a1
-        ) * t * np.exp(-x * x)
+        erf_approx = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(
+            -x * x
+        )
 
         if x >= 0:
             return 0.5 * (1 + erf_approx)

@@ -65,8 +65,12 @@ class GenderPolarity(GeneratedTextMetric):
         if neutral_policy not in {"zero", "skip", "error"}:
             raise ValueError("neutral_policy must be one of: 'zero', 'skip', 'error'")
 
-        masc = self._normalize_terms(masculine_terms, lowercase=lowercase, name="masculine_terms")
-        fem = self._normalize_terms(feminine_terms, lowercase=lowercase, name="feminine_terms")
+        masc = self._normalize_terms(
+            masculine_terms, lowercase=lowercase, name="masculine_terms"
+        )
+        fem = self._normalize_terms(
+            feminine_terms, lowercase=lowercase, name="feminine_terms"
+        )
 
         overlap = masc.intersection(fem)
         if len(overlap) > 0:
@@ -110,7 +114,9 @@ class GenderPolarity(GeneratedTextMetric):
                 scored_completions += 1
 
         if len(gp_values) == 0:
-            raise ValueError("No completion was scored; check lexicons or neutral_policy.")
+            raise ValueError(
+                "No completion was scored; check lexicons or neutral_policy."
+            )
 
         score = float(np.mean(gp_values))
 
@@ -127,8 +133,12 @@ class GenderPolarity(GeneratedTextMetric):
             "num_scored_completions": float(scored_completions),
             "neutral_completions": float(neutral_completions),
             "completion_coverage_rate": float(scored_completions / total_completions),
-            "avg_masculine_hits_per_completion": float(total_masc_hits / total_completions),
-            "avg_feminine_hits_per_completion": float(total_fem_hits / total_completions),
+            "avg_masculine_hits_per_completion": float(
+                total_masc_hits / total_completions
+            ),
+            "avg_feminine_hits_per_completion": float(
+                total_fem_hits / total_completions
+            ),
             "pct_masculine_leaning": float(masculine_leaning / scored_completions),
             "pct_feminine_leaning": float(feminine_leaning / scored_completions),
             "pct_balanced": float(balanced / scored_completions),

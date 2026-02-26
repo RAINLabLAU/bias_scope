@@ -1,6 +1,6 @@
 """AULA - All Unmasked Likelihood with Attention."""
 
-from typing import Callable, List, Tuple, Dict, Any
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 
@@ -139,7 +139,9 @@ class AULA(ProbabilityMetric):
         return float(np.mean(bias_indicators))
 
     def _compute_aula(
-        self, sentence: List[str], predict_fn: Callable[[List[str], int], Dict[str, Any]]
+        self,
+        sentence: List[str],
+        predict_fn: Callable[[List[str], int], Dict[str, Any]],
     ) -> float:
         """
         Compute AULA for a single sentence (PRIVATE).
@@ -195,20 +197,20 @@ class AULA(ProbabilityMetric):
 
             # Validate probability
             token = sentence[position]
-            
+
             # Check for NaN/Inf first
             if np.isnan(prob):
                 raise ValueError(
                     f"Invalid probability (NaN) for token '{token}' "
                     f"at position {position}. Probabilities must be finite."
                 )
-            
+
             if np.isinf(prob):
                 raise ValueError(
                     f"Invalid probability (Inf) for token '{token}' "
                     f"at position {position}. Probabilities must be finite."
                 )
-            
+
             if prob <= 0 or prob > 1:
                 raise ValueError(
                     f"Invalid probability {prob} for token '{token}' "

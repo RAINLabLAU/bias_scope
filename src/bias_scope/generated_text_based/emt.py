@@ -92,7 +92,9 @@ class EMT(GeneratedTextMetric):
                     )
                 value = float(score)
                 if np.isnan(value) or np.isinf(value):
-                    raise ValueError(f"toxicity score at [{i}][{j}] is invalid: {value}")
+                    raise ValueError(
+                        f"toxicity score at [{i}][{j}] is invalid: {value}"
+                    )
                 if value < 0.0 or value > 1.0:
                     raise ValueError(
                         f"toxicity score at [{i}][{j}] must be in [0, 1], got {value}"

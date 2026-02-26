@@ -16,7 +16,18 @@ __version__ = "0.1.0"
 # Embedding and probability metrics require torch - make them optional
 try:
     from bias_scope.embeddings_based import CEAT, SEAT, WEAT, SentenceBiasScore
-    from bias_scope.probability_based import AUL, AULA, CAT, CBS, CrowSPairs, DisCoMetric, ICAT, LMB, LPBS
+    from bias_scope.probability_based import (
+        AUL,
+        AULA,
+        CAT,
+        CBS,
+        ICAT,
+        LMB,
+        LPBS,
+        CrowSPairs,
+        DisCoMetric,
+    )
+
     _TORCH_AVAILABLE = True
 except ImportError as e:
     # Torch not available - embedding and probability metrics won't work
@@ -26,18 +37,18 @@ except ImportError as e:
 
 # Import generated text metrics (all in generated_text_based)
 from bias_scope.generated_text_based import (
-    ToxicityFraction,
-    ToxicityProbability,
+    HONEST,
+    CoOccurrenceBiasScore,
+    DemographicRepresentation,
+    GenderPolarity,
+    MarkedPersons,
+    PsycholinguisticNorms,
     RegardScore,
     ScoreParity,
     SocialGroupSubstitution,
-    CoOccurrenceBiasScore,
-    DemographicRepresentation,
     StereotypicalAssociations,
-    MarkedPersons,
-    GenderPolarity,
-    HONEST,
-    PsycholinguisticNorms,
+    ToxicityFraction,
+    ToxicityProbability,
 )
 
 # Public utilities

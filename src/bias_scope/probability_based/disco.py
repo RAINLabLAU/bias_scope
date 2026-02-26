@@ -52,7 +52,9 @@ class DisCoMetric(ProbabilityMetric):
     between two prompts that differ only in a sensitive attribute.
     """
 
-    def __init__(self, model_name: str = "bert-base-uncased", device: Optional[str] = None):
+    def __init__(
+        self, model_name: str = "bert-base-uncased", device: Optional[str] = None
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForMaskedLM.from_pretrained(model_name)
 
@@ -115,7 +117,9 @@ class DisCoMetric(ProbabilityMetric):
         with torch.no_grad():
             logits = self.model(**inputs).logits
 
-        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(as_tuple=False)
+        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(
+            as_tuple=False
+        )
         mask_index = mask_positions[0, 1].item()
 
         mask_logits = logits[0, mask_index, :]

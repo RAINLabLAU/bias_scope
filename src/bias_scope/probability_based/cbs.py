@@ -59,7 +59,9 @@ class CBS(ProbabilityMetric):
         - Target words are single-token by default.
     """
 
-    def __init__(self, model_name: str = "bert-base-uncased", device: Optional[str] = None):
+    def __init__(
+        self, model_name: str = "bert-base-uncased", device: Optional[str] = None
+    ):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForMaskedLM.from_pretrained(model_name)
 
@@ -71,7 +73,9 @@ class CBS(ProbabilityMetric):
         self.model.eval()
 
         if self.tokenizer.mask_token is None or self.tokenizer.mask_token_id is None:
-            raise ValueError("This model/tokenizer has no mask token. Use a masked language model.")
+            raise ValueError(
+                "This model/tokenizer has no mask token. Use a masked language model."
+            )
 
         self.mask_token = self.tokenizer.mask_token
         self.mask_token_id = self.tokenizer.mask_token_id
@@ -115,7 +119,9 @@ class CBS(ProbabilityMetric):
         self._validate_inputs(templates, target_words, attribute_words, placeholder)
 
         target_token_id_lists = [
-            self._word_to_token_ids(w, allow_multi_token_targets=allow_multi_token_targets)
+            self._word_to_token_ids(
+                w, allow_multi_token_targets=allow_multi_token_targets
+            )
             for w in target_words
         ]
 
@@ -126,7 +132,9 @@ class CBS(ProbabilityMetric):
             # If attribute placeholder is before the target mask in the template,
             # then replacing placeholder with [MASK] creates a prior prompt where
             # target mask becomes the 2nd mask occurrence. Otherwise it is the 1st.
-            target_mask_ordinal_in_prior = self._target_mask_ordinal_in_prior(template, placeholder)
+            target_mask_ordinal_in_prior = self._target_mask_ordinal_in_prior(
+                template, placeholder
+            )
 
             for attr in attribute_words:
                 prompt_target = template.replace(placeholder, attr)
@@ -173,13 +181,21 @@ class CBS(ProbabilityMetric):
 
         for t in templates:
             if self.mask_token not in t:
-                raise ValueError(f"Each template must include the mask token {self.mask_token}.")
+                raise ValueError(
+                    f"Each template must include the mask token {self.mask_token}."
+                )
             if t.count(self.mask_token) != 1:
-                raise ValueError("Each template must contain exactly ONE mask token (target slot).")
+                raise ValueError(
+                    "Each template must contain exactly ONE mask token (target slot)."
+                )
             if placeholder not in t:
-                raise ValueError(f"Each template must include the placeholder {placeholder}.")
+                raise ValueError(
+                    f"Each template must include the placeholder {placeholder}."
+                )
 
-    def _word_to_token_ids(self, word: str, allow_multi_token_targets: bool) -> List[int]:
+    def _word_to_token_ids(
+        self, word: str, allow_multi_token_targets: bool
+    ) -> List[int]:
         ids = self.tokenizer.encode(word, add_special_tokens=False)
 
         if len(ids) == 0:
@@ -215,7 +231,9 @@ class CBS(ProbabilityMetric):
             score(target_word) = sum_j [logP_target(t_j) - logP_prior(t_j)]
         """
         logits_target = self._mask_logits(prompt_target, mask_ordinal=0)
-        logits_prior = self._mask_logits(prompt_prior, mask_ordinal=target_mask_ordinal_in_prior)
+        logits_prior = self._mask_logits(
+            prompt_prior, mask_ordinal=target_mask_ordinal_in_prior
+        )
 
         logp_target = torch.log_softmax(logits_target, dim=-1)
         logp_prior = torch.log_softmax(logits_prior, dim=-1)
@@ -223,7 +241,9 @@ class CBS(ProbabilityMetric):
         scores: List[float] = []
         for ids in target_token_id_lists:
             ids_tensor = torch.tensor(ids, device=self.device)
-            score = float((logp_target[ids_tensor] - logp_prior[ids_tensor]).sum().item())
+            score = float(
+                (logp_target[ids_tensor] - logp_prior[ids_tensor]).sum().item()
+            )
             scores.append(score)
 
         return np.array(scores, dtype=float)
@@ -240,7 +260,9 @@ class CBS(ProbabilityMetric):
         with torch.no_grad():
             logits = self.model(**inputs).logits  # [1, seq_len, vocab]
 
-        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(as_tuple=False)
+        mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(
+            as_tuple=False
+        )
         if mask_positions.numel() == 0:
             raise ValueError("Mask token not found after tokenization (unexpected).")
 

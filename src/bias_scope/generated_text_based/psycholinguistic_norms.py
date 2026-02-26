@@ -69,7 +69,9 @@ class PsycholinguisticNorms(GeneratedTextMetric):
                 If False, raise ValueError when such a completion is encountered.
         """
         self._validate_completions(completions)
-        lexicon = self._validate_and_normalize_lexicon(norms_lexicon, lowercase=lowercase)
+        lexicon = self._validate_and_normalize_lexicon(
+            norms_lexicon, lowercase=lowercase
+        )
 
         if dimensions is None:
             first_word = next(iter(lexicon))
@@ -77,7 +79,9 @@ class PsycholinguisticNorms(GeneratedTextMetric):
         else:
             if len(dimensions) == 0:
                 raise ValueError("dimensions cannot be empty")
-            missing_dimensions = [d for d in dimensions if d not in next(iter(lexicon.values())).keys()]
+            missing_dimensions = [
+                d for d in dimensions if d not in next(iter(lexicon.values())).keys()
+            ]
             if len(missing_dimensions) > 0:
                 raise ValueError(
                     f"Requested dimensions not found in lexicon schema: {missing_dimensions}"
@@ -126,11 +130,16 @@ class PsycholinguisticNorms(GeneratedTextMetric):
             # Record per-template means only from covered completions
             if all(len(template_scores[d]) > 0 for d in dimensions):
                 per_template_dim_means.append(
-                    {f"template_mean::{d}": float(np.mean(template_scores[d])) for d in dimensions}
+                    {
+                        f"template_mean::{d}": float(np.mean(template_scores[d]))
+                        for d in dimensions
+                    }
                 )
 
         if covered_completions == 0:
-            raise ValueError("No completion had lexicon-covered tokens; cannot compute metric.")
+            raise ValueError(
+                "No completion had lexicon-covered tokens; cannot compute metric."
+            )
 
         result: Dict[str, float] = {
             f"pn::{d}": float(np.mean(scores))
@@ -144,10 +153,14 @@ class PsycholinguisticNorms(GeneratedTextMetric):
         result["k"] = float(len(completions[0]))
         result["num_completions"] = float(total_completions)
         result["num_scored_completions"] = float(covered_completions)
-        result["completion_coverage_rate"] = float(covered_completions / total_completions)
+        result["completion_coverage_rate"] = float(
+            covered_completions / total_completions
+        )
         result["num_tokens"] = float(total_tokens)
         result["num_covered_tokens"] = float(covered_tokens)
-        result["token_coverage_rate"] = float(covered_tokens / total_tokens) if total_tokens > 0 else 0.0
+        result["token_coverage_rate"] = (
+            float(covered_tokens / total_tokens) if total_tokens > 0 else 0.0
+        )
 
         # Template-level means aggregated across templates (when available)
         if len(per_template_dim_means) > 0:
@@ -164,14 +177,18 @@ class PsycholinguisticNorms(GeneratedTextMetric):
         lowercase: bool,
     ) -> Dict[str, Dict[str, float]]:
         if not isinstance(norms_lexicon, dict) or len(norms_lexicon) == 0:
-            raise ValueError("norms_lexicon must be a non-empty dict[str, dict[str, float]]")
+            raise ValueError(
+                "norms_lexicon must be a non-empty dict[str, dict[str, float]]"
+            )
 
         normalized: Dict[str, Dict[str, float]] = {}
         expected_dims: List[str] | None = None
 
         for word, dim_scores in norms_lexicon.items():
             if not isinstance(dim_scores, dict) or len(dim_scores) == 0:
-                raise ValueError(f"Lexicon entry for '{word}' must be a non-empty dict of dimension scores")
+                raise ValueError(
+                    f"Lexicon entry for '{word}' must be a non-empty dict of dimension scores"
+                )
 
             dims = sorted(list(dim_scores.keys()))
             if expected_dims is None:
@@ -185,10 +202,14 @@ class PsycholinguisticNorms(GeneratedTextMetric):
             casted: Dict[str, float] = {}
             for d, value in dim_scores.items():
                 if not isinstance(value, (int, float)):
-                    raise ValueError(f"Score for word='{word}', dimension='{d}' must be numeric")
+                    raise ValueError(
+                        f"Score for word='{word}', dimension='{d}' must be numeric"
+                    )
                 v = float(value)
                 if np.isnan(v) or np.isinf(v):
-                    raise ValueError(f"Score for word='{word}', dimension='{d}' is invalid: {v}")
+                    raise ValueError(
+                        f"Score for word='{word}', dimension='{d}' is invalid: {v}"
+                    )
                 casted[d] = v
 
             key = word.lower() if lowercase else word
