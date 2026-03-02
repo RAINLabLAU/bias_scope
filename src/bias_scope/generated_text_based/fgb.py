@@ -106,7 +106,9 @@ class FGB(GeneratedTextMetric):
             )
 
         rows: List[List[float]] = []
-        for i, (template_completions, template_scores) in enumerate(zip(completions, scores)):
+        for i, (template_completions, template_scores) in enumerate(
+            zip(completions, scores)
+        ):
             if len(template_scores) != len(template_completions):
                 raise ValueError(
                     f"{name} must match completions shape. "
@@ -117,12 +119,16 @@ class FGB(GeneratedTextMetric):
             casted_template: List[float] = []
             for j, score in enumerate(template_scores):
                 if not isinstance(score, (int, float)):
-                    raise ValueError(f"{name} at [{i}][{j}] must be numeric, got {type(score)}")
+                    raise ValueError(
+                        f"{name} at [{i}][{j}] must be numeric, got {type(score)}"
+                    )
                 value = float(score)
                 if np.isnan(value) or np.isinf(value):
                     raise ValueError(f"{name} at [{i}][{j}] is invalid: {value}")
                 if value < -1.0 or value > 1.0:
-                    raise ValueError(f"{name} at [{i}][{j}] must be in [-1, 1], got {value}")
+                    raise ValueError(
+                        f"{name} at [{i}][{j}] must be in [-1, 1], got {value}"
+                    )
                 casted_template.append(value)
             rows.append(casted_template)
 
