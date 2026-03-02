@@ -1,0 +1,2 @@
+from bias_scope.prompts_based.demographic_representation_bias import DemographicRepresentationBias
+from bias_scope.prompts_based.instruction_hierarchy_test import InstructionHierarchyTest
