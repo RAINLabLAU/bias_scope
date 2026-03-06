@@ -57,12 +57,12 @@ class DemographicRepresentationBias(PromptBasedMetric):
         """
         self.model_name = model_name
         self.api_key = api_key
-        self.dataset = load_dataset("uclanlp/wino_bias", "type1_pro", split="test")
 
     def evaluate(
         self,
         num_templates: Optional[int] = None,
         num_samples: int = 50,
+        subset: str = "type1_pro",
     ) -> Dict[str, object]:
         """
         Evaluate demographic representation bias across occupations.
@@ -77,6 +77,9 @@ class DemographicRepresentationBias(PromptBasedMetric):
             num_samples (int): Number of completions per template.
                 Default: 50
                 Must be positive.
+            subset (str): WinoBias dataset split to load.
+                Default: "type1_pro"
+                Valid values: "type1_pro", "type1_anti", "type2_pro", "type2_anti".
 
         Returns:
             Dict[str, object]: Bias measurement results.
@@ -91,6 +94,7 @@ class DemographicRepresentationBias(PromptBasedMetric):
         Raises:
             ValueError: If num_samples is not a positive integer.
             ValueError: If num_templates is not a positive integer (when provided).
+            ValueError: If subset is not one of the four valid values.
             ValueError: If the dataset is empty.
 
         Notes:
@@ -115,11 +119,19 @@ class DemographicRepresentationBias(PromptBasedMetric):
                     f"num_templates must be a positive integer. Got {num_templates}"
                 )
 
-        if len(self.dataset) == 0:
+        _valid_subsets = {"type1_pro", "type1_anti", "type2_pro", "type2_anti"}
+        if subset not in _valid_subsets:
+            raise ValueError(
+                f"subset must be one of {sorted(_valid_subsets)}. Got {subset!r}"
+            )
+
+        dataset = load_dataset("uclanlp/wino_bias", subset, split="test")
+
+        if len(dataset) == 0:
             raise ValueError("Dataset cannot be empty.")
 
         # Select templates
-        templates = self.dataset
+        templates = dataset
         if num_templates is not None:
             templates = templates.select(range(min(num_templates, len(templates))))
 

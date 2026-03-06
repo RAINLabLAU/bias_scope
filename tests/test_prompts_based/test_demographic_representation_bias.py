@@ -34,7 +34,12 @@ class TestDemographicRepresentationBias:
     """Test suite for DemographicRepresentationBias."""
 
     def _make_metric(self, mock_load_dataset, rows=None):
-        """Helper to create metric with mocked dataset."""
+        """Helper to create metric with mocked dataset.
+
+        mock_load_dataset will be called inside evaluate(), so we configure
+        its return_value here so that any evaluate() call in the test gets
+        the desired mock dataset.
+        """
         mock_load_dataset.return_value = make_mock_dataset(rows if rows is not None else SAMPLE_ROWS)
         from bias_scope.prompts_based import DemographicRepresentationBias
         return DemographicRepresentationBias(model_name="openai/gpt-4o", api_key="test-key")
@@ -45,7 +50,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("She walked in.")
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=2, num_samples=1)
+        result = metric.evaluate(num_templates=2, num_samples=1, subset="type1_pro")
 
         assert "representation_ratio" in result
         assert "l1_distance" in result
@@ -60,35 +65,35 @@ class TestDemographicRepresentationBias:
         metric = self._make_metric(mock_load_dataset, rows=[])
 
         with pytest.raises(ValueError, match="empty"):
-            metric.evaluate(num_samples=5)
+            metric.evaluate(num_samples=5, subset="type1_pro")
 
     def test_invalid_num_samples_zero(self, mock_load_dataset):
         """Test num_samples=0 raises ValueError."""
         metric = self._make_metric(mock_load_dataset)
 
         with pytest.raises(ValueError, match="num_samples"):
-            metric.evaluate(num_samples=0)
+            metric.evaluate(num_samples=0, subset="type1_pro")
 
     def test_invalid_num_samples_negative(self, mock_load_dataset):
         """Test negative num_samples raises ValueError."""
         metric = self._make_metric(mock_load_dataset)
 
         with pytest.raises(ValueError, match="num_samples"):
-            metric.evaluate(num_samples=-3)
+            metric.evaluate(num_samples=-3, subset="type1_pro")
 
     def test_invalid_num_templates_zero(self, mock_load_dataset):
         """Test num_templates=0 raises ValueError."""
         metric = self._make_metric(mock_load_dataset)
 
         with pytest.raises(ValueError, match="num_templates"):
-            metric.evaluate(num_templates=0, num_samples=1)
+            metric.evaluate(num_templates=0, num_samples=1, subset="type1_pro")
 
     def test_invalid_num_templates_negative(self, mock_load_dataset):
         """Test negative num_templates raises ValueError."""
         metric = self._make_metric(mock_load_dataset)
 
         with pytest.raises(ValueError, match="num_templates"):
-            metric.evaluate(num_templates=-1, num_samples=1)
+            metric.evaluate(num_templates=-1, num_samples=1, subset="type1_pro")
 
     @patch("bias_scope.prompts_based.demographic_representation_bias.completion")
     def test_pronoun_extraction_he(self, mock_completion, mock_load_dataset):
@@ -126,7 +131,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("He did the work.")
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=1, num_samples=3)
+        result = metric.evaluate(num_templates=1, num_samples=3, subset="type1_pro")
 
         assert result["representation_ratio"] == float("inf")
 
@@ -136,7 +141,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("She did the work.")
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=1, num_samples=3)
+        result = metric.evaluate(num_templates=1, num_samples=3, subset="type1_pro")
 
         assert result["representation_ratio"] == 0.0
 
@@ -155,7 +160,7 @@ class TestDemographicRepresentationBias:
         ]
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=1, num_samples=2)
+        result = metric.evaluate(num_templates=1, num_samples=2, subset="type1_pro")
 
         assert result["representation_ratio"] == pytest.approx(1.0)
 
@@ -165,7 +170,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("She helped.")
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=2, num_samples=1)
+        result = metric.evaluate(num_templates=2, num_samples=1, subset="type1_pro")
 
         assert "nurse" in result["per_occupation"]
         assert "doctor" in result["per_occupation"]
@@ -176,7 +181,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("She helped.")
         metric = self._make_metric(mock_load_dataset)
 
-        result = metric.evaluate(num_templates=1, num_samples=3)
+        result = metric.evaluate(num_templates=1, num_samples=3, subset="type1_pro")
 
         for occ, props in result["per_occupation"].items():
             total = sum(props.values())
@@ -216,7 +221,7 @@ class TestDemographicRepresentationBias:
 
         num_templates = 2
         num_samples = 3
-        metric.evaluate(num_templates=num_templates, num_samples=num_samples)
+        metric.evaluate(num_templates=num_templates, num_samples=num_samples, subset="type1_pro")
 
         assert mock_completion.call_count == num_templates * num_samples
 
@@ -226,7 +231,7 @@ class TestDemographicRepresentationBias:
         mock_completion.return_value = make_completion_response("She helped.")
         metric = self._make_metric(mock_load_dataset, rows=SAMPLE_ROWS[:1])
 
-        result = metric.evaluate(num_templates=100, num_samples=1)
+        result = metric.evaluate(num_templates=100, num_samples=1, subset="type1_pro")
 
         assert "representation_ratio" in result
         # Only 1 template available, so only 1 call
@@ -245,4 +250,22 @@ class TestDemographicRepresentationBias:
         metric = self._make_metric(mock_load_dataset)
 
         with pytest.raises(ValueError, match="num_samples"):
-            metric.evaluate(num_samples=3.5)
+            metric.evaluate(num_samples=3.5, subset="type1_pro")
+
+    def test_invalid_subset_raises_error(self, mock_load_dataset):
+        """Test that an invalid subset string raises ValueError."""
+        metric = self._make_metric(mock_load_dataset)
+
+        with pytest.raises(ValueError, match="subset"):
+            metric.evaluate(num_samples=1, subset="invalid_subset")
+
+    @patch("bias_scope.prompts_based.demographic_representation_bias.completion")
+    def test_valid_subsets(self, mock_completion, mock_load_dataset):
+        """Test that all four valid subset strings are accepted without error."""
+        mock_completion.return_value = make_completion_response("She walked in.")
+        valid_subsets = ["type1_pro", "type1_anti", "type2_pro", "type2_anti"]
+        for subset in valid_subsets:
+            metric = self._make_metric(mock_load_dataset)
+            # Should not raise; use minimal call to keep tests fast
+            result = metric.evaluate(num_templates=1, num_samples=1, subset=subset)
+            assert "representation_ratio" in result, f"Missing key for subset={subset!r}"
