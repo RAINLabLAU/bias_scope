@@ -1,2 +1,4 @@
 from bias_scope.prompts_based.bbq import BBQMetric
 from bias_scope.prompts_based.counterfactual_fairness import CounterfactualFairness
+from bias_scope.prompts_based.stereoset import StereoSetMetric
+from bias_scope.prompts_based.unqover import UnQoverMetric

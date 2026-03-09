@@ -24,6 +24,8 @@ IDENTITY_SWAP_PAIRS = {
     "straight": "gay",
 }
 
+VALID_COUNTERFACTUAL_SUBSETS = ["gender", "profession", "race", "religion"]
+
 
 class CounterfactualFairness(PromptBasedMetric):
     """
@@ -56,22 +58,35 @@ class CounterfactualFairness(PromptBasedMetric):
     >>> print(f"Bias score: {result['bias_score']:.3f}")
     """
 
-    def __init__(self, model_name: str, api_key: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        model_name: str,
+        api_key: Optional[str] = None,
+        dataset_config: str = "intersentence",
+        dataset_split: str = "validation",
+    ) -> None:
         """
         Initialize Counterfactual Fairness metric.
 
         Args:
             model_name (str): Model identifier for LiteLLM.
             api_key (str | None): Optional API key for the model provider.
+            dataset_config (str): StereoSet config to load. Default:
+                "intersentence".
+            dataset_split (str): Dataset split to load. Default: "validation".
         """
         self.model_name = model_name
         self.api_key = api_key
-        self._dataset = load_dataset(
-            "McGill-NLP/stereoset", "intersentence", split="validation"
-        )
-        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.dataset_name = "McGill-NLP/stereoset"
+        self.dataset_config = dataset_config
+        self.dataset_split = dataset_split
+        self.embedder_model_name = "all-MiniLM-L6-v2"
 
-    def evaluate(self, num_samples: Optional[int] = None) -> Dict[str, Any]:
+    def evaluate(
+        self,
+        num_samples: Optional[int] = None,
+        subset: str = "gender",
+    ) -> Dict[str, Any]:
         """
         Evaluate counterfactual consistency across identity-swapped prompts.
 
@@ -84,6 +99,9 @@ class CounterfactualFairness(PromptBasedMetric):
         Args:
             num_samples (int | None): Number of counterfactual pairs to
                 evaluate. Default: None (all). Must be positive if provided.
+            subset (str): StereoSet bias-type subset to evaluate. Default:
+                "gender". Valid values: "gender", "profession", "race",
+                "religion".
 
         Returns:
             Dict[str, object]: Contains:
@@ -94,9 +112,15 @@ class CounterfactualFairness(PromptBasedMetric):
                     similarity below 0.8.
                 - per_identity_group (Dict[str, float]): Avg similarity per
                     identity term.
+                - dataset_name (str): Source dataset name.
+                - dataset_config (str): Dataset config used.
+                - dataset_split (str): Dataset split used.
+                - selected_subset (str): Selected bias-type subset.
+                - num_pairs_evaluated (int): Number of pairs evaluated.
 
         Raises:
             ValueError: If num_samples is not a positive integer when provided.
+            ValueError: If subset is invalid.
             ValueError: If dataset is empty or no valid pairs after filtering.
 
         Notes:
@@ -107,10 +131,18 @@ class CounterfactualFairness(PromptBasedMetric):
             >>> r = metric.evaluate(num_samples=3)
             >>> assert 0 <= r["avg_similarity"] <= 1 and abs(r["bias_score"] - (1 - r["avg_similarity"])) < 1e-6
         """
+        if subset not in VALID_COUNTERFACTUAL_SUBSETS:
+            raise ValueError(
+                f"subset must be one of {VALID_COUNTERFACTUAL_SUBSETS}. Got {subset}"
+            )
         if num_samples is not None:
             self._validate_num_samples(num_samples)
+        rows = load_dataset(
+            self.dataset_name, self.dataset_config, split=self.dataset_split
+        )
+        self.embedder = SentenceTransformer(self.embedder_model_name)
 
-        rows = list(self._dataset)
+        rows = list(rows)
         if not rows:
             raise ValueError("Dataset is empty")
 
@@ -118,6 +150,8 @@ class CounterfactualFairness(PromptBasedMetric):
         for r in rows:
             target = r.get("target")
             if target is None or target not in IDENTITY_SWAP_PAIRS:
+                continue
+            if r.get("bias_type") != subset:
                 continue
             context = r.get("context", "")
             if not context:
@@ -175,6 +209,11 @@ class CounterfactualFairness(PromptBasedMetric):
             "bias_score": bias_score,
             "low_similarity_rate": low_similarity_rate,
             "per_identity_group": per_identity_group,
+            "dataset_name": self.dataset_name,
+            "dataset_config": self.dataset_config,
+            "dataset_split": self.dataset_split,
+            "selected_subset": subset,
+            "num_pairs_evaluated": n,
         }
 
     def _swap_identity(self, text: str, original: str, replacement: str) -> str:
@@ -237,3 +276,4 @@ class CounterfactualFairness(PromptBasedMetric):
             raise ValueError(
                 f"num_samples must be positive when provided. Got {num_samples}"
             )
+

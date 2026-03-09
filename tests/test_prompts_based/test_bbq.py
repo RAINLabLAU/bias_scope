@@ -46,12 +46,9 @@ SAMPLE_ROWS = [
 ]
 
 
-@pytest.fixture
-def mock_load_dataset():
-    """Mock HuggingFace load_dataset to return sample rows."""
-    with patch("bias_scope.prompts_based.bbq.load_dataset") as m:
-        m.return_value = SAMPLE_ROWS
-        yield m
+def _make_metric():
+    """Create BBQMetric without dataset setup at init time."""
+    return BBQMetric(model_name="test-model", api_key="test-key")
 
 
 @pytest.fixture
@@ -62,9 +59,9 @@ def mock_completion():
 
 
 @pytest.fixture
-def metric(mock_load_dataset):
-    """Create BBQMetric with mocked dataset."""
-    return BBQMetric(model_name="test-model", api_key="test-key")
+def metric():
+    """Create BBQMetric fixture."""
+    return _make_metric()
 
 
 class TestBBQMetric:
@@ -76,13 +73,17 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        result = metric.evaluate(num_samples=2)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=2)
         assert "bias_score" in result
         assert "accuracy" in result
         assert "per_category" in result
         assert isinstance(result["bias_score"], float)
         assert isinstance(result["accuracy"], float)
         assert isinstance(result["per_category"], dict)
+        assert result["dataset_name"] == "heegyu/bbq"
+        assert result["dataset_split"] == "test"
         assert 0 <= result["bias_score"] <= 1
         assert 0 <= result["accuracy"] <= 1
 
@@ -122,15 +123,23 @@ class TestBBQMetric:
         with pytest.raises(ValueError, match="integer"):
             metric.evaluate(num_samples=3.5)
 
-    def test_invalid_bias_categories_empty_list(self, metric):
-        """ValueError when bias_categories is empty list."""
-        with pytest.raises(ValueError, match="non-empty list"):
-            metric.evaluate(bias_categories=[])
+    def test_invalid_subset_raises_error(self, metric):
+        """Invalid subset names raise ValueError."""
+        with pytest.raises(ValueError, match="subset"):
+            metric.evaluate(subset="InvalidSubset")
 
-    def test_invalid_bias_categories_not_a_list(self, metric):
-        """ValueError when bias_categories is not a list."""
-        with pytest.raises(ValueError, match="non-empty list"):
-            metric.evaluate(bias_categories="Age")
+    @pytest.mark.parametrize("subset", ["Age", "Gender_identity"])
+    def test_valid_subsets(self, metric, subset):
+        """Valid subsets are accepted."""
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            with patch("bias_scope.prompts_based.bbq.completion") as mock_completion:
+                mock_completion.return_value = MagicMock()
+                mock_completion.return_value.choices = [MagicMock()]
+                mock_completion.return_value.choices[0].message = MagicMock()
+                mock_completion.return_value.choices[0].message.content = "C"
+                result = metric.evaluate(subset=subset)
+                assert result["selected_subset"] == subset
 
     def test_correct_answer_not_counted_as_biased(self, metric, mock_completion):
         """Model picks C (index 2, correct); bias_score is 0.0."""
@@ -138,7 +147,9 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        result = metric.evaluate(num_samples=3)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=3)
         assert result["bias_score"] == 0.0
         assert result["accuracy"] == 1.0
 
@@ -148,7 +159,9 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "A"
-        result = metric.evaluate(num_samples=2)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=2)
         assert result["bias_score"] > 0
         assert result["accuracy"] == 0.0
 
@@ -158,29 +171,47 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "B"
-        result = metric.evaluate(num_samples=2)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=2)
         assert 0 <= result["bias_score"] <= 1
         assert 0 <= result["accuracy"] <= 1
 
     def test_per_category_keys(self, metric, mock_completion):
-        """per_category contains expected category names."""
+        """per_category contains the expected category for the selected subset."""
         mock_completion.return_value = MagicMock()
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        result = metric.evaluate(num_samples=3)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=3)
         assert "Age" in result["per_category"]
-        assert "Gender_identity" in result["per_category"]
+        assert set(result["per_category"].keys()) == {"Age"}
 
-    def test_bias_categories_filter(self, metric, mock_completion):
-        """Only rows with matching category are evaluated."""
+    def test_subset_filter(self, metric, mock_completion):
+        """Only rows with matching subset are evaluated."""
         mock_completion.return_value = MagicMock()
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        result = metric.evaluate(num_samples=10, bias_categories=["Age"])
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=10, subset="Age")
         assert "Age" in result["per_category"]
         assert result["per_category"].keys() <= {"Age"}
+
+    def test_result_metadata_contains_selected_subsets(self, metric, mock_completion):
+        """Result metadata includes selected subset and evaluated row count."""
+        mock_completion.return_value = MagicMock()
+        mock_completion.return_value.choices = [MagicMock()]
+        mock_completion.return_value.choices[0].message = MagicMock()
+        mock_completion.return_value.choices[0].message.content = "C"
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(subset="Age")
+        assert result["selected_subset"] == "Age"
+        assert result["num_rows_evaluated"] == 2
 
     def test_build_prompt_contains_all_fields(self, metric):
         """Prompt includes context, question, and all three options."""
@@ -227,7 +258,9 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        metric.evaluate(num_samples=2)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            metric.evaluate(num_samples=2)
         assert mock_completion.call_count == 2
 
     def test_category_property(self, metric):
@@ -240,7 +273,9 @@ class TestBBQMetric:
         mock_completion.return_value.choices = [MagicMock()]
         mock_completion.return_value.choices[0].message = MagicMock()
         mock_completion.return_value.choices[0].message.content = "C"
-        result = metric.evaluate(num_samples=100)
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(num_samples=100)
         assert "bias_score" in result
         assert result["accuracy"] == 1.0
-        assert mock_completion.call_count == len(SAMPLE_ROWS)
+        assert mock_completion.call_count == 2

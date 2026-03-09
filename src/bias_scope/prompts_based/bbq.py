@@ -8,6 +8,21 @@ from litellm import completion
 from bias_scope.base import PromptBasedMetric
 
 
+VALID_BBQ_SUBSETS = [
+    "Age",
+    "Disability_status",
+    "Gender_identity",
+    "Nationality",
+    "Physical_appearance",
+    "Race_ethnicity",
+    "Race_x_SES",
+    "Race_x_gender",
+    "Religion",
+    "SES",
+    "Sexual_orientation",
+]
+
+
 class BBQMetric(PromptBasedMetric):
     """
     BBQ measures whether a model relies on stereotypes when answering ambiguous
@@ -53,12 +68,13 @@ class BBQMetric(PromptBasedMetric):
         """
         self.model_name = model_name
         self.api_key = api_key
-        self._dataset = load_dataset("heegyu/bbq", split="test")
+        self.dataset_name = "heegyu/bbq"
+        self.dataset_split = "test"
 
     def evaluate(
         self,
         num_samples: Optional[int] = None,
-        bias_categories: Optional[List[str]] = None,
+        subset: str = "Age",
     ) -> Dict[str, Any]:
         """
         Evaluate stereotype reliance on ambiguous BBQ questions.
@@ -72,9 +88,11 @@ class BBQMetric(PromptBasedMetric):
         Args:
             num_samples (int | None): Total samples to evaluate. Default: None
                 (all). Must be positive if provided.
-            bias_categories (list[str] | None): Filter to specific BBQ
-                categories (e.g. ["Age", "Gender_identity"]). Default: None
-                (all). Must be a non-empty list of strings if provided.
+            subset (str): BBQ category subset to evaluate. Default: "Age".
+                Valid values: "Age", "Disability_status", "Gender_identity",
+                "Nationality", "Physical_appearance", "Race_ethnicity",
+                "Race_x_SES", "Race_x_gender", "Religion", "SES",
+                "Sexual_orientation".
 
         Returns:
             Dict[str, object]: Contains:
@@ -83,11 +101,14 @@ class BBQMetric(PromptBasedMetric):
                 - accuracy (float): Fraction that correctly chose
                     "Can't be determined". Range [0, 1]. Higher = better.
                 - per_category (Dict[str, float]): Bias score per BBQ category.
+                - dataset_name (str): Source dataset name.
+                - dataset_split (str): Dataset split used for evaluation.
+                - selected_subset (str): Selected category subset.
+                - num_rows_evaluated (int): Number of rows evaluated.
 
         Raises:
             ValueError: If num_samples is not a positive integer when provided.
-            ValueError: If bias_categories is not a non-empty list of strings
-                when provided.
+            ValueError: If subset is invalid.
             ValueError: If dataset is empty after filtering.
 
         Notes:
@@ -96,29 +117,28 @@ class BBQMetric(PromptBasedMetric):
 
         Examples:
             >>> metric = BBQMetric("openai/gpt-4o")
-            >>> r = metric.evaluate(num_samples=5, bias_categories=["Age"])
+            >>> r = metric.evaluate(num_samples=5, subset="Age")
             >>> assert 0 <= r["bias_score"] <= 1 and 0 <= r["accuracy"] <= 1
         """
+        if subset not in VALID_BBQ_SUBSETS:
+            raise ValueError(
+                f"subset must be one of {VALID_BBQ_SUBSETS}. Got {subset}"
+            )
         if num_samples is not None:
             self._validate_num_samples(num_samples)
-        if bias_categories is not None:
-            if not isinstance(bias_categories, list) or len(bias_categories) == 0:
-                raise ValueError(
-                    "bias_categories must be a non-empty list of strings when provided"
-                )
-            if not all(isinstance(c, str) for c in bias_categories):
-                raise ValueError(
-                    "bias_categories must be a non-empty list of strings when provided"
-                )
+        rows = load_dataset(
+            self.dataset_name,
+            split=self.dataset_split,
+            trust_remote_code=True,
+        )
 
         # Filter to ambiguous only
         rows = [
             r
-            for r in self._dataset
+            for r in rows
             if r.get("context_condition") == "ambig"
         ]
-        if bias_categories is not None:
-            rows = [r for r in rows if r.get("category") in bias_categories]
+        rows = [r for r in rows if r.get("category") == subset]
         if not rows:
             raise ValueError("Dataset is empty after filtering")
 
@@ -176,6 +196,10 @@ class BBQMetric(PromptBasedMetric):
             "bias_score": bias_score,
             "accuracy": accuracy,
             "per_category": per_category,
+            "dataset_name": self.dataset_name,
+            "dataset_split": self.dataset_split,
+            "selected_subset": subset,
+            "num_rows_evaluated": n,
         }
 
     def _build_prompt(
@@ -256,3 +280,4 @@ class BBQMetric(PromptBasedMetric):
             raise ValueError(
                 f"num_samples must be positive when provided. Got {num_samples}"
             )
+
