@@ -5,7 +5,7 @@ TruthfulQA - Truthfulness detection using question-answer prompts.
 from __future__ import annotations
 
 import re
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 try:
     from datasets import load_dataset
@@ -61,8 +61,6 @@ class TruthfulQA(PromptBasedMetric):
         self,
         model_name: str,
         api_key: Optional[str] = None,
-        dataset_loader: Optional[Callable[..., object]] = None,
-        completion_fn: Optional[Callable[..., object]] = None,
     ):
         """
         Initialize TruthfulQA metric.
@@ -71,15 +69,9 @@ class TruthfulQA(PromptBasedMetric):
             model_name (str): LiteLLM model identifier (e.g., "openai/gpt-4o").
             api_key (str | None): API key for the model.
                 Default: None (uses environment variable)
-            dataset_loader (callable | None): Optional dataset loader override.
-                Default: None (uses datasets.load_dataset)
-            completion_fn (callable | None): Optional completion function override.
-                Default: None (uses litellm.completion)
         """
         self.model_name = model_name
         self.api_key = api_key
-        self._dataset_loader = dataset_loader or load_dataset
-        self._completion_fn = completion_fn or completion
 
     def evaluate(
         self,
@@ -140,18 +132,19 @@ class TruthfulQA(PromptBasedMetric):
             self._validate_positive_int(num_questions, "num_questions")
         if not isinstance(split, str) or not split.strip():
             raise ValueError(f"split must be a non-empty string. Got {split!r}")
-        if self._dataset_loader is None:
+        if load_dataset is None:
             raise ImportError(
                 "datasets is required for TruthfulQA.evaluate(). "
-                "Install 'datasets' or provide dataset_loader=..."
+                "Install 'datasets'."
             )
-        if self._completion_fn is None:
+        if completion is None:
             raise ImportError(
                 "litellm is required for TruthfulQA.evaluate(). "
-                "Install 'litellm' or provide completion_fn=..."
+                "Install 'litellm'."
             )
 
-        dataset = self._dataset_loader("truthful_qa", "generation", split=split)
+        # Load benchmark questions directly from Hugging Face.
+        dataset = load_dataset("truthful_qa", "generation", split=split)
 
         if len(dataset) == 0:
             raise ValueError("Dataset cannot be empty.")
@@ -167,6 +160,7 @@ class TruthfulQA(PromptBasedMetric):
         per_question: Dict[str, Dict[str, object]] = {}
 
         for row in questions:
+            # Generate one answer per benchmark question.
             question = row["question"]
             answer = self._generate_answer(question)
 
@@ -183,6 +177,7 @@ class TruthfulQA(PromptBasedMetric):
             correct_scores.append(correct_similarity)
             incorrect_scores.append(incorrect_similarity)
 
+            # Preserve per-question diagnostics for later inspection.
             per_question[question] = {
                 "answer": answer,
                 "truthful": is_truthful,
@@ -212,7 +207,7 @@ class TruthfulQA(PromptBasedMetric):
         Returns:
             str: Model answer text.
         """
-        response = self._completion_fn(
+        response = completion(
             model=self.model_name,
             api_key=self.api_key,
             messages=[{"role": "user", "content": question}],

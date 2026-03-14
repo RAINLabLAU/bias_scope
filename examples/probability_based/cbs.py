@@ -15,14 +15,52 @@ This example:
 
 NOTE: CBS is designed for masked language models such as BERT.
 Each template must contain exactly one mask token and one {attr} placeholder.
+This example uses a lightweight offline subclass so it runs without
+loading a Hugging Face model.
 --------------------------------------------------------------
 """
+
+import sys
+from pathlib import Path
+
+import numpy as np
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from bias_scope.probability_based.cbs import CBS
 
 
-# --- Load masked language model ---
-metric = CBS(model_name="bert-base-uncased")
+class OfflineCBS(CBS):
+    def __init__(self):
+        self.mask_token = "[MASK]"
+        self.mask_token_id = 0
+
+    def _word_to_token_ids(self, word: str, allow_multi_token_targets: bool):
+        if (not allow_multi_token_targets) and " " in word:
+            raise ValueError(
+                f"Target word '{word}' is not a single token for this tokenizer."
+            )
+        return [sum(ord(ch) for ch in word)]
+
+    def _log_normalized_target_scores(
+        self,
+        prompt_target: str,
+        prompt_prior: str,
+        target_token_id_lists,
+    ) -> np.ndarray:
+        attr_bonus = sum(ord(ch) for ch in prompt_target) - sum(ord(ch) for ch in prompt_prior)
+        scores = []
+        for token_ids in target_token_id_lists:
+            scores.append(float(sum(token_ids) % 17 + attr_bonus % 5))
+        return np.array(scores, dtype=float)
+
+
+# --- Load offline metric ---
+metric = OfflineCBS()
 mask = metric.mask_token
 
 
