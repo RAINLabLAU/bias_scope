@@ -117,3 +117,6 @@ ENV/
 
 #Ignore zip files
 *.zip
+
+# HuggingFace cache
+.hf_cache*/
