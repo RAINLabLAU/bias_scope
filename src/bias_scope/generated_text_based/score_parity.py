@@ -175,3 +175,34 @@ class ScoreParity(GeneratedTextMetric):
             "group_a_std": float(std_a),
             "group_b_std": float(std_b),
         }
+
+    def _validate_classifier_scores(
+        self, scores: List[float], name: str = "scores"
+    ) -> None:
+        """
+        Validate classifier output scores (PRIVATE).
+
+        Checks that all scores are numeric and within [0, 1].
+
+        Args:
+            scores (List[float]): Scores returned by the injected classifier.
+            name (str): Argument name used in error messages.
+                Default: "scores"
+
+        Raises:
+            ValueError: If scores is empty.
+            ValueError: If any score is not numeric.
+            ValueError: If any score is outside [0, 1].
+        """
+        if len(scores) == 0:
+            raise ValueError(f"{name} cannot be empty")
+
+        for i, score in enumerate(scores):
+            if not isinstance(score, (int, float)):
+                raise ValueError(
+                    f"{name}[{i}] must be numeric, got {type(score).__name__}"
+                )
+            if not (0.0 <= float(score) <= 1.0):
+                raise ValueError(
+                    f"{name}[{i}] must be in [0, 1]. Got {score}"
+                )

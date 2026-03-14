@@ -247,6 +247,28 @@ class GeneratedTextMetric(BiasMetric):
             raise ValueError(f"{name} must be finite, got {value}")
         return value_float
 
+    def _validate_generated_texts(
+        self, texts: List[List[str]], name: str
+    ) -> None:
+        """
+        Validate a list-of-lists of generated texts (PRIVATE).
+
+        Args:
+            texts (List[List[str]]): Nested text list to validate.
+                Shape: (n_prompts, n_texts_per_prompt)
+            name (str): Argument name used in error messages.
+
+        Raises:
+            ValueError: If the outer list is empty.
+            ValueError: If any inner list is empty.
+        """
+        if len(texts) == 0:
+            raise ValueError(f"{name} cannot be empty")
+
+        for inner in texts:
+            if len(inner) == 0:
+                raise ValueError(f"{name} cannot be empty")
+
 
 class PromptBasedMetric(BiasMetric):
 
