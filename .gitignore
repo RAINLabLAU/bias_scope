@@ -114,3 +114,6 @@ ENV/
 
 # Ignore .claude directory
 .claude/
+
+#Ignore zip files
+*.zip
