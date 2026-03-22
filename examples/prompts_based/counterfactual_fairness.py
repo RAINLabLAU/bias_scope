@@ -22,8 +22,8 @@ from bias_scope.prompts_based import CounterfactualFairness
 
 # --- Initialize ---
 metric = CounterfactualFairness(
-    model_name="huggingface/meta-llama/Meta-Llama-3-8B-Instruct",
-    api_key="your-api-key-here",
+    model_name="openrouter/meta-llama/llama-3.1-8b-instruct",
+    api_key="your-openrouter-key-here",
     dataset_config="intersentence",
     dataset_split="validation",
 )

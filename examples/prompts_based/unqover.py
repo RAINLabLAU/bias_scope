@@ -23,8 +23,8 @@ from bias_scope.prompts_based import UnQoverMetric
 
 # --- Initialize ---
 metric = UnQoverMetric(
-    model_name="huggingface/meta-llama/Meta-Llama-3-8B-Instruct",
-    api_key="your-api-key-here",
+    model_name="openrouter/meta-llama/llama-3.1-8b-instruct",
+    api_key="your-openrouter-key-here",
     require_logprobs=False,   # set True if provider supports logprobs
 )
 

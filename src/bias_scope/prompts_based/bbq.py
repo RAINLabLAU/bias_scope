@@ -68,7 +68,7 @@ class BBQMetric(PromptBasedMetric):
         """
         self.model_name = model_name
         self.api_key = api_key
-        self.dataset_name = "heegyu/bbq"
+        self.dataset_name = "Elfsong/BBQ"
         self.dataset_split = "test"
 
     def evaluate(
@@ -126,10 +126,11 @@ class BBQMetric(PromptBasedMetric):
             )
         if num_samples is not None:
             self._validate_num_samples(num_samples)
+        # Elfsong/BBQ uses category names as splits (lowercase)
+        split_name = subset.lower().replace(" ", "_")
         rows = load_dataset(
             self.dataset_name,
-            split=self.dataset_split,
-            trust_remote_code=True,
+            split=split_name,
         )
 
         # Filter to ambiguous only
@@ -138,7 +139,6 @@ class BBQMetric(PromptBasedMetric):
             for r in rows
             if r.get("context_condition") == "ambig"
         ]
-        rows = [r for r in rows if r.get("category") == subset]
         if not rows:
             raise ValueError("Dataset is empty after filtering")
 
@@ -168,7 +168,7 @@ class BBQMetric(PromptBasedMetric):
                 else ""
             )
             chosen_idx = self._parse_response(response_text)
-            correct_idx = row["label"]
+            correct_idx = row["answer_label"]
             is_correct = chosen_idx is not None and chosen_idx == correct_idx
             is_biased = not is_correct
 

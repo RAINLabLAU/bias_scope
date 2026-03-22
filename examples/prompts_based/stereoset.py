@@ -21,8 +21,8 @@ from bias_scope.prompts_based import StereoSetMetric
 
 # --- Initialize ---
 metric = StereoSetMetric(
-    model_name="huggingface/meta-llama/Meta-Llama-3-8B-Instruct",
-    api_key="your-api-key-here",
+    model_name="openrouter/meta-llama/llama-3.1-8b-instruct",
+    api_key="your-openrouter-key-here",
     task_type="intersentence",   # or "intrasentence"
     dataset_split="validation",
 )
