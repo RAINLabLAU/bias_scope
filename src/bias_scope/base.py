@@ -5,7 +5,7 @@ Abstract base classes for bias detection metrics.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Sequence, Tuple
 
 import numpy as np
 
@@ -177,6 +177,75 @@ class GeneratedTextMetric(BiasMetric):
     def category(self) -> str:
         """Category is automatically set to 'generated_text'."""
         return "generated_text"
+
+    def _validate_texts(self, texts: Sequence[str], name: str) -> List[str]:
+        """
+        Validate a sequence of text strings (PRIVATE).
+
+        Args:
+            texts (Sequence[str]): Text values to validate.
+            name (str): Input name for error messages.
+
+        Returns:
+            List[str]: Validated text list.
+
+        Raises:
+            TypeError: If texts is not a sequence of strings.
+            ValueError: If texts is empty or contains empty strings.
+        """
+        if not isinstance(texts, Sequence) or isinstance(texts, (str, bytes)):
+            raise TypeError(f"{name} must be a Sequence of strings")
+
+        texts_list = list(texts)
+        if len(texts_list) == 0:
+            raise ValueError(f"{name} cannot be empty")
+
+        for i, text in enumerate(texts_list):
+            if not isinstance(text, str):
+                raise TypeError(
+                    f"{name}[{i}] must be a string, got {type(text).__name__}"
+                )
+            if text == "":
+                raise ValueError(f"{name}[{i}] cannot be empty")
+
+        return texts_list
+
+    def _validate_callable(self, fn: Callable, name: str) -> None:
+        """
+        Validate a callable input (PRIVATE).
+
+        Args:
+            fn (Callable): Function to validate.
+            name (str): Input name for error messages.
+
+        Raises:
+            TypeError: If fn is not callable.
+        """
+        if not callable(fn):
+            raise TypeError(f"{name} must be callable, got {type(fn).__name__}")
+
+    def _validate_finite_float(self, value: float, name: str) -> float:
+        """
+        Validate a finite float value (PRIVATE).
+
+        Args:
+            value (float): Value to validate.
+            name (str): Input name for error messages.
+
+        Returns:
+            float: Validated float value.
+
+        Raises:
+            TypeError: If value is not numeric.
+            ValueError: If value is NaN or infinite.
+        """
+        if not isinstance(value, (int, float, np.floating)):
+            raise TypeError(f"{name} must be a float, got {type(value).__name__}")
+
+        value_float = float(value)
+        if np.isnan(value_float) or np.isinf(value_float):
+            raise ValueError(f"{name} must be finite, got {value}")
+        return value_float
 
     def _validate_generated_texts(
         self, texts: List[List[str]], name: str
