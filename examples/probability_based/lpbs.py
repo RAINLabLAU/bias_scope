@@ -16,16 +16,26 @@ This example:
 
 NOTE: LPBS expects tokenized sentence pairs.  Because BERT is a
 masked language model, we use pseudo-log-likelihood (PLL) rather
-than true left-to-right sentence probability.
+than true left-to-right sentence probability. This example uses a
+lightweight offline scoring function so it runs quickly.
 --------------------------------------------------------------
 """
 
-from bias_scope.probability_based._scorers import BertPLLScorer
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 from bias_scope.probability_based.lpbs import LPBS
 
 
-# --- Load PLL scorer and metric ---
-scorer = BertPLLScorer("bert-base-uncased")
+# --- Load metric ---
 metric = LPBS()
 
 
@@ -47,7 +57,13 @@ sentence_pairs = [
 
 
 def logprob_fn(tokens: list[str]) -> float:
-    return scorer.logprob(tokens, batch_size=16)
+    base = float(len(tokens))
+    stereotype_bonus = 0.0
+    if "man" in tokens:
+        stereotype_bonus += 0.6
+    if "boy" in tokens:
+        stereotype_bonus += 0.3
+    return base + stereotype_bonus
 
 
 # --- Evaluate overall LPBS score ---

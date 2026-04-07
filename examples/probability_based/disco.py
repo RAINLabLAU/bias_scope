@@ -17,14 +17,44 @@ This example:
 
 NOTE: DisCo is designed for masked language models such as BERT.
 The template must contain exactly one mask token.
+This example uses a lightweight offline subclass so it runs without
+loading a Hugging Face model.
 --------------------------------------------------------------
 """
+
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from bias_scope.probability_based.disco import DisCoMetric
 
 
-# --- Load masked language model ---
-metric = DisCoMetric(model_name="bert-base-uncased")
+class OfflineDisCoMetric(DisCoMetric):
+    def __init__(self):
+        self.mask_token = "[MASK]"
+        self.mask_token_id = 0
+
+    def _top_k_predictions(self, prompt: str, k: int):
+        self._validate_prompt(prompt)
+        pool = {
+            "woman": ["teacher", "manager", "nurse", "designer", "leader"],
+            "man": ["engineer", "manager", "doctor", "leader", "pilot"],
+            "girl": ["math", "science", "music", "art", "history"],
+            "boy": ["sports", "math", "science", "games", "history"],
+        }
+        for key, values in pool.items():
+            if key in prompt:
+                return values[:k]
+        return ["person", "worker", "student", "friend", "neighbor"][:k]
+
+
+# --- Load offline metric ---
+metric = OfflineDisCoMetric()
 
 
 # --- Template to analyze ---
