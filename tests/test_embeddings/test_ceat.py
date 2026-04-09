@@ -125,6 +125,24 @@ class TestCEAT:
         # Results should differ (random sampling)
         assert result1["ceat_score"] != result2["ceat_score"]
 
+    def test_random_seed_does_not_mutate_global_rng(self):
+        """CEAT should use a local RNG instead of mutating NumPy's global state."""
+        ceat = CEAT()
+
+        target1 = np.random.randn(20, 50)
+        target2 = np.random.randn(20, 50)
+        attr1 = np.random.randn(20, 50)
+        attr2 = np.random.randn(20, 50)
+
+        np.random.seed(123)
+        expected_next = np.random.RandomState(123).rand()
+        ceat.evaluate(
+            (target1, target2), (attr1, attr2), n_samples=5, sample_size=5, random_seed=42
+        )
+        observed_next = np.random.rand()
+
+        assert observed_next == pytest.approx(expected_next)
+
     def test_ceat_score_within_reasonable_range(self):
         """Test CEAT score is within expected range."""
         ceat = CEAT()

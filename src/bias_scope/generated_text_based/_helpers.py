@@ -10,6 +10,8 @@ from collections import Counter
 from typing import Counter as CounterType
 from typing import List, Sequence, Set
 
+import numpy as np
+
 from bias_scope.base import GeneratedTextMetric
 from bias_scope.generated_text_based.perspective_api import PerspectiveAPIClient
 
@@ -267,10 +269,6 @@ def compute_log_odds_with_prior(
     z_score = delta / (variance**0.5) if variance > 0 else 0.0
 
     return delta, variance, z_score
-
-
-# Import numpy for numerical operations
-import numpy as np
 
 
 class ToxicityMetric(GeneratedTextMetric):

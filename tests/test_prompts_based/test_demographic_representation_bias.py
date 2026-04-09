@@ -1,5 +1,6 @@
 """Tests for Demographic Representation Bias metric."""
 
+import sys
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -41,7 +42,9 @@ class TestDemographicRepresentationBias:
         the desired mock dataset.
         """
         mock_load_dataset.return_value = make_mock_dataset(rows if rows is not None else SAMPLE_ROWS)
-        from bias_scope.prompts_based import DemographicRepresentationBias
+        from bias_scope.prompts_based.demographic_representation_bias import (
+            DemographicRepresentationBias,
+        )
         return DemographicRepresentationBias(model_name="openai/gpt-4o", api_key="test-key")
 
     @patch("bias_scope.prompts_based.demographic_representation_bias.completion")
@@ -133,7 +136,7 @@ class TestDemographicRepresentationBias:
 
         result = metric.evaluate(num_templates=1, num_samples=3, subset="type1_pro")
 
-        assert result["representation_ratio"] == float("inf")
+        assert result["representation_ratio"] == sys.float_info.max
 
     @patch("bias_scope.prompts_based.demographic_representation_bias.completion")
     def test_all_female_responses(self, mock_completion, mock_load_dataset):

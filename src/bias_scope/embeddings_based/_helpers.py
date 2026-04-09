@@ -78,7 +78,9 @@ def _compute_similarity_measure(
     return np.mean(cos_attr1) - np.mean(cos_attr2)
 
 
-def _compute_random_effects_weights(weat_scores: list) -> np.ndarray:
+def _compute_random_effects_weights(
+    weat_scores: list[float], sample_size: int
+) -> np.ndarray:
     """
     Compute random-effects model weights for CEAT (PRIVATE).
 
@@ -105,20 +107,29 @@ def _compute_random_effects_weights(weat_scores: list) -> np.ndarray:
         - tau^2: between-sample variance (max(0, var - 0))
         - epsilon: small constant for numerical stability
     """
-    # Calculate variance
-    variance = np.var(weat_scores, ddof=1)
+    if len(weat_scores) == 1:
+        return np.array([1.0], dtype=float)
 
-    # Estimate between-sample variance (tau-squared)
-    # Simplified version: assumes within-sample variance is negligible
-    tau_squared = max(0, variance)
-
-    # Calculate inverse-variance weights
-    weights = np.array(
+    n_per_group = float(sample_size)
+    within_variances = np.array(
         [
-            1.0 / (variance + tau_squared + 1e-10)  # Add epsilon for stability
-            for _ in weat_scores
-        ]
+            (2.0 / n_per_group) + (float(score) ** 2 / max(1.0, (4.0 * n_per_group - 4.0)))
+            for score in weat_scores
+        ],
+        dtype=float,
     )
+
+    fixed_weights = 1.0 / np.maximum(within_variances, 1e-10)
+    fixed_mean = float(np.sum(fixed_weights * np.array(weat_scores)) / np.sum(fixed_weights))
+    q_stat = float(np.sum(fixed_weights * (np.array(weat_scores) - fixed_mean) ** 2))
+    c_term = float(
+        np.sum(fixed_weights)
+        - (np.sum(fixed_weights**2) / np.sum(fixed_weights))
+    )
+    tau_squared = max(0.0, (q_stat - (len(weat_scores) - 1)) / c_term) if c_term > 0 else 0.0
+
+    # Calculate inverse-variance weights with a DerSimonian-Laird style random effect.
+    weights = 1.0 / np.maximum(within_variances + tau_squared, 1e-10)
 
     # Normalize to sum to 1
     return weights / weights.sum()

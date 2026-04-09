@@ -149,6 +149,12 @@ class AULA(ProbabilityMetric):
         Predicts each token with attention weights and returns
         attention-weighted average log-likelihood.
 
+        AULA intentionally uses the diagonal self-attention entry for each
+        token, i.e. `attention_arr[position]`, as that token's importance
+        weight. This matches the AULA paper's use of each token's
+        self-attention contribution rather than aggregating attention to
+        other positions.
+
         Args:
             sentence (List[str]): Complete tokenized sentence
             predict_fn (Callable): Prediction function returning prob and attention
@@ -254,7 +260,7 @@ class AULA(ProbabilityMetric):
                 )
 
             log_probs.append(np.log(prob))
-            # Use attention weight for this position
+            # Use the token's self-attention weight for its contribution.
             attention_weights.append(attention_arr[position])
 
         # Normalize attention weights to sum to 1

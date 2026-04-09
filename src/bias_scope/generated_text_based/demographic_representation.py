@@ -179,7 +179,7 @@ class DemographicRepresentation(GeneratedTextMetric):
 
         # Entropy
         # Add epsilon to avoid log(0)
-        probs_safe = probs + EPSILON
+        probs_safe = np.where(probs > 0, probs, EPSILON)
         entropy = float(-np.sum(probs_safe * np.log(probs_safe)))
 
         # Normalized entropy

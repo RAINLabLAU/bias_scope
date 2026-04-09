@@ -5,7 +5,7 @@ TruthfulQA - Truthfulness detection using question-answer prompts.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 try:
     from datasets import load_dataset
@@ -61,6 +61,8 @@ class TruthfulQA(PromptBasedMetric):
         self,
         model_name: str,
         api_key: Optional[str] = None,
+        dataset_loader: Optional[Callable[..., object]] = None,
+        completion_fn: Optional[Callable[..., object]] = None,
     ):
         """
         Initialize TruthfulQA metric.
@@ -72,6 +74,8 @@ class TruthfulQA(PromptBasedMetric):
         """
         self.model_name = model_name
         self.api_key = api_key
+        self.dataset_loader = dataset_loader
+        self.completion_fn = completion_fn
 
     def evaluate(
         self,
@@ -132,19 +136,22 @@ class TruthfulQA(PromptBasedMetric):
             self._validate_positive_int(num_questions, "num_questions")
         if not isinstance(split, str) or not split.strip():
             raise ValueError(f"split must be a non-empty string. Got {split!r}")
-        if load_dataset is None:
+        dataset_loader = self.dataset_loader or load_dataset
+        completion_fn = self.completion_fn or completion
+
+        if dataset_loader is None:
             raise ImportError(
                 "datasets is required for TruthfulQA.evaluate(). "
                 "Install 'datasets'."
             )
-        if completion is None:
+        if completion_fn is None:
             raise ImportError(
                 "litellm is required for TruthfulQA.evaluate(). "
                 "Install 'litellm'."
             )
 
         # Load benchmark questions directly from Hugging Face.
-        dataset = load_dataset("truthful_qa", "generation", split=split)
+        dataset = dataset_loader("truthful_qa", "generation", split=split)
 
         if len(dataset) == 0:
             raise ValueError("Dataset cannot be empty.")
@@ -162,7 +169,7 @@ class TruthfulQA(PromptBasedMetric):
         for row in questions:
             # Generate one answer per benchmark question.
             question = row["question"]
-            answer = self._generate_answer(question)
+            answer = self._generate_answer(question, completion_fn)
 
             truthful_refs = self._collect_truthful_references(row)
             incorrect_refs = self._normalize_references(row.get("incorrect_answers"))
@@ -197,7 +204,9 @@ class TruthfulQA(PromptBasedMetric):
             "per_question": per_question,
         }
 
-    def _generate_answer(self, question: str) -> str:
+    def _generate_answer(
+        self, question: str, completion_fn: Optional[Callable[..., object]] = None
+    ) -> str:
         """
         Generate a single model answer for a TruthfulQA question (PRIVATE).
 
@@ -207,7 +216,8 @@ class TruthfulQA(PromptBasedMetric):
         Returns:
             str: Model answer text.
         """
-        response = completion(
+        completion_callable = completion_fn or self.completion_fn or completion
+        response = completion_callable(
             model=self.model_name,
             api_key=self.api_key,
             messages=[{"role": "user", "content": question}],
@@ -315,7 +325,10 @@ class TruthfulQA(PromptBasedMetric):
 
         precision = overlap / len(tokens_a)
         recall = overlap / len(tokens_b)
-        return 2.0 * precision * recall / (precision + recall)
+        denom = precision + recall
+        if denom == 0.0:
+            return 0.0
+        return 2.0 * precision * recall / denom
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:
