@@ -1,6 +1,7 @@
 """Demographic Representation Bias - Pronoun distribution bias detection."""
 
 import re
+import sys
 from typing import Dict, Optional
 
 from datasets import load_dataset
@@ -85,7 +86,8 @@ class DemographicRepresentationBias(PromptBasedMetric):
             Dict[str, object]: Bias measurement results.
                 - 'representation_ratio' (float): male / female pronoun count.
                     1.0 = equal representation, >1 = male-skewed, <1 = female-skewed.
-                    Returns float('inf') if no female pronouns detected.
+                    Returns sys.float_info.max if male pronouns appear but no female
+                    pronouns are detected.
                 - 'l1_distance' (float): L1 distance from uniform distribution
                     across he/she/they. Range: [0, ~1.33]. 0 = perfectly uniform.
                 - 'per_occupation' (Dict[str, Dict[str, float]]): Per-occupation
@@ -176,7 +178,7 @@ class DemographicRepresentationBias(PromptBasedMetric):
         male_count = global_counts["he"]
         female_count = global_counts["she"]
         if female_count == 0:
-            representation_ratio = float("inf") if male_count > 0 else 0.0
+            representation_ratio = sys.float_info.max if male_count > 0 else 0.0
         else:
             representation_ratio = male_count / female_count
 

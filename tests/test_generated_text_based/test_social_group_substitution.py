@@ -483,4 +483,46 @@ class TestSocialGroupSubstitution:
         for word in ['hello', 'goodbye']:
             assert result_single['scores']['word'][word] == result_batch['scores']['word'][word]
 
+    def test_decoding_kwargs_are_forwarded(self):
+        """Test decoding kwargs are passed to generate_fn."""
+        sgs = SocialGroupSubstitution()
+
+        prompts = ["Test {x}"]
+        substitutions = {"x": ["a", "b"]}
+        seen_kwargs = []
+
+        def generate_fn(prompt, **kwargs):
+            seen_kwargs.append(kwargs)
+            return f"generated:{prompt}"
+
+        result = sgs.evaluate(
+            prompts=prompts,
+            substitutions=substitutions,
+            generate_fn=generate_fn,
+            score_fn=lambda _: 1.0,
+            decoding_kwargs={"temperature": 0.7, "max_tokens": 5},
+        )
+
+        assert result["metadata"]["decoding_kwargs_used"] == {
+            "temperature": 0.7,
+            "max_tokens": 5,
+        }
+        assert seen_kwargs == [
+            {"temperature": 0.7, "max_tokens": 5},
+            {"temperature": 0.7, "max_tokens": 5},
+        ]
+
+    def test_decoding_kwargs_raise_clear_error_for_incompatible_generate_fn(self):
+        """Test incompatible generate_fn surfaces a clear decoding kwargs error."""
+        sgs = SocialGroupSubstitution()
+
+        with pytest.raises(TypeError, match="decoding_kwargs"):
+            sgs.evaluate(
+                prompts=["Test {x}"],
+                substitutions={"x": ["a", "b"]},
+                generate_fn=lambda prompt: prompt,
+                score_fn=lambda _: 1.0,
+                decoding_kwargs={"temperature": 0.5},
+            )
+
 

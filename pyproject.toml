@@ -42,3 +42,10 @@ show_missing = true
 
 [tool.coverage.run]
 source = ["bias_scope", "tests"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

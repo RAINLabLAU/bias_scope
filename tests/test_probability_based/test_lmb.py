@@ -417,6 +417,40 @@ class TestLMB:
         # With moderate difference and variance, likely significant
         assert 0.0 <= result["p_value"] <= 1.0
 
+    def test_t_distribution_matches_known_reference_value(self):
+        """Small-df p-value should stay close to a standard reference value."""
+        lmb = LMB()
+
+        # Reference: two-tailed p-value for t=2.0 with df=10 is about 0.07339.
+        p_value = lmb._t_distribution_pvalue(2.0, 10)
+
+        assert p_value == pytest.approx(0.07339, abs=1e-3)
+
+    def test_t_distribution_characterization_against_scipy(self):
+        """LMB p-values should stay close to scipy.stats.t.sf references."""
+        scipy_stats = pytest.importorskip("scipy.stats")
+        lmb = LMB()
+
+        dfs = [5, 10, 20, 30]
+        t_values = [0.1, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0]
+
+        max_abs_error = 0.0
+        worst_case = None
+
+        for df in dfs:
+            for t_abs in t_values:
+                expected = float(2.0 * scipy_stats.t.sf(t_abs, df))
+                observed = lmb._t_distribution_pvalue(t_abs, df)
+                abs_error = abs(observed - expected)
+
+                if abs_error > max_abs_error:
+                    max_abs_error = abs_error
+                    worst_case = (df, t_abs, observed, expected)
+
+        assert max_abs_error <= 1e-4, (
+            f"Max abs error {max_abs_error} exceeded tolerance at {worst_case}"
+        )
+
     def test_perplexity_increases_with_lower_prob(self):
         """Test that perplexity increases when probabilities decrease."""
         lmb = LMB()

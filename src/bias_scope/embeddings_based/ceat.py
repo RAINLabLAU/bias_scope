@@ -177,17 +177,22 @@ class CEAT(EmbeddingMetric):
         # Validate sufficient data for sampling
         self._validate_sufficient_data([target1, target2, attr1, attr2], sample_size)
 
-        # Set random seed if provided
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        rng = np.random.default_rng(random_seed)
 
         # Compute WEAT scores for random samples
         weat_scores = self._compute_weat_distribution(
-            target1, target2, attr1, attr2, n_samples, sample_size
+            target1, target2, attr1, attr2, n_samples, sample_size, rng
         )
 
         # Compute random-effects weights
-        weights = _compute_random_effects_weights(weat_scores)
+        weights = _compute_random_effects_weights(weat_scores, sample_size)
+
+        if len(weat_scores) == 1:
+            weat_std = 0.0
+            weat_variance = 0.0
+        else:
+            weat_std = float(np.std(weat_scores, ddof=1))
+            weat_variance = float(np.var(weat_scores, ddof=1))
 
         # Compute final CEAT score (weighted average)
         ceat_score = float(np.sum(weights * np.array(weat_scores)))
@@ -196,8 +201,8 @@ class CEAT(EmbeddingMetric):
         return {
             "ceat_score": ceat_score,
             "weat_mean": float(np.mean(weat_scores)),
-            "weat_std": float(np.std(weat_scores, ddof=1)),
-            "weat_variance": float(np.var(weat_scores, ddof=1)),
+            "weat_std": weat_std,
+            "weat_variance": weat_variance,
             "n_samples": n_samples,
         }
 
@@ -235,6 +240,7 @@ class CEAT(EmbeddingMetric):
         attr2: np.ndarray,
         n_samples: int,
         sample_size: int,
+        rng: np.random.Generator,
     ) -> List[float]:
         """
         Compute distribution of WEAT scores via sampling (PRIVATE).
@@ -255,14 +261,10 @@ class CEAT(EmbeddingMetric):
 
         for i in range(n_samples):
             # Random sample without replacement from each group
-            t1_sample = target1[
-                np.random.choice(len(target1), sample_size, replace=False)
-            ]
-            t2_sample = target2[
-                np.random.choice(len(target2), sample_size, replace=False)
-            ]
-            a1_sample = attr1[np.random.choice(len(attr1), sample_size, replace=False)]
-            a2_sample = attr2[np.random.choice(len(attr2), sample_size, replace=False)]
+            t1_sample = target1[rng.choice(len(target1), sample_size, replace=False)]
+            t2_sample = target2[rng.choice(len(target2), sample_size, replace=False)]
+            a1_sample = attr1[rng.choice(len(attr1), sample_size, replace=False)]
+            a2_sample = attr2[rng.choice(len(attr2), sample_size, replace=False)]
 
             # Compute WEAT for this sample
             weat_score = weat.evaluate((t1_sample, t2_sample), (a1_sample, a2_sample))

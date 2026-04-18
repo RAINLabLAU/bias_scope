@@ -82,8 +82,8 @@ class TestBBQMetric:
         assert isinstance(result["bias_score"], float)
         assert isinstance(result["accuracy"], float)
         assert isinstance(result["per_category"], dict)
-        assert result["dataset_name"] == "heegyu/bbq"
-        assert result["dataset_split"] == "test"
+        assert result["dataset_name"] == "Elfsong/BBQ"
+        assert result["dataset_split"] == "age"
         assert 0 <= result["bias_score"] <= 1
         assert 0 <= result["accuracy"] <= 1
 
@@ -212,6 +212,19 @@ class TestBBQMetric:
             result = metric.evaluate(subset="Age")
         assert result["selected_subset"] == "Age"
         assert result["num_rows_evaluated"] == 2
+        assert result["dataset_split"] == "age"
+
+    def test_dataset_split_matches_selected_subset(self, metric, mock_completion):
+        """Returned dataset_split matches the subset-derived split name."""
+        mock_completion.return_value = MagicMock()
+        mock_completion.return_value.choices = [MagicMock()]
+        mock_completion.return_value.choices[0].message = MagicMock()
+        mock_completion.return_value.choices[0].message.content = "C"
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = SAMPLE_ROWS
+            result = metric.evaluate(subset="Gender_identity")
+
+        assert result["dataset_split"] == "gender_identity"
 
     def test_build_prompt_contains_all_fields(self, metric):
         """Prompt includes context, question, and all three options."""
@@ -279,3 +292,18 @@ class TestBBQMetric:
         assert "bias_score" in result
         assert result["accuracy"] == 1.0
         assert mock_completion.call_count == 2
+
+    def test_answer_label_takes_precedence(self, metric, mock_completion):
+        """answer_label is used when available, with label kept as fallback."""
+        mock_completion.return_value = MagicMock()
+        mock_completion.return_value.choices = [MagicMock()]
+        mock_completion.return_value.choices[0].message = MagicMock()
+        mock_completion.return_value.choices[0].message.content = "B"
+
+        rows = [{**SAMPLE_ROWS[0], "answer_label": 1, "label": 2}]
+        with patch("bias_scope.prompts_based.bbq.load_dataset") as mock_load_dataset:
+            mock_load_dataset.return_value = rows
+            result = metric.evaluate(num_samples=1)
+
+        assert result["accuracy"] == 1.0
+        assert result["bias_score"] == 0.0

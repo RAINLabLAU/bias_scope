@@ -1,5 +1,6 @@
 """LMB - Language Model Bias."""
 
+import math
 from typing import Callable, Dict, List, Literal, Tuple
 
 import numpy as np
@@ -356,32 +357,18 @@ class LMB(ProbabilityMetric):
         Returns:
             float: Two-tailed p-value
         """
-        # For large df (>30), t-distribution approximates normal
+        # For large df (>30), t-distribution approximates normal.
         if df > 30:
             # Use normal approximation
             p_value = 2 * (1 - self._normal_cdf(t_abs))
             return p_value
 
-        # For small df, use approximation based on incomplete beta function
-        # This is a simplified approximation for practical use
-        # Formula: P(|T| > t) ≈ based on beta distribution
-        #
-        # For very common df values, use lookup table approximation
-        if df >= 1:
-            # Hill's approximation for t-distribution
-            x = df / (df + t_abs * t_abs)
-            # Approximation for P(T > t_abs) using beta-related formula
-            # This is a simplified version sufficient for practical bias testing
+        if df < 1:
+            return 1.0
 
-            # For df >= 1, use continued fraction approximation
-            # This gives reasonable accuracy for hypothesis testing
-            p_one_tail = 0.5 * self._incomplete_beta_approx(x, df / 2.0, 0.5)
-            p_value = 2 * p_one_tail
-
-            # Clamp to valid range
-            return max(0.0, min(1.0, p_value))
-
-        return 1.0  # Fallback
+        x = df / (df + t_abs * t_abs)
+        p_value = self._regularized_incomplete_beta(x, df / 2.0, 0.5)
+        return max(0.0, min(1.0, p_value))
 
     def _normal_cdf(self, x: float) -> float:
         """
@@ -415,11 +402,9 @@ class LMB(ProbabilityMetric):
         else:
             return 0.5 * (1 - erf_approx)
 
-    def _incomplete_beta_approx(self, x: float, a: float, b: float) -> float:
+    def _regularized_incomplete_beta(self, x: float, a: float, b: float) -> float:
         """
-        Approximate incomplete beta function (PRIVATE).
-
-        Simplified approximation sufficient for t-test p-values.
+        Compute the regularized incomplete beta I_x(a, b) (PRIVATE).
 
         Args:
             x (float): Value in [0, 1]
@@ -427,30 +412,78 @@ class LMB(ProbabilityMetric):
             b (float): Parameter
 
         Returns:
-            float: Approximation of I_x(a, b)
+            float: Regularized incomplete beta value
         """
-        # For t-distribution, we typically have b=0.5
-        # Use power series approximation for small x
-        if x < 0.01:
-            # Small x approximation
-            return (x**a) / a
+        if x <= 0.0:
+            return 0.0
+        if x >= 1.0:
+            return 1.0
 
-        # For larger x or general case, use continued fraction approximation
-        # Simplified version - for production, would use scipy
-        # This approximation works reasonably well for df in [1, 30] range
+        log_beta = math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
 
-        # Rough approximation using incomplete beta regularized
-        # For our use case (df/2, 0.5), this is sufficient
-        if x > 0.5:
-            return 1.0 - self._incomplete_beta_approx(1 - x, b, a)
+        if x < (a + 1.0) / (a + b + 2.0):
+            front = math.exp(
+                a * math.log(x) + b * math.log(1.0 - x) - log_beta
+            )
+            return front * self._beta_continued_fraction(x, a, b) / a
 
-        # Power series expansion (truncated for speed)
-        term = (x**a) * ((1 - x) ** b) / a
-        result = term
-        for i in range(1, 50):  # 50 iterations usually sufficient
-            term *= ((a + b + i - 1) * x) / ((a + i) * 1)
-            result += term / (a + i)
-            if abs(term / (a + i)) < 1e-10:
+        front = math.exp(
+            b * math.log(1.0 - x) + a * math.log(x) - log_beta
+        )
+        return 1.0 - (front * self._beta_continued_fraction(1.0 - x, b, a) / b)
+
+    def _beta_continued_fraction(self, x: float, a: float, b: float) -> float:
+        """
+        Evaluate the incomplete beta continued fraction (PRIVATE).
+
+        Args:
+            x (float): Value in [0, 1]
+            a (float): Parameter
+            b (float): Parameter
+
+        Returns:
+            float: Continued fraction value
+        """
+        max_iterations = 200
+        epsilon = 3e-14
+        fpmin = 1e-300
+
+        qab = a + b
+        qap = a + 1.0
+        qam = a - 1.0
+
+        c = 1.0
+        d = 1.0 - (qab * x / qap)
+        if abs(d) < fpmin:
+            d = fpmin
+        d = 1.0 / d
+        fraction = d
+
+        for m in range(1, max_iterations + 1):
+            m2 = 2 * m
+
+            aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+            d = 1.0 + aa * d
+            if abs(d) < fpmin:
+                d = fpmin
+            c = 1.0 + aa / c
+            if abs(c) < fpmin:
+                c = fpmin
+            d = 1.0 / d
+            fraction *= d * c
+
+            aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+            d = 1.0 + aa * d
+            if abs(d) < fpmin:
+                d = fpmin
+            c = 1.0 + aa / c
+            if abs(c) < fpmin:
+                c = fpmin
+            d = 1.0 / d
+            delta = d * c
+            fraction *= delta
+
+            if abs(delta - 1.0) < epsilon:
                 break
 
-        return result
+        return fraction

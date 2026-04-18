@@ -29,13 +29,13 @@ class DisCoResult:
             Tokens that appear in both top-k sets (intersection).
 
         score:
-            DisCo score = |T_A ? T_B| (symmetric difference size), where:
-              - T_A is the set of top-k predictions for prompt A
-              - T_B is the set of top-k predictions for prompt B
+            DisCo score = |T_A Δ T_B| (symmetric difference size), where:
+            - T_A is the set of top-k predictions for prompt A
+            - T_B is the set of top-k predictions for prompt B
 
             Range:
-              0   -> identical top-k sets
-              2k  -> completely different top-k sets
+            - 0 -> identical top-k sets
+            - 2k -> completely different top-k sets
     """
 
     topk_a: List[str]
@@ -137,9 +137,10 @@ class DisCoMetric(ProbabilityMetric):
         """
         Compute DisCo score from top-k sets.
 
-        T_A = set(topk_a)
-        T_B = set(topk_b)
-        score = |T_A ? T_B|
+        Formula:
+            T_A = set(topk_a)
+            T_B = set(topk_b)
+            score = |T_A Δ T_B|
         """
         set_a: Set[str] = set(topk_a)
         set_b: Set[str] = set(topk_b)

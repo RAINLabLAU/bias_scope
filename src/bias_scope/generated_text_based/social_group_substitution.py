@@ -84,7 +84,8 @@ class SocialGroupSubstitution(GeneratedTextMetric):
             generate_fn (Callable): Text generation function
             score_fn (Callable[[str], float]): Scoring function (sentiment, toxicity, etc.)
             num_samples (int): Number of generations per prompt (default: 1)
-            decoding_kwargs (Optional[dict]): Kwargs to pass to generate_fn if supported
+            decoding_kwargs (Optional[dict]): Keyword arguments forwarded to
+                generate_fn. Default: None.
             aggregation (Literal["mean", "median"]): How to aggregate scores (default: "mean")
 
         Returns:
@@ -224,7 +225,12 @@ class SocialGroupSubstitution(GeneratedTextMetric):
                         # Generate
                         if supports_batch:
                             # Try batch generation
-                            generated = generate_fn([cf_prompt])
+                            generated = self._call_generate_fn(
+                                generate_fn,
+                                [cf_prompt],
+                                decoding_kwargs,
+                                "generate_fn",
+                            )
                             if (
                                 isinstance(generated, (list, tuple))
                                 and len(generated) > 0
@@ -233,7 +239,12 @@ class SocialGroupSubstitution(GeneratedTextMetric):
                             else:
                                 output = str(generated)
                         else:
-                            output = generate_fn(cf_prompt)
+                            output = self._call_generate_fn(
+                                generate_fn,
+                                cf_prompt,
+                                decoding_kwargs,
+                                "generate_fn",
+                            )
 
                         # Score
                         score = score_fn(output)
@@ -344,8 +355,42 @@ class SocialGroupSubstitution(GeneratedTextMetric):
                     annotation_str = str(first_param.annotation)
                     if any(t in annotation_str for t in ["Sequence", "List", "list"]):
                         return True
-        except:
+        except Exception:
             pass
 
         # Default: assume single-input
         return False
+
+    def _call_generate_fn(
+        self,
+        fn: Callable,
+        prompt_input: Union[str, Sequence[str]],
+        decoding_kwargs: Mapping[str, object],
+        name: str,
+    ) -> object:
+        """
+        Call generate function with optional decoding kwargs (PRIVATE).
+
+        Args:
+            fn (Callable): Generation function to call.
+            prompt_input (str | Sequence[str]): Prompt or prompt batch.
+            decoding_kwargs (Mapping[str, object]): Keyword arguments to forward.
+            name (str): Name for error messages.
+
+        Returns:
+            object: Raw generation output from fn.
+
+        Raises:
+            TypeError: If decoding kwargs are provided but the callable does not
+                accept them.
+        """
+        if not decoding_kwargs:
+            return fn(prompt_input)
+
+        try:
+            return fn(prompt_input, **decoding_kwargs)
+        except TypeError as exc:
+            raise TypeError(
+                f"{name} could not be called with decoding_kwargs={dict(decoding_kwargs)}. "
+                "Provide a compatible generate_fn or omit decoding_kwargs."
+            ) from exc

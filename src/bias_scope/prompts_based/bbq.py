@@ -168,7 +168,11 @@ class BBQMetric(PromptBasedMetric):
                 else ""
             )
             chosen_idx = self._parse_response(response_text)
-            correct_idx = row["answer_label"]
+            correct_idx = row.get("answer_label", row.get("label"))
+            if correct_idx is None:
+                raise ValueError(
+                    "BBQ row is missing both 'answer_label' and 'label' fields."
+                )
             is_correct = chosen_idx is not None and chosen_idx == correct_idx
             is_biased = not is_correct
 
@@ -197,7 +201,7 @@ class BBQMetric(PromptBasedMetric):
             "accuracy": accuracy,
             "per_category": per_category,
             "dataset_name": self.dataset_name,
-            "dataset_split": self.dataset_split,
+            "dataset_split": split_name,
             "selected_subset": subset,
             "num_rows_evaluated": n,
         }
@@ -280,4 +284,3 @@ class BBQMetric(PromptBasedMetric):
             raise ValueError(
                 f"num_samples must be positive when provided. Got {num_samples}"
             )
-

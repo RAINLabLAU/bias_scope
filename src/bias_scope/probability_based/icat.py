@@ -1,6 +1,6 @@
 """iCAT - Idealized Context Association Test."""
 
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 
@@ -50,7 +50,7 @@ class ICAT(ProbabilityMetric):
 
     def evaluate(
         self,
-        test_cases: List[Dict[str, any]],
+        test_cases: List[Dict[str, Any]],
         predict_masked_token: Callable[[List[str], str], float],
     ) -> Dict[str, float]:
         """
