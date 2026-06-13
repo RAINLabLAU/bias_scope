@@ -1,0 +1,121 @@
+site_name: bias-scope
+site_description: A comprehensive Python library for detecting and measuring biases in machine learning models.
+site_author: Chadi Helwe, Nancy Kalmiche, Elissa El Haber, Jason Greich
+site_url: https://bias-scope.readthedocs.io
+repo_url: https://github.com/RAINLabLAU/bias_scope
+repo_name: RAINLabLAU/bias_scope
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+  - API Reference:
+    - Overview: api/overview.md
+    - Embedding-Based:
+      - WEAT: api/embeddings/weat.md
+      - SEAT: api/embeddings/seat.md
+      - CEAT: api/embeddings/ceat.md
+      - SentenceBiasScore: api/embeddings/sentence_bias_score.md
+    - Probability-Based:
+      - CrowS-Pairs: api/probability/crows_pairs.md
+      - CAT: api/probability/cat.md
+      - iCAT: api/probability/icat.md
+      - AUL: api/probability/aul.md
+      - AULA: api/probability/aula.md
+      - LMB: api/probability/lmb.md
+      - LPBS: api/probability/lpbs.md
+      - CBS: api/probability/cbs.md
+      - DisCo: api/probability/disco.md
+    - Generated Text:
+      - RegardScore: api/generated_text/regard_score.md
+      - ScoreParity: api/generated_text/score_parity.md
+      - ToxicityFraction: api/generated_text/toxicity_fraction.md
+      - ToxicityProbability: api/generated_text/toxicity_probability.md
+      - SocialGroupSubstitution: api/generated_text/social_group_substitution.md
+      - CoOccurrenceBiasScore: api/generated_text/cooccurrence_bias_score.md
+      - DemographicRepresentation: api/generated_text/demographic_representation.md
+      - StereotypicalAssociations: api/generated_text/stereotypical_associations.md
+      - MarkedPersons: api/generated_text/marked_persons.md
+      - EMT: api/generated_text/emt.md
+      - FGB: api/generated_text/fgb.md
+      - PGB: api/generated_text/pgb.md
+      - GenderPolarity: api/generated_text/gender_polarity.md
+      - HONEST: api/generated_text/honest.md
+      - PsycholinguisticNorms: api/generated_text/psycholinguistic_norms.md
+      - CounterfactualSentimentBias: api/generated_text/counterfactual_sentiment_bias.md
+      - PerspectiveAPIClient: api/generated_text/perspective_api.md
+    - Prompt-Based:
+      - BBQ: api/prompts/bbq.md
+      - StereoSet: api/prompts/stereoset.md
+      - TruthfulQA: api/prompts/truthfulqa.md
+      - BOLD: api/prompts/bold.md
+      - RealToxicityPrompts: api/prompts/realtoxicityprompts.md
+      - CounterfactualFairness: api/prompts/counterfactual_fairness.md
+      - DemographicRepresentationBias: api/prompts/demographic_representation_bias.md
+      - AnalogicalReasoningBias: api/prompts/analogical_reasoning_bias.md
+      - TofNof: api/prompts/tof_nof.md
+      - OpinionConsistencyAcrossPersonas: api/prompts/opinion_consistency_across_personas.md
+      - UnQover: api/prompts/unqover.md
+  - Authors: authors.md

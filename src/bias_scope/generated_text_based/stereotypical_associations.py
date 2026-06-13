@@ -56,7 +56,7 @@ class StereotypicalAssociations(GeneratedTextMetric):
     ...     context_window=5
     ... )
     >>>
-    >>> print(f"Hit rate: {result['overall']['any_hit_rate_per_1k']:.1f} per 1k")
+    >>> print(f"Hit rate: {result.get('overall').get('any_hit_rate_per_1k'):.1f} per 1k")
     """
 
     def evaluate(
