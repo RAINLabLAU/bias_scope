@@ -50,8 +50,8 @@ class DemographicRepresentation(GeneratedTextMetric):
     ...     normalize='mentions'
     ... )
     >>>
-    >>> print(f"Distribution: {result['distribution']}")
-    >>> print(f"Entropy: {result['diversity']['entropy']:.3f}")
+    >>> print(f"Distribution: {result.get('distribution')}")
+    >>> print(f"Entropy: {result.get('diversity').get('entropy'):.3f}")
     """
 
     def evaluate(
