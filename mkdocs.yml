@@ -66,6 +66,12 @@ markdown_extensions:
   - toc:
       permalink: true
 
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/sidebar-visibility.js
+
 nav:
   - Home: index.md
   - Getting Started:
@@ -118,4 +124,6 @@ nav:
       - TofNof: api/prompts/tof_nof.md
       - OpinionConsistencyAcrossPersonas: api/prompts/opinion_consistency_across_personas.md
       - UnQover: api/prompts/unqover.md
+  - Contributing: contributing.md
   - Authors: authors.md
+
