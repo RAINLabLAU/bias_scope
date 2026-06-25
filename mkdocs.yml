@@ -1,7 +1,7 @@
 site_name: bias-scope
 site_description: A comprehensive Python library for detecting and measuring biases in machine learning models.
 site_author: Chadi Helwe, Nancy Kalmiche, Elissa El Haber, Jason Greich
-site_url: https://bias-scope.readthedocs.io
+site_url: https://rainlablau.github.io/bias_scope
 repo_url: https://github.com/RAINLabLAU/bias_scope
 repo_name: RAINLabLAU/bias_scope
 edit_uri: edit/main/docs/
