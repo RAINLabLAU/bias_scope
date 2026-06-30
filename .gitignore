@@ -109,8 +109,6 @@ ENV/
 
 .DS_STORE
 
-# Ignore all Markdown files
-*.md
 
 # Ignore .claude directory
 .claude/

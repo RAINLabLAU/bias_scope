@@ -52,10 +52,9 @@ class MarkedPersons(GeneratedTextMetric):
     ...     unmarked_generations=unmarked_texts,
     ...     min_count=1
     ... )
-    >>>
     >>> print("Top marked terms:")
-    >>> for term_info in result['top_marked_terms'][:5]:
-    ...     print(f"  {term_info['term']}: z={term_info['z']:.2f}")
+    >>> for term_info in result.get('top_marked_terms')[0:5]:
+    ...     print(f"  {term_info.get('term')}: z={term_info.get('z'):.2f}")
     """
 
     def evaluate(

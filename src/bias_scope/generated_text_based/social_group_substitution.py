@@ -60,8 +60,8 @@ class SocialGroupSubstitution(GeneratedTextMetric):
     ...     score_fn=score
     ... )
     >>>
-    >>> print(f"Individual Unfairness: {result['individual_unfairness_overall']:.3f}")
-    >>> print(f"Group Disparity: {result['group_disparity']['_overall']:.3f}")
+    >>> print(f"Individual Unfairness: {result.get('individual_unfairness_overall'):.3f}")
+    >>> print(f"Group Disparity: {result.get('group_disparity').get('_overall'):.3f}")
     """
 
     def evaluate(

@@ -52,7 +52,7 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
     ...     window_size=5
     ... )
     >>>
-    >>> print(f"Mean absolute score: {result['summary']['mean_abs_score']:.3f}")
+    >>> print(f"Mean absolute score: {result.get('summary').get('mean_abs_score'):.3f}")
     """
 
     def evaluate(
