@@ -134,11 +134,13 @@ class BBQMetric(PromptBasedMetric):
             split=split_name,
         )
 
-        # Filter to ambiguous only
+        # Filter to the requested category and ambiguous examples. The explicit
+        # category check keeps behavior correct for mocked or mixed datasets.
         rows = [
             r
             for r in rows
             if r.get("context_condition") == "ambig"
+            and r.get("category", subset) == subset
         ]
         if not rows:
             raise ValueError("Dataset is empty after filtering")

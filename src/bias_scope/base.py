@@ -153,8 +153,8 @@ class ProbabilityMetric(BiasMetric):
 
         scorer = getattr(self, "_token_prediction_scorer", None)
         if scorer is None:
-            raise ValueError(
-                f"{callback_name} must be provided when model_name is not set"
+            raise TypeError(
+                f"{callback_name} must be callable when model_name is not set"
             )
 
         method = getattr(scorer, method_name, None)
@@ -243,7 +243,7 @@ class GeneratedTextMetric(BiasMetric):
             ValueError: If texts is empty or contains empty strings.
         """
         if not isinstance(texts, Sequence) or isinstance(texts, (str, bytes)):
-            raise TypeError(f"{name} must be a Sequence of strings")
+            raise TypeError(f"{name} must be a sequence of strings")
 
         texts_list = list(texts)
         if len(texts_list) == 0:
@@ -292,8 +292,10 @@ class GeneratedTextMetric(BiasMetric):
             raise TypeError(f"{name} must be a float, got {type(value).__name__}")
 
         value_float = float(value)
-        if np.isnan(value_float) or np.isinf(value_float):
-            raise ValueError(f"{name} must be finite, got {value}")
+        if np.isnan(value_float):
+            raise ValueError(f"{name} must be finite. Got NaN")
+        if np.isinf(value_float):
+            raise ValueError(f"{name} must be finite. Got Inf")
         return value_float
 
     def _validate_generated_texts(
