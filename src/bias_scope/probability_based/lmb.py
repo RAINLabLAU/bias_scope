@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Literal, Tuple
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class LMB(ProbabilityMetric):
@@ -47,14 +48,22 @@ class LMB(ProbabilityMetric):
     >>> print(f"p-value: {result['p_value']:.3f}")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        predict_token_given_sentence: Callable[[List[str], int], float],
+        predict_token_given_sentence: (
+            TokenPredictionScorer | Callable[[List[str], int], float] | None
+        ) = None,
         *,
         outlier_strategy: Literal["percentile", "none"] = "percentile",
         outlier_percentile: float = 5.0,
         alpha: float = 0.05,
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
         Evaluate LMB using perplexity comparison.
@@ -137,10 +146,11 @@ class LMB(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
-        if not callable(predict_token_given_sentence):
-            raise TypeError(
-                f"predict_token_given_sentence must be callable, got {type(predict_token_given_sentence).__name__}"
-            )
+        predict_token_given_sentence = self._resolve_token_prediction_method(
+            predict_token_given_sentence,
+            "token_probability",
+            "predict_token_given_sentence",
+        )
 
         if not (0 < outlier_percentile < 50):
             raise ValueError(

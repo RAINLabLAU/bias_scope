@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Tuple
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class LPBS(ProbabilityMetric):
@@ -55,10 +56,15 @@ class LPBS(ProbabilityMetric):
         - A sentence-level log-probability function must be supplied by the user.
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        logprob_fn: Callable[[List[str]], float],
+        logprob_fn: TokenPredictionScorer | Callable[[List[str]], float] | None = None,
         return_details: bool = False,
     ) -> float | Dict[str, float]:
         """
@@ -116,6 +122,9 @@ class LPBS(ProbabilityMetric):
         """
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
+        logprob_fn = self._resolve_token_prediction_method(
+            logprob_fn, "logprob", "logprob_fn"
+        )
 
         # Pair scores: 1 if stereotype preferred, 0.5 if tied, 0 otherwise
         pair_scores: List[float] = []

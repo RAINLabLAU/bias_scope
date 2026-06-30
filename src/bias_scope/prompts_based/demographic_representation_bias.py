@@ -64,6 +64,7 @@ class DemographicRepresentationBias(PromptBasedMetric):
         num_templates: Optional[int] = None,
         num_samples: int = 50,
         subset: str = "type1_pro",
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate demographic representation bias across occupations.
@@ -81,6 +82,8 @@ class DemographicRepresentationBias(PromptBasedMetric):
             subset (str): WinoBias dataset split to load.
                 Default: "type1_pro"
                 Valid values: "type1_pro", "type1_anti", "type2_pro", "type2_anti".
+            return_details (bool): Accepted for API consistency. This metric
+                already returns detailed results by default.
 
         Returns:
             Dict[str, object]: Bias measurement results.

@@ -1,11 +1,15 @@
 """Word Embedding Association Test (WEAT)."""
 
-from typing import Tuple
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
+from bias_scope.embeddings_based.encoder import (
+    DEFAULT_EMBEDDING_MODEL,
+    _resolve_embedding_pair,
+)
 from bias_scope.embeddings_based._helpers import (
     _compute_similarity_measure,
     _validate_embedding_dimensions,
@@ -57,17 +61,24 @@ class WEAT(EmbeddingMetric):
 
     def evaluate(
         self,
-        target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],
-        attribute_embeddings: Tuple[
-            np.ndarray | torch.Tensor, np.ndarray | torch.Tensor
+        target_embeddings: Tuple[
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
         ],
-    ) -> float:
+        attribute_embeddings: Tuple[
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
+        ],
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        return_details: bool = False,
+    ) -> float | Dict[str, float]:
         """
         Evaluate WEAT effect size.
 
         Args:
             target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group word embeddings
             attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group word embeddings
+            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
 
         Returns:
             float: WEAT effect size score
@@ -115,6 +126,13 @@ class WEAT(EmbeddingMetric):
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
 
+        target_embeddings = _resolve_embedding_pair(
+            target_embeddings, model_name=model_name
+        )
+        attribute_embeddings = _resolve_embedding_pair(
+            attribute_embeddings, model_name=model_name
+        )
+
         # Unpack and convert to numpy
         target1, target2 = target_embeddings
         attr1, attr2 = attribute_embeddings
@@ -144,7 +162,17 @@ class WEAT(EmbeddingMetric):
         ]
 
         # Compute and return effect size (private method)
-        return self._compute_effect_size(cos_target1, cos_target2, cos_union)
+        score = self._compute_effect_size(cos_target1, cos_target2, cos_union)
+        if return_details:
+            return {
+                "weat_score": score,
+                "effect_size": score,
+                "n_target_group_1": float(len(target1)),
+                "n_target_group_2": float(len(target2)),
+                "n_attribute_group_1": float(len(attr1)),
+                "n_attribute_group_2": float(len(attr2)),
+            }
+        return score
 
     def _compute_effect_size(
         self, scores1: list, scores2: list, scores_union: list

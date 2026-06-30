@@ -75,6 +75,7 @@ class BBQMetric(PromptBasedMetric):
         self,
         num_samples: Optional[int] = None,
         subset: str = "Age",
+        return_details: bool = False,
     ) -> Dict[str, Any]:
         """
         Evaluate stereotype reliance on ambiguous BBQ questions.

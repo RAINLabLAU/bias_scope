@@ -70,7 +70,10 @@ class RegardScore(GeneratedTextMetric):
         )
 
     def evaluate(
-        self, group_a_texts: List[List[str]], group_b_texts: List[List[str]]
+        self,
+        group_a_texts: List[List[str]],
+        group_b_texts: List[List[str]],
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
         Compute regard score differences between two groups.

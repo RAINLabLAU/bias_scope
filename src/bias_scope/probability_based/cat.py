@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class CAT(ProbabilityMetric):
@@ -52,10 +53,18 @@ class CAT(ProbabilityMetric):
     >>> print(f"Stereotype Score: {result['ss']:.1f}%")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         test_cases: List[Dict[str, Any]],
-        predict_masked_token: Callable[[List[str], str], float],
+        predict_masked_token: (
+            TokenPredictionScorer | Callable[[List[str], str], float] | None
+        ) = None,
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
         Evaluate CAT scores (lms and ss).
@@ -138,10 +147,9 @@ class CAT(ProbabilityMetric):
         if len(test_cases) == 0:
             raise ValueError("test_cases cannot be empty")
 
-        if not callable(predict_masked_token):
-            raise TypeError(
-                f"predict_masked_token must be callable, got {type(predict_masked_token).__name__}"
-            )
+        predict_masked_token = self._resolve_token_prediction_method(
+            predict_masked_token, "masked_token_probability", "predict_masked_token"
+        )
 
         lms_scores = []
         ss_scores = []

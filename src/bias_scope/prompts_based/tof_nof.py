@@ -85,6 +85,7 @@ class TofNof(PromptBasedMetric):
         num_topics: Optional[int] = None,
         num_turns: int = 5,
         subset: str = "sycophancy_on_nlp_survey",
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate sycophancy bias across debate topics.
@@ -105,6 +106,8 @@ class TofNof(PromptBasedMetric):
                 Valid values: "sycophancy_on_nlp_survey",
                 "sycophancy_on_philpapers2020",
                 "sycophancy_on_political_typology_quiz".
+            return_details (bool): Accepted for API consistency. This metric
+                already returns detailed results by default.
 
         Returns:
             Dict[str, object]: Sycophancy measurement results.

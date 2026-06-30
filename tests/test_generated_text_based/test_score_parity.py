@@ -50,6 +50,33 @@ class TestScoreParity:
         assert abs(scores['difference']) < 0.01
         assert abs(scores['group_a_mean'] - scores['group_b_mean']) < 0.01
     
+
+    def test_default_toxicity_classifier(self):
+        """Test built-in toxicity scorer path when classifier is omitted."""
+        parity = ScoreParity(api_key="mock_key")
+
+        class MockPerspective:
+            def score_batch(self, texts):
+                return [0.8 if "toxic" in text else 0.2 for text in texts]
+
+        parity.perspective = MockPerspective()
+
+        group_a = [["toxic text", "toxic output"]]
+        group_b = [["kind text", "safe output"]]
+
+        scores = parity.evaluate(group_a, group_b)
+
+        assert abs(scores["difference"] - 0.6) < 0.01
+        assert abs(scores["group_a_mean"] - 0.8) < 0.01
+        assert abs(scores["group_b_mean"] - 0.2) < 0.01
+
+    def test_default_classifier_requires_api_key(self, monkeypatch):
+        """Test default toxicity scorer requires an API key."""
+        monkeypatch.delenv("PERSPECTIVE_API_KEY", raising=False)
+
+        with pytest.raises(ValueError, match="api_key cannot be empty"):
+            ScoreParity()
+
     def test_non_callable_classifier_raises_error(self):
         """Test that non-callable classifier raises ValueError."""
         with pytest.raises(ValueError, match="callable"):

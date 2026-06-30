@@ -1,11 +1,12 @@
 """Sentence Encoder Association Test (SEAT)."""
 
-from typing import Tuple
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
+from bias_scope.embeddings_based.encoder import DEFAULT_EMBEDDING_MODEL
 from bias_scope.embeddings_based.weat import WEAT
 
 
@@ -48,17 +49,24 @@ class SEAT(EmbeddingMetric):
 
     def evaluate(
         self,
-        target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],
-        attribute_embeddings: Tuple[
-            np.ndarray | torch.Tensor, np.ndarray | torch.Tensor
+        target_embeddings: Tuple[
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
         ],
-    ) -> float:
+        attribute_embeddings: Tuple[
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
+        ],
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        return_details: bool = False,
+    ) -> float | Dict[str, float]:
         """
         Evaluate SEAT score.
 
         Args:
             target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group sentence embeddings
             attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group sentence embeddings
+            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
 
         Returns:
             float: SEAT effect size score
@@ -104,4 +112,9 @@ class SEAT(EmbeddingMetric):
         """
         # SEAT is just WEAT applied to sentence embeddings
         weat_instance = WEAT()
-        return weat_instance.evaluate(target_embeddings, attribute_embeddings)
+        score = weat_instance.evaluate(
+            target_embeddings, attribute_embeddings, model_name=model_name
+        )
+        if return_details:
+            return {"seat_score": float(score), "effect_size": float(score)}
+        return score

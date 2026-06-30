@@ -1,11 +1,15 @@
 """Sentence-level bias score with word importance weighting."""
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
+from bias_scope.embeddings_based.encoder import (
+    DEFAULT_EMBEDDING_MODEL,
+    _resolve_embeddings,
+)
 from bias_scope.utils import cosine_similarity, to_numpy
 
 
@@ -53,11 +57,13 @@ class SentenceBiasScore(EmbeddingMetric):
 
     def evaluate(
         self,
-        word_embeddings: np.ndarray | torch.Tensor,
+        word_embeddings: np.ndarray | torch.Tensor | Sequence[str],
         gender_direction: np.ndarray | torch.Tensor,
         word_importance: np.ndarray | torch.Tensor,
         gender_words_mask: Optional[np.ndarray | torch.Tensor] = None,
-    ) -> Tuple[float, float]:
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        return_details: bool = False,
+    ) -> Tuple[float, float] | Dict[str, float]:
         """
         Evaluate gender bias score for a sentence.
 
@@ -70,6 +76,7 @@ class SentenceBiasScore(EmbeddingMetric):
             gender_direction (np.ndarray | torch.Tensor): gender direction vector
             word_importance (np.ndarray | torch.Tensor): word importance weights
             gender_words_mask (np.ndarray | torch.Tensor, optional): gendered words mask
+            model_name (str): SentenceTransformer/Hugging Face model used when word_embeddings is text
 
         Returns:
             Tuple[float, float]: female and male bias scores
@@ -133,6 +140,9 @@ class SentenceBiasScore(EmbeddingMetric):
             ...     print("Sentence has masculine associations")
         """
         # Convert to numpy
+        word_embeddings = _resolve_embeddings(
+            word_embeddings, model_name=model_name
+        )
         word_embeddings = to_numpy(word_embeddings)
         gender_direction = to_numpy(gender_direction)
         word_importance = to_numpy(word_importance)
@@ -155,7 +165,17 @@ class SentenceBiasScore(EmbeddingMetric):
             )
 
         # Weight by importance and separate into female/male components
-        return self._compute_bias_scores(word_biases, word_importance)
+        female_bias, male_bias = self._compute_bias_scores(
+            word_biases, word_importance
+        )
+        if return_details:
+            return {
+                "female_bias": female_bias,
+                "male_bias": male_bias,
+                "absolute_bias": abs(female_bias) + abs(male_bias),
+                "num_words": float(len(word_embeddings)),
+            }
+        return female_bias, male_bias
 
     def _validate_gender_direction(
         self, gender_direction: np.ndarray, expected_dim: int

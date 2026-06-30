@@ -1,11 +1,15 @@
 """Contextualized Embedding Association Test (CEAT)."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
 from bias_scope.base import EmbeddingMetric
+from bias_scope.embeddings_based.encoder import (
+    DEFAULT_EMBEDDING_MODEL,
+    _resolve_embedding_pair,
+)
 from bias_scope.embeddings_based._helpers import (
     _compute_random_effects_weights,
     _validate_embedding_dimensions,
@@ -61,13 +65,19 @@ class CEAT(EmbeddingMetric):
 
     def evaluate(
         self,
-        target_embeddings: Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor],
+        target_embeddings: Tuple[
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
+        ],
         attribute_embeddings: Tuple[
-            np.ndarray | torch.Tensor, np.ndarray | torch.Tensor
+            np.ndarray | torch.Tensor | Sequence[str],
+            np.ndarray | torch.Tensor | Sequence[str],
         ],
         n_samples: int = 100,
         sample_size: Optional[int] = None,
         random_seed: Optional[int] = None,
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
         Evaluate CEAT score with distribution of WEAT effect sizes.
@@ -78,6 +88,7 @@ class CEAT(EmbeddingMetric):
             n_samples (int): number of random samples
             sample_size (int, optional): embeddings per group per sample
             random_seed (int, optional): seed for reproducibility
+            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
 
         Returns:
             Dict[str, float]: CEAT scores and statistics
@@ -150,6 +161,13 @@ class CEAT(EmbeddingMetric):
 
         if n_samples <= 0:
             raise ValueError(f"n_samples must be positive. Got {n_samples}")
+
+        target_embeddings = _resolve_embedding_pair(
+            target_embeddings, model_name=model_name
+        )
+        attribute_embeddings = _resolve_embedding_pair(
+            attribute_embeddings, model_name=model_name
+        )
 
         # Unpack and convert to numpy
         target1, target2 = target_embeddings

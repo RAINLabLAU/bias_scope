@@ -65,6 +65,7 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
         smoothing: float = 1.0,
         return_top_k: int = 50,
         multi_group_mode: Literal["pairwise", "vs_mean"] = "pairwise",
+        return_details: bool = False,
     ) -> Dict:
         """
         Evaluate Co-Occurrence Bias Score.

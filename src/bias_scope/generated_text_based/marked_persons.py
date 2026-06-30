@@ -67,6 +67,7 @@ class MarkedPersons(GeneratedTextMetric):
         min_count: int = 5,
         return_top_k: int = 50,
         tokenizer: Optional[Callable[[str], List[str]]] = None,
+        return_details: bool = False,
     ) -> Dict:
         """
         Evaluate Marked Persons metric.

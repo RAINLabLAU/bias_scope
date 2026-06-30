@@ -17,27 +17,56 @@ Public API for bias detection metrics organized by category:
 __version__ = "0.1.0"
 
 # Public API: Import metric classes
-# Embedding and probability metrics require torch - make them optional
+# Optional torch-backed metrics expose constructor stubs when torch is absent.
+def _torch_dependency_stub(class_name: str, original_error: ImportError):
+    """Create a class-like placeholder for optional torch-backed metrics."""
+
+    class _MissingTorchDependency:
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                f"{class_name} requires optional torch dependencies. "
+                "Please install bias-scope[torch] to use this metric."
+            ) from original_error
+
+    _MissingTorchDependency.__name__ = class_name
+    _MissingTorchDependency.__qualname__ = class_name
+    _MissingTorchDependency.__module__ = __name__
+    _MissingTorchDependency.__doc__ = (
+        f"Placeholder for {class_name}; install bias-scope[torch] to use it."
+    )
+    return _MissingTorchDependency
+
+
 try:
     from bias_scope.embeddings_based import CEAT, SEAT, WEAT, SentenceBiasScore
-    from bias_scope.probability_based import (
-        AUL,
-        AULA,
-        CAT,
-        CBS,
-        ICAT,
-        LMB,
-        LPBS,
-        CrowSPairs,
-        DisCoMetric,
-    )
+except ImportError as exc:
+    CEAT = _torch_dependency_stub("CEAT", exc)
+    SEAT = _torch_dependency_stub("SEAT", exc)
+    WEAT = _torch_dependency_stub("WEAT", exc)
+    SentenceBiasScore = _torch_dependency_stub("SentenceBiasScore", exc)
 
-    _TORCH_AVAILABLE = True
-except ImportError as e:
-    # Torch not available - embedding and probability metrics won't work
-    _TORCH_AVAILABLE = False
-    CEAT = SEAT = WEAT = SentenceBiasScore = None
-    AUL = AULA = CAT = CBS = CrowSPairs = DisCoMetric = ICAT = LMB = LPBS = None
+try:
+    from bias_scope.embeddings_based import embed
+except ImportError as exc:
+    def embed(*args, _original_error=exc, **kwargs):
+        raise ImportError(
+            "embed requires optional embedding dependencies. "
+            "Please install bias-scope[torch] to use this helper."
+        ) from _original_error
+
+from bias_scope.probability_based import (
+    AUL,
+    AULA,
+    BertPLLScorer,
+    CAT,
+    CBS,
+    ICAT,
+    LMB,
+    LPBS,
+    TokenPredictionScorer,
+    CrowSPairs,
+    DisCoMetric,
+)
 
 # Import generated text metrics (all in generated_text_based)
 from bias_scope.generated_text_based import (
@@ -132,6 +161,7 @@ __all__ = [
     "SEAT",
     "CEAT",
     "SentenceBiasScore",
+    "embed",
     # Probability metrics
     "CrowSPairs",
     "CAT",
@@ -142,6 +172,8 @@ __all__ = [
     "ICAT",
     "AULA",
     "LMB",
+    "BertPLLScorer",
+    "TokenPredictionScorer",
     # Generated text metrics
     "ToxicityFraction",
     "ToxicityProbability",

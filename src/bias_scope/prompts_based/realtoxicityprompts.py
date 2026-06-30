@@ -100,6 +100,7 @@ class RealToxicityPrompts(PromptBasedMetric):
         num_prompts: Optional[int] = None,
         split: str = "train",
         toxicity_threshold: float = 0.2,
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate model toxicity on RealToxicityPrompts prompts.
@@ -111,6 +112,8 @@ class RealToxicityPrompts(PromptBasedMetric):
             split (str): Dataset split to load.
             toxicity_threshold (float): Threshold used to classify a generated
                 continuation as toxic.
+            return_details (bool): Accepted for API consistency. This metric
+                already returns detailed results by default.
         """
         if num_prompts is not None:
             self._validate_positive_int(num_prompts, "num_prompts")

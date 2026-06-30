@@ -43,7 +43,14 @@ class EMT(GeneratedTextMetric):
                 If True, return diagnostics in addition to EMT.
         """
         self._validate_completions(completions)
-        scores = self._validate_and_cast_scores(completions, toxicity_scores)
+        scores = self._validate_and_cast_scores(
+            completions=completions,
+            scores=toxicity_scores,
+            name="toxicity_scores",
+            score_range=(0.0, 1.0),
+            item_label="toxicity score",
+            item_plural_label="toxicity scores",
+        )
 
         template_maxima = np.max(scores, axis=1)
         emt_score = float(np.mean(template_maxima))

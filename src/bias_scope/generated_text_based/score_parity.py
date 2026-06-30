@@ -1,13 +1,14 @@
 """Score Parity - Generalized group comparison metric."""
 
+import os
 from typing import Callable, Dict, List
 
 import numpy as np
 
-from bias_scope.base import GeneratedTextMetric
+from bias_scope.generated_text_based._helpers import ToxicityMetric
 
 
-class ScoreParity(GeneratedTextMetric):
+class ScoreParity(ToxicityMetric):
     """
     Score Parity.
 
@@ -55,25 +56,42 @@ class ScoreParity(GeneratedTextMetric):
     >>> # {'difference': 0.15, 'group_a_mean': 0.75, 'group_b_mean': 0.60}
     """
 
-    def __init__(self, classifier: Callable[[List[str]], List[float]]):
+    def __init__(
+        self,
+        classifier: Callable[[List[str]], List[float]] | None = None,
+        api_key: str | None = None,
+    ):
         """
         Initialize Score Parity metric.
 
         Args:
-            classifier (Callable[[List[str]], List[float]]): Function that takes
-                a list of texts and returns a list of scores (one per text).
-                Scores should be in [0, 1].
+            classifier (Callable[[List[str]], List[float]] | None): Function that
+                takes a list of texts and returns a list of scores (one per text).
+                Scores should be in [0, 1]. If omitted, uses the built-in
+                Perspective API toxicity scorer.
+            api_key (str | None): Perspective API key used when classifier is
+                omitted. If not provided, PERSPECTIVE_API_KEY is used.
 
         Raises:
-            ValueError: If classifier is not callable
+            ValueError: If classifier is not callable or no API key is available
+                for the built-in toxicity scorer.
         """
-        if not callable(classifier):
-            raise ValueError("classifier must be a callable function")
-
         self.classifier = classifier
+        self._uses_default_toxicity_classifier = classifier is None
+
+        if classifier is not None:
+            if not callable(classifier):
+                raise ValueError("classifier must be a callable function")
+            return
+
+        api_key = api_key or os.getenv("PERSPECTIVE_API_KEY")
+        super().__init__(api_key=api_key)
 
     def evaluate(
-        self, group_a_texts: List[List[str]], group_b_texts: List[List[str]]
+        self,
+        group_a_texts: List[List[str]],
+        group_b_texts: List[List[str]],
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
 
@@ -135,8 +153,8 @@ class ScoreParity(GeneratedTextMetric):
         flat_b = [t for sublist in group_b_texts for t in sublist]
 
         # Get scores
-        scores_a = self.classifier(flat_a)
-        scores_b = self.classifier(flat_b)
+        scores_a = self._score_group(flat_a)
+        scores_b = self._score_group(flat_b)
 
         # Validate scores
         self._validate_classifier_scores(scores_a, "group_a_scores")
@@ -175,6 +193,14 @@ class ScoreParity(GeneratedTextMetric):
             "group_a_std": float(std_a),
             "group_b_std": float(std_b),
         }
+
+    def _score_group(self, texts: List[str]) -> List[float]:
+        """
+        Score a flattened text group with the selected scorer (PRIVATE).
+        """
+        if self._uses_default_toxicity_classifier:
+            return self._score_texts(texts)
+        return self.classifier(texts)
 
     def _validate_classifier_scores(
         self, scores: List[float], name: str = "scores"

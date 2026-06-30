@@ -92,6 +92,7 @@ class UnQoverMetric(PromptBasedMetric):
         examples: List[Dict[str, Any]],
         num_samples: Optional[int] = None,
         bias_types: Optional[List[str]] = None,
+        return_details: bool = False,
     ) -> Dict[str, Any]:
         """
         Evaluate comparative bias over UnQover four-variant bundles.
