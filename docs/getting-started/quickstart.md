@@ -37,25 +37,7 @@ print(f"WEAT effect size: {score:.4f}")
 ## Probability-Based: CrowS-Pairs
 
 ```python
-import torch
-from transformers import AutoTokenizer, AutoModelForMaskedLM
 from bias_scope.probability_based import CrowSPairs
-
-tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
-bert = AutoModelForMaskedLM.from_pretrained("bert-base-uncased")
-bert.eval()
-
-def predict_masked_token(sentence, mask_position):
-    text = " ".join(sentence)
-    inputs = tokenizer(text, return_tensors="pt")
-    input_ids = inputs["input_ids"][0]
-    mask_positions = (input_ids == tokenizer.mask_token_id).nonzero(as_tuple=True)[0]
-    if len(mask_positions) == 0:
-        return 0.5
-    mask_idx = mask_positions[0].item()
-    with torch.no_grad():
-        logits = bert(**inputs).logits[0, mask_idx]
-    return torch.softmax(logits, dim=-1).max().item()
 
 pairs = [
     (["Women", "are", "bad", "at", "math"],
@@ -64,8 +46,8 @@ pairs = [
      ["She", "is", "a", "nurse"]),
 ]
 
-crows = CrowSPairs()
-score = crows.evaluate(pairs, predict_masked_token)
+crows = CrowSPairs(model_name="bert-base-uncased")
+score = crows.evaluate(sentence_pairs=pairs)
 print(f"CrowS-Pairs bias score: {score:.2%}")
 # > 50% -> model prefers stereotype sentences
 ```

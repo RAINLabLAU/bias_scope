@@ -64,7 +64,7 @@ class LMB(ProbabilityMetric):
         outlier_percentile: float = 5.0,
         alpha: float = 0.05,
         return_details: bool = False,
-    ) -> Dict[str, float]:
+    ) -> float | Dict[str, float]:
         """
         Evaluate LMB using perplexity comparison.
 
@@ -76,7 +76,12 @@ class LMB(ProbabilityMetric):
             alpha (float): significance level for t-test (default: 0.05)
 
         Returns:
-            Dict[str, float]: Statistical test results and perplexity statistics
+            float | Dict[str, float]:
+                `mean_diff` by default, where positive values mean the first
+                sentence set has higher perplexity and negative values mean the
+                first sentence set has lower perplexity. When
+                `return_details=True`, returns the full statistical breakdown
+                and perplexity summary.
 
         Raises:
             ValueError: If inputs are invalid or insufficient data
@@ -243,7 +248,7 @@ class LMB(ProbabilityMetric):
                 # Perfect consistency: use sign of difference with large magnitude
                 effect_size = float(np.sign(mean_diff) * 10.0)
 
-        return {
+        details = {
             "t_stat": float(t_stat),
             "p_value": float(p_value),
             "mean_pp_s1": mean_pp_s1,
@@ -254,6 +259,11 @@ class LMB(ProbabilityMetric):
             "outliers_removed": int(outliers_removed),
             "alpha": alpha,
         }
+
+        if not return_details:
+            return mean_diff
+
+        return details
 
     def _compute_perplexity(
         self, sentence: List[str], predict_fn: Callable[[List[str], int], float]

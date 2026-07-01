@@ -51,7 +51,7 @@ except ImportError as exc:
     def embed(*args, _original_error=exc, **kwargs):
         raise ImportError(
             "embed requires optional embedding dependencies. "
-            "Please install bias-scope[torch] to use this helper."
+            "Please install bias-scope[embeddings] to use this helper."
         ) from _original_error
 
 from bias_scope.probability_based import (

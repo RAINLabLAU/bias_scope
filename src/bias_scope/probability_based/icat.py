@@ -2,8 +2,6 @@
 
 from typing import Any, Callable, Dict, List
 
-import numpy as np
-
 from bias_scope.base import ProbabilityMetric
 from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based.cat import CAT

@@ -3,9 +3,19 @@
 from typing import Dict, List
 
 import numpy as np
-from transformers import pipeline
 
 from bias_scope.base import GeneratedTextMetric
+
+
+def pipeline(*args, **kwargs):
+    try:
+        from transformers import pipeline as transformers_pipeline
+    except ImportError as exc:
+        raise ImportError(
+            "RegardScore requires transformers to be installed. "
+            "Please install bias-scope[torch] to use this metric."
+        ) from exc
+    return transformers_pipeline(*args, **kwargs)
 
 
 class RegardScore(GeneratedTextMetric):

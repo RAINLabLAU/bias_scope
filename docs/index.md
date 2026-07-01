@@ -10,6 +10,16 @@ bias-scope provides a unified API for evaluating bias across four methodological
 pip install bias-scope
 ```
 
+Optional extras:
+
+```bash
+pip install "bias-scope[torch]"
+pip install "bias-scope[embeddings]"
+pip install "bias-scope[datasets]"
+pip install "bias-scope[llm]"
+pip install "bias-scope[all]"
+```
+
 Or from source:
 
 ```bash

@@ -1,9 +1,10 @@
 """Sentence-level bias score with word importance weighting."""
 
+from __future__ import annotations
+
 from typing import Dict, Optional, Sequence, Tuple
 
 import numpy as np
-import torch
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based.encoder import (

@@ -11,6 +11,16 @@
 pip install bias-scope
 ```
 
+## Install Optional Extras
+
+```bash
+pip install "bias-scope[torch]"
+pip install "bias-scope[embeddings]"
+pip install "bias-scope[datasets]"
+pip install "bias-scope[llm]"
+pip install "bias-scope[all]"
+```
+
 ## Install from Source
 
 ```bash
@@ -27,12 +37,19 @@ pip install "bias-scope[docs]"
 
 ## Dependencies
 
-| Package               | Version  | Purpose                                   |
-| --------------------- | -------- | ----------------------------------------- |
-| numpy                 | >=2.1.3  | Numerical operations                      |
-| torch                 | >=2.5.1  | Tensor operations for probability metrics |
-| transformers          | >=4.31.0 | HuggingFace model loading                 |
-| datasets              | >=5.0.0  | HuggingFace dataset loading               |
-| litellm               | >=1.0.0  | LLM API access for prompt-based metrics   |
-| sentence-transformers | >=2.0.0  | Sentence encoding                         |
-| requests              | >=2.28.0 | HTTP requests (Perspective API)           |
+### Core
+
+| Package  | Version  | Purpose                         |
+| -------- | -------- | ------------------------------- |
+| numpy    | >=2.1.3  | Numerical operations            |
+| requests | >=2.28.0 | HTTP requests (Perspective API) |
+
+### Optional Extras
+
+| Extra        | Packages                                                   | Purpose                                    |
+| ------------ | ---------------------------------------------------------- | ------------------------------------------ |
+| `torch`      | torch, transformers                                        | Probability metrics, `BertPLLScorer`, RegardScore |
+| `embeddings` | sentence-transformers                                      | `bias_scope.embeddings_based.embed` helper |
+| `datasets`   | datasets                                                   | Prompt-based dataset loaders               |
+| `llm`        | litellm                                                    | Prompt-based model calls                   |
+| `all`        | torch, transformers, sentence-transformers, datasets, litellm | Full feature set                        |

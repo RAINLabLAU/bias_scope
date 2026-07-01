@@ -1,9 +1,10 @@
 """Word Embedding Association Test (WEAT)."""
 
+from __future__ import annotations
+
 from typing import Dict, Sequence, Tuple
 
 import numpy as np
-import torch
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based.encoder import (
