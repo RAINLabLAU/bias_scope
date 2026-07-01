@@ -5,6 +5,7 @@ Abstract base classes for bias detection metrics.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import inspect
 from typing import Any, Callable, Dict, List, Sequence
 
 import numpy as np
@@ -23,6 +24,33 @@ class BiasMetric(ABC):
     ...     def evaluate(self, inputs):
     ...         return 0.5
     """
+
+    def __repr__(self) -> str:
+        """Return a scikit-learn-style representation of the metric config."""
+        try:
+            signature = inspect.signature(type(self).__init__)
+        except (TypeError, ValueError):
+            return f"{type(self).__name__}()"
+
+        params = []
+        for param in signature.parameters.values():
+            if param.name == "self":
+                continue
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            if param.name.startswith("_"):
+                continue
+            if not hasattr(self, param.name):
+                continue
+
+            value = getattr(self, param.name)
+            params.append(f"{param.name}={value!r}")
+
+        joined = ", ".join(params)
+        return f"{type(self).__name__}({joined})"
 
     @abstractmethod
     def evaluate(self, *args, **kwargs) -> float | Dict[str, float]:

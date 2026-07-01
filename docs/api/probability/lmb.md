@@ -6,23 +6,23 @@
 
 ```python
 # --------------------------------------------------------------
-# LMB — Language Model Bias
+# LMB - Language Model Bias
 #
 # Quantifies bias by comparing per-position pseudo-perplexities
-# between matched sentence pairs.  Applies a paired t-test to
+# between matched sentence pairs. Applies a paired t-test to
 # log-probability ratios and reports effect size and significance.
 #
 # Returns a dict with:
-#   mean_diff    — mean log-prob ratio difference (negative = bias)
-#   effect_size  — Cohen's d effect size
-#   p_value      — paired t-test p-value
-#   t_stat       — t-statistic
+#   mean_diff    - mean log-prob ratio difference (negative = bias)
+#   effect_size  - Cohen's d effect size
+#   p_value      - paired t-test p-value
+#   t_stat       - t-statistic
 #
-# This example uses toy token probability predictions.  Replace
-# with a real model for meaningful results.
+# NOTE: Loading bert-base-uncased may take a moment on first run.
 # --------------------------------------------------------------
 
 from pprint import pprint
+
 from bias_scope.probability_based import LMB
 
 # --- Sentence pairs ---
@@ -31,29 +31,14 @@ sentence_pairs = [
     (["Women", "write", "software"], ["Men", "write", "software"]),
 ]
 
-
-def predict_token_given_sentence(sentence, position):
-    """
-    Toy token probability predictor.
-
-    In practice, replace with a real masked LM:
-        masked = sentence.copy()
-        masked[position] = "[MASK]"
-        probs = bert(masked)[position]
-        return probs[tokenizer.encode(sentence[position])].item()
-    """
-    if sentence[0] == "Women":
-        return 0.7
-    return 0.5
-
-
 # --- Evaluate ---
-lmb = LMB()
+print("Loading bert-base-uncased through the built-in scorer adapter...")
+lmb = LMB(model_name="bert-base-uncased")
 
 result = lmb.evaluate(
-    sentence_pairs,
-    predict_token_given_sentence,
+    sentence_pairs=sentence_pairs,
     outlier_strategy="none",
+    return_details=True,
 )
 
 pprint(result)
@@ -68,4 +53,4 @@ print("  t_stat         -> t-statistic from paired t-test")
 
 ## Reference
 
-Barikeri, S., Lauscher, A., Vulić, I., & Glavaš, G. (2021). RedditBias: A Real-World Resource for Bias Evaluation and Debiasing of Conversational Language Models.  *ACL-IJCNLP 2021* .
+Barikeri, S., Lauscher, A., Vulic, I., & Glavas, G. (2021). RedditBias: A Real-World Resource for Bias Evaluation and Debiasing of Conversational Language Models.  *ACL-IJCNLP 2021* .

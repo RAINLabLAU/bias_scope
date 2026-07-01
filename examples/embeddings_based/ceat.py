@@ -1,23 +1,17 @@
 # --------------------------------------------------------------
-# CEAT — Contextualized Embedding Association Test
+# CEAT - Contextualized Embedding Association Test
 #
 # Extends WEAT to contextualized embeddings by computing a
 # distribution of WEAT scores over random subsamples and
 # aggregating with inverse-variance weighting.
 #
-# This example embeds each word in multiple sentence contexts
-# to simulate contextualized representations, then runs CEAT.
-#
-# NOTE: all-MiniLM-L6-v2 is a sentence encoder, so these results
-# are illustrative.  For production use a model like BERT that
-# produces different representations per context.
+# This example creates multiple sentence contexts per word and lets
+# CEAT embed them through the built-in text embedding path.
 # --------------------------------------------------------------
 
-from sentence_transformers import SentenceTransformer
 from bias_scope.embeddings_based import CEAT
 
-# --- Load encoder ---
-model = SentenceTransformer("all-MiniLM-L6-v2")
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # --- Words and sentence contexts ---
 male_names = ["John", "Paul", "Mike", "Kevin", "Steve", "Greg", "Jeff", "Bill"]
@@ -41,23 +35,24 @@ templates = [
     "The topic was {}.",
 ]
 
-# --- Encode each word in every context ---
-def encode_in_contexts(words, templates):
-    """Encode each word in multiple sentence contexts."""
-    sentences = [tmpl.format(w) for w in words for tmpl in templates]
-    return model.encode(sentences)
 
-male_emb = encode_in_contexts(male_names, templates)      # 8 × 5 = 40 embeddings
-female_emb = encode_in_contexts(female_names, templates)   # 40
-career_emb = encode_in_contexts(career_words, templates)   # 40
-family_emb = encode_in_contexts(family_words, templates)   # 40
+def contextualize(words, templates):
+    """Wrap each word in multiple sentence contexts."""
+    return [tmpl.format(word) for word in words for tmpl in templates]
+
+
+male_contexts = contextualize(male_names, templates)
+female_contexts = contextualize(female_names, templates)
+career_contexts = contextualize(career_words, templates)
+family_contexts = contextualize(family_words, templates)
 
 # --- Evaluate ---
-ceat = CEAT()
+print(f"Embedding contextualized inputs with {MODEL_NAME}...")
+ceat = CEAT(model_name=MODEL_NAME)
 
 result = ceat.evaluate(
-    target_embeddings=(male_emb, female_emb),
-    attribute_embeddings=(career_emb, family_emb),
+    target_embeddings=(male_contexts, female_contexts),
+    attribute_embeddings=(career_contexts, family_contexts),
     n_samples=100,
     sample_size=10,
     random_seed=42,

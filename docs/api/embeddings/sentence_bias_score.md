@@ -10,28 +10,23 @@
 #
 # Scores individual sentences for gender bias by weighting each
 # word's cosine similarity to a gender direction vector by its
-# semantic importance.  Returns (female_bias, male_bias).
+# semantic importance. Returns (female_bias, male_bias).
 #
 # This example:
 #   1. Builds a gender direction from gendered word pairs
-#   2. Encodes a target sentence word-by-word
-#   3. Uses uniform importance weights (no max-pooling layer available)
-#
-# NOTE: all-MiniLM-L6-v2 is a sentence encoder, so word-level
-# embeddings are illustrative.  For production use static
-# embeddings (GloVe / Word2Vec) which give true word vectors.
+#   2. Uses the built-in embed() helper for the direction vectors
+#   3. Lets SentenceBiasScore embed tokenized words automatically
 # --------------------------------------------------------------
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
-from bias_scope.embeddings_based import SentenceBiasScore
 
-# --- Load encoder ---
-model = SentenceTransformer("all-MiniLM-L6-v2")
+from bias_scope.embeddings_based import SentenceBiasScore, embed
+
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # --- Build gender direction from gendered word pairs ---
-# Each pair: (feminine, masculine).  PCA of their differences
-# gives the gender direction.  Simplified here to mean-difference.
+# Each pair: (feminine, masculine). PCA of their differences
+# gives the gender direction. Simplified here to mean-difference.
 gendered_pairs = [
     ("she", "he"),
     ("woman", "man"),
@@ -46,18 +41,15 @@ gendered_pairs = [
 feminine_words = [p[0] for p in gendered_pairs]
 masculine_words = [p[1] for p in gendered_pairs]
 
-fem_emb = model.encode(feminine_words)
-masc_emb = model.encode(masculine_words)
+fem_emb = embed(feminine_words, model_name=MODEL_NAME)
+masc_emb = embed(masculine_words, model_name=MODEL_NAME)
 
 # Gender direction: mean(feminine) - mean(masculine)
 gender_direction = fem_emb.mean(axis=0) - masc_emb.mean(axis=0)
 
-# --- Sentence to analyse ---
+# --- Sentence to analyze ---
 sentence = "The nurse helps patients recover quickly"
 words = sentence.split()
-
-# Encode each word individually
-word_embeddings = model.encode(words)
 
 # Uniform importance weights (no encoder-specific attention available)
 word_importance = np.ones(len(words)) / len(words)
@@ -66,10 +58,11 @@ word_importance = np.ones(len(words)) / len(words)
 gender_words_mask = np.array([False] * len(words))
 
 # --- Evaluate ---
-sbs = SentenceBiasScore()
+print(f"Embedding token inputs with {MODEL_NAME}...")
+sbs = SentenceBiasScore(model_name=MODEL_NAME)
 
 female_bias, male_bias = sbs.evaluate(
-    word_embeddings=word_embeddings,
+    word_embeddings=words,
     gender_direction=gender_direction,
     word_importance=word_importance,
     gender_words_mask=gender_words_mask,
@@ -83,11 +76,10 @@ print()
 # --- Compare with a male-stereotyped sentence ---
 sentence_2 = "The engineer designs complex software systems"
 words_2 = sentence_2.split()
-emb_2 = model.encode(words_2)
 imp_2 = np.ones(len(words_2)) / len(words_2)
 mask_2 = np.array([False] * len(words_2))
 
-female_2, male_2 = sbs.evaluate(emb_2, gender_direction, imp_2, mask_2)
+female_2, male_2 = sbs.evaluate(words_2, gender_direction, imp_2, mask_2)
 
 print(f"Sentence: \"{sentence_2}\"")
 print(f"Female bias score: {female_2:.4f}")

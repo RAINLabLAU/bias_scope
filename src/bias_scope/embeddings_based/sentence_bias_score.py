@@ -56,13 +56,25 @@ class SentenceBiasScore(EmbeddingMetric):
     >>> print(f"Male bias: {male_bias:.4f}")
     """
 
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+        """
+        Initialize SentenceBiasScore.
+
+        Args:
+            model_name (str): Default SentenceTransformer/Hugging Face model used
+                when raw text inputs need to be embedded automatically. This
+                default is used unless ``evaluate(..., model_name=...)`` overrides
+                it for a single call.
+        """
+        self.model_name = model_name
+
     def evaluate(
         self,
         word_embeddings: np.ndarray | torch.Tensor | Sequence[str],
         gender_direction: np.ndarray | torch.Tensor,
         word_importance: np.ndarray | torch.Tensor,
         gender_words_mask: Optional[np.ndarray | torch.Tensor] = None,
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        model_name: str | None = None,
         return_details: bool = False,
     ) -> Tuple[float, float] | Dict[str, float]:
         """
@@ -77,7 +89,10 @@ class SentenceBiasScore(EmbeddingMetric):
             gender_direction (np.ndarray | torch.Tensor): gender direction vector
             word_importance (np.ndarray | torch.Tensor): word importance weights
             gender_words_mask (np.ndarray | torch.Tensor, optional): gendered words mask
-            model_name (str): SentenceTransformer/Hugging Face model used when word_embeddings is text
+            model_name (str | None): SentenceTransformer/Hugging Face model used
+                when ``word_embeddings`` is text. If omitted, uses the
+                ``model_name`` configured on ``__init__``. If passed here, it
+                overrides the instance default for this call only.
 
         Returns:
             Tuple[float, float]: female and male bias scores
@@ -140,9 +155,11 @@ class SentenceBiasScore(EmbeddingMetric):
             ... else:
             ...     print("Sentence has masculine associations")
         """
+        effective_model_name = model_name or self.model_name
+
         # Convert to numpy
         word_embeddings = _resolve_embeddings(
-            word_embeddings, model_name=model_name
+            word_embeddings, model_name=effective_model_name
         )
         word_embeddings = to_numpy(word_embeddings)
         gender_direction = to_numpy(gender_direction)

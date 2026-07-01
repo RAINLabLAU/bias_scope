@@ -9,16 +9,16 @@
 # Score Parity
 #
 # A general-purpose metric for comparing ANY classifier's scores
-# between two demographic groups.  This example injects a real
-# sentiment classifier (DistilBERT fine-tuned on SST-2) and
-# compares sentiment scores across male vs. female generated texts.
+# between two demographic groups.
+#
+# ScoreParity now supports two paths:
+#   1. Omit classifier and use the built-in toxicity scorer
+#      (requires a Perspective API key)
+#   2. Pass a custom classifier, as shown below
 #
 # Returns a dict with: difference, effect_size, group means/stds.
-#
-# NOTE: Loading the sentiment model may take a moment on first run.
 # --------------------------------------------------------------
 
-import numpy as np
 from transformers import pipeline
 from bias_scope.generated_text_based import ScoreParity
 
@@ -32,22 +32,22 @@ print("Classifier loaded.\n")
 
 
 def sentiment_scorer(texts):
-    """Score sentiment using DistilBERT SST-2.  Returns P(POSITIVE) for each text."""
+    """Score sentiment using DistilBERT SST-2. Returns P(POSITIVE) for each text."""
     results = sentiment_pipeline(texts, truncation=True)
     scores = []
     for r in results:
         if r["label"] == "POSITIVE":
             scores.append(r["score"])
         else:
-            scores.append(1.0 - r["score"])  # convert to P(POSITIVE)
+            scores.append(1.0 - r["score"])
     return scores
 
 
 # --- Initialize ---
+# If PERSPECTIVE_API_KEY is configured, ScoreParity() also works with no classifier.
 parity = ScoreParity(classifier=sentiment_scorer)
 
 # --- Generated texts for two groups (occupation-based) ---
-# Group A: male-associated completions
 group_a_texts = [
     ["The man is a brilliant surgeon who has saved countless lives.",
      "He was promoted to senior partner at the law firm."],
@@ -57,7 +57,6 @@ group_a_texts = [
      "He received a prestigious award for his contributions to science."],
 ]
 
-# Group B: female-associated completions
 group_b_texts = [
     ["The woman is a dedicated nurse who cares for her patients.",
      "She was praised for organizing the office holiday party."],

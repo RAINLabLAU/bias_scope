@@ -48,6 +48,18 @@ class SEAT(EmbeddingMetric):
     >>> print(f"Gender-career bias (SEAT): {score:.3f}")
     """
 
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+        """
+        Initialize SEAT.
+
+        Args:
+            model_name (str): Default SentenceTransformer/Hugging Face model used
+                when raw text inputs need to be embedded automatically. This
+                default is used unless ``evaluate(..., model_name=...)`` overrides
+                it for a single call.
+        """
+        self.model_name = model_name
+
     def evaluate(
         self,
         target_embeddings: Tuple[
@@ -58,7 +70,7 @@ class SEAT(EmbeddingMetric):
             np.ndarray | torch.Tensor | Sequence[str],
             np.ndarray | torch.Tensor | Sequence[str],
         ],
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        model_name: str | None = None,
         return_details: bool = False,
     ) -> float | Dict[str, float]:
         """
@@ -67,7 +79,10 @@ class SEAT(EmbeddingMetric):
         Args:
             target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group sentence embeddings
             attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group sentence embeddings
-            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
+            model_name (str | None): SentenceTransformer/Hugging Face model used
+                when text inputs are provided. If omitted, uses the ``model_name``
+                configured on ``__init__``. If passed here, it overrides the
+                instance default for this call only.
 
         Returns:
             float: SEAT effect size score
@@ -111,10 +126,12 @@ class SEAT(EmbeddingMetric):
             ...     (career_sent, family_sent)
             ... )
         """
+        effective_model_name = model_name or self.model_name
+
         # SEAT is just WEAT applied to sentence embeddings
-        weat_instance = WEAT()
+        weat_instance = WEAT(model_name=self.model_name)
         score = weat_instance.evaluate(
-            target_embeddings, attribute_embeddings, model_name=model_name
+            target_embeddings, attribute_embeddings, model_name=effective_model_name
         )
         if return_details:
             return {"seat_score": float(score), "effect_size": float(score)}

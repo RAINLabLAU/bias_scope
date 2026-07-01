@@ -60,6 +60,18 @@ class WEAT(EmbeddingMetric):
     >>> print(weat.category)    # "embedding"
     """
 
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+        """
+        Initialize WEAT.
+
+        Args:
+            model_name (str): Default SentenceTransformer/Hugging Face model used
+                when raw text inputs need to be embedded automatically. This
+                default is used unless ``evaluate(..., model_name=...)`` overrides
+                it for a single call.
+        """
+        self.model_name = model_name
+
     def evaluate(
         self,
         target_embeddings: Tuple[
@@ -70,7 +82,7 @@ class WEAT(EmbeddingMetric):
             np.ndarray | torch.Tensor | Sequence[str],
             np.ndarray | torch.Tensor | Sequence[str],
         ],
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        model_name: str | None = None,
         return_details: bool = False,
     ) -> float | Dict[str, float]:
         """
@@ -79,7 +91,10 @@ class WEAT(EmbeddingMetric):
         Args:
             target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group word embeddings
             attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group word embeddings
-            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
+            model_name (str | None): SentenceTransformer/Hugging Face model used
+                when text inputs are provided. If omitted, uses the ``model_name``
+                configured on ``__init__``. If passed here, it overrides the
+                instance default for this call only.
 
         Returns:
             float: WEAT effect size score
@@ -123,15 +138,17 @@ class WEAT(EmbeddingMetric):
             >>> score = weat.evaluate((targets1, targets2), (attrs1, attrs2))
             >>> print(f"Effect size: {score:.3f}")  # Positive score expected
         """
+        effective_model_name = model_name or self.model_name
+
         # Validate tuple structure
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
 
         target_embeddings = _resolve_embedding_pair(
-            target_embeddings, model_name=model_name
+            target_embeddings, model_name=effective_model_name
         )
         attribute_embeddings = _resolve_embedding_pair(
-            attribute_embeddings, model_name=model_name
+            attribute_embeddings, model_name=effective_model_name
         )
 
         # Unpack and convert to numpy

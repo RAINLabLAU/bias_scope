@@ -64,6 +64,18 @@ class CEAT(EmbeddingMetric):
     >>> print(f"WEAT variance: {result['weat_variance']:.3f}")
     """
 
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+        """
+        Initialize CEAT.
+
+        Args:
+            model_name (str): Default SentenceTransformer/Hugging Face model used
+                when raw text inputs need to be embedded automatically. This
+                default is used unless ``evaluate(..., model_name=...)`` overrides
+                it for a single call.
+        """
+        self.model_name = model_name
+
     def evaluate(
         self,
         target_embeddings: Tuple[
@@ -77,7 +89,7 @@ class CEAT(EmbeddingMetric):
         n_samples: int = 100,
         sample_size: Optional[int] = None,
         random_seed: Optional[int] = None,
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        model_name: str | None = None,
         return_details: bool = False,
     ) -> Dict[str, float]:
         """
@@ -89,7 +101,10 @@ class CEAT(EmbeddingMetric):
             n_samples (int): number of random samples
             sample_size (int, optional): embeddings per group per sample
             random_seed (int, optional): seed for reproducibility
-            model_name (str): SentenceTransformer/Hugging Face model used when text inputs are provided
+            model_name (str | None): SentenceTransformer/Hugging Face model used
+                when text inputs are provided. If omitted, uses the ``model_name``
+                configured on ``__init__``. If passed here, it overrides the
+                instance default for this call only.
 
         Returns:
             Dict[str, float]: CEAT scores and statistics
@@ -156,6 +171,8 @@ class CEAT(EmbeddingMetric):
             >>> # Variance shows context-dependency
             >>> print(f"Variance: {result['weat_variance']:.3f}")
         """
+        effective_model_name = model_name or self.model_name
+
         # Validate inputs
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
@@ -164,10 +181,10 @@ class CEAT(EmbeddingMetric):
             raise ValueError(f"n_samples must be positive. Got {n_samples}")
 
         target_embeddings = _resolve_embedding_pair(
-            target_embeddings, model_name=model_name
+            target_embeddings, model_name=effective_model_name
         )
         attribute_embeddings = _resolve_embedding_pair(
-            attribute_embeddings, model_name=model_name
+            attribute_embeddings, model_name=effective_model_name
         )
 
         # Unpack and convert to numpy
@@ -275,7 +292,7 @@ class CEAT(EmbeddingMetric):
         Returns:
             List[float]: WEAT scores from samples
         """
-        weat = WEAT()
+        weat = WEAT(model_name=self.model_name)
         weat_scores = []
 
         for i in range(n_samples):
