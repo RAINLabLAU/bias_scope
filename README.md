@@ -4,7 +4,7 @@
 
 # bias-scope
 
-**bias-scope** is a Python library for measuring social bias in language models across four complementary families of metrics:
+**bias-scope** is a Python library for measuring bias in language models across four complementary families of metrics:
 
 - embedding-based metrics
 - probability-based metrics
