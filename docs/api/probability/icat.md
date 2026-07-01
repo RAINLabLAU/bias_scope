@@ -1,6 +1,6 @@
-# iCAT
+# ICAT
 
-::: bias_scope.probability_based.icat.iCAT
+::: bias_scope.probability_based.icat.ICAT
 
 ## Example
 

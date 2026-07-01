@@ -204,21 +204,21 @@ Use these for dataset-backed evaluation suites and benchmark-style audits.
 
 The repository includes runnable examples for each metric family:
 
-- [examples/embeddings_based](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/examples/embeddings_based)
-- [examples/probability_based](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/examples/probability_based)
-- [examples/generated_text_based](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/examples/generated_text_based)
-- [examples/prompts_based](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/examples/prompts_based)
-- [examples/metric_usage_examples.py](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/examples/metric_usage_examples.py)
+- [examples/embeddings_based](examples/embeddings_based)
+- [examples/probability_based](examples/probability_based)
+- [examples/generated_text_based](examples/generated_text_based)
+- [examples/prompts_based](examples/prompts_based)
+- [examples/metric_usage_examples.py](examples/metric_usage_examples.py)
 
 ## Documentation
 
-Project docs live under [docs/](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/docs).
+Project docs live under [docs/](docs).
 
 Good starting points:
 
-- [docs/getting-started/installation.md](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/docs/getting-started/installation.md)
-- [docs/getting-started/quickstart.md](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/docs/getting-started/quickstart.md)
-- [docs/api](/C:/Users/User/Desktop/LAU/Research/Bias%20Scope/docs/api)
+- [docs/getting-started/installation.md](docs/getting-started/installation.md)
+- [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md)
+- [docs/api](docs/api)
 
 ## Development
 
@@ -236,4 +236,4 @@ python -m pytest
 
 ## License
 
-Add the project license here if you want the README to publish it explicitly.
+This project is licensed under the [MIT License](LICENSE).

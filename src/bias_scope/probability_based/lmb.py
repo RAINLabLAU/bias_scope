@@ -63,7 +63,7 @@ class LMB(ProbabilityMetric):
         outlier_strategy: Literal["percentile", "none"] = "percentile",
         outlier_percentile: float = 5.0,
         alpha: float = 0.05,
-        return_details: bool = False,
+        return_details: bool = True,
     ) -> float | Dict[str, float]:
         """
         Evaluate LMB using perplexity comparison.
@@ -77,11 +77,11 @@ class LMB(ProbabilityMetric):
 
         Returns:
             float | Dict[str, float]:
-                `mean_diff` by default, where positive values mean the first
-                sentence set has higher perplexity and negative values mean the
-                first sentence set has lower perplexity. When
-                `return_details=True`, returns the full statistical breakdown
-                and perplexity summary.
+                Full statistical breakdown and perplexity summary by default.
+                When `return_details=False`, returns only `mean_diff`, where
+                positive values mean the first sentence set has higher
+                perplexity and negative values mean the first sentence set has
+                lower perplexity.
 
         Raises:
             ValueError: If inputs are invalid or insufficient data

@@ -14,9 +14,11 @@ Public API for bias detection metrics organized by category:
 - Utilities: to_numpy, cosine_similarity
 """
 
+from importlib import import_module
+
 __version__ = "0.1.0"
 
-# Public API: Import metric classes
+
 # Optional torch-backed metrics expose constructor stubs when torch is absent.
 def _torch_dependency_stub(class_name: str, original_error: ImportError):
     """Create a class-like placeholder for optional torch-backed metrics."""
@@ -48,11 +50,13 @@ except ImportError as exc:
 try:
     from bias_scope.embeddings_based import embed
 except ImportError as exc:
+
     def embed(*args, _original_error=exc, **kwargs):
         raise ImportError(
             "embed requires optional embedding dependencies. "
             "Please install bias-scope[embeddings] to use this helper."
         ) from _original_error
+
 
 from bias_scope.probability_based import (
     AUL,
@@ -68,7 +72,6 @@ from bias_scope.probability_based import (
     DisCoMetric,
 )
 
-# Import generated text metrics (all in generated_text_based)
 from bias_scope.generated_text_based import (
     HONEST,
     CoOccurrenceBiasScore,
@@ -89,80 +92,39 @@ from bias_scope.generated_text_based import (
     ToxicityProbability,
 )
 
-try:
-    from bias_scope.prompts_based.analogical_reasoning_bias import (
-        AnalogicalReasoningBias,
-    )
-except ImportError:
-    AnalogicalReasoningBias = None
-
-try:
-    from bias_scope.prompts_based.bbq import BBQMetric
-except ImportError:
-    BBQMetric = None
-
-try:
-    from bias_scope.prompts_based.bold import BOLD
-except ImportError:
-    BOLD = None
-
-try:
-    from bias_scope.prompts_based.counterfactual_fairness import (
-        CounterfactualFairness,
-    )
-except ImportError:
-    CounterfactualFairness = None
-
-try:
-    from bias_scope.prompts_based.demographic_representation_bias import (
-        DemographicRepresentationBias,
-    )
-except ImportError:
-    DemographicRepresentationBias = None
-
-try:
-    from bias_scope.prompts_based.opinion_consistency_across_personas import (
-        OpinionConsistencyAcrossPersonas,
-    )
-except ImportError:
-    OpinionConsistencyAcrossPersonas = None
-
-try:
-    from bias_scope.prompts_based.realtoxicityprompts import RealToxicityPrompts
-except ImportError:
-    RealToxicityPrompts = None
-
-try:
-    from bias_scope.prompts_based.stereoset import StereoSetMetric
-except ImportError:
-    StereoSetMetric = None
-
-try:
-    from bias_scope.prompts_based.tof_nof import TofNof
-except ImportError:
-    TofNof = None
-
-try:
-    from bias_scope.prompts_based.truthfulqa import TruthfulQA
-except ImportError:
-    TruthfulQA = None
-
-try:
-    from bias_scope.prompts_based.unqover import UnQoverMetric
-except ImportError:
-    UnQoverMetric = None
-
-# Public utilities
 from bias_scope.utils import cosine_similarity, to_numpy
 
+
+_PROMPT_EXPORTS = {
+    "AnalogicalReasoningBias",
+    "BBQMetric",
+    "BOLD",
+    "CounterfactualFairness",
+    "DemographicRepresentationBias",
+    "OpinionConsistencyAcrossPersonas",
+    "RealToxicityPrompts",
+    "StereoSetMetric",
+    "TofNof",
+    "TruthfulQA",
+    "UnQoverMetric",
+}
+
+
+def __getattr__(name: str):
+    if name not in _PROMPT_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    value = getattr(import_module("bias_scope.prompts_based"), name)
+    globals()[name] = value
+    return value
+
+
 __all__ = [
-    # Embedding metrics (classes)
     "WEAT",
     "SEAT",
     "CEAT",
     "SentenceBiasScore",
     "embed",
-    # Probability metrics
     "CrowSPairs",
     "CAT",
     "AUL",
@@ -174,7 +136,6 @@ __all__ = [
     "LMB",
     "BertPLLScorer",
     "TokenPredictionScorer",
-    # Generated text metrics
     "ToxicityFraction",
     "ToxicityProbability",
     "RegardScore",
@@ -192,7 +153,6 @@ __all__ = [
     "PGB",
     "PerspectiveAPIClient",
     "PsycholinguisticNorms",
-    # Prompt-based metrics
     "AnalogicalReasoningBias",
     "BBQMetric",
     "BOLD",
@@ -204,7 +164,6 @@ __all__ = [
     "TofNof",
     "TruthfulQA",
     "UnQoverMetric",
-    # Utilities
     "to_numpy",
     "cosine_similarity",
 ]
