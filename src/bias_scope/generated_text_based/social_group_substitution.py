@@ -74,6 +74,7 @@ class SocialGroupSubstitution(GeneratedTextMetric):
         num_samples: int = 1,
         decoding_kwargs: Optional[dict] = None,
         aggregation: Literal["mean", "median"] = "mean",
+        return_details: bool = False,
     ) -> Dict:
         """
         Evaluate Social Group Substitution metric.

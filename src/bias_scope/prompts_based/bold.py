@@ -94,6 +94,7 @@ class BOLD(PromptBasedMetric):
         num_prompts: Optional[int] = None,
         split: str = "train",
         bias_threshold: float = 0.15,
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate model generations on BOLD prompts.

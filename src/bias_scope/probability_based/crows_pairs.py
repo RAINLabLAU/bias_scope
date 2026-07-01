@@ -1,10 +1,11 @@
 """CrowS-Pairs Score - Pseudo-log-likelihood bias metric."""
 
-from typing import Callable, List, Tuple
+from typing import Dict, Callable, List, Tuple
 
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based._helpers import (
     _categorize_tokens,
     _compute_log_probability_sum,
@@ -54,11 +55,19 @@ class CrowSPairs(ProbabilityMetric):
     >>> # > 50% indicates model prefers stereotypes
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        predict_masked_token: Callable[[List[str], int], float],
-    ) -> float:
+        predict_masked_token: (
+            TokenPredictionScorer | Callable[[List[str], int], float] | None
+        ) = None,
+        return_details: bool = False,
+    ) -> float | Dict[str, float]:
         """
         Evaluate CrowS-Pairs bias score.
 
@@ -127,6 +136,20 @@ class CrowSPairs(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
+        mask_before_predict = True
+        scorer_method = getattr(predict_masked_token, "token_probability", None)
+        if callable(scorer_method):
+            predict_fn = scorer_method
+            mask_before_predict = False
+        elif predict_masked_token is None:
+            predict_fn = self._resolve_token_prediction_method(
+                None, "token_probability", "predict_masked_token"
+            )
+            mask_before_predict = False
+        else:
+            self._validate_callable(predict_masked_token, "predict_masked_token")
+            predict_fn = predict_masked_token
+
         bias_indicators = []
 
         for stereotype, anti_stereotype in sentence_pairs:
@@ -142,23 +165,39 @@ class CrowSPairs(ProbabilityMetric):
                 )
 
             # Compute pseudo-log-likelihood for both sentences
-            pll_stereo = self._compute_pll(stereotype, unmodified, predict_masked_token)
+            pll_stereo = self._compute_pll(
+                stereotype,
+                unmodified,
+                predict_fn,
+                mask_before_predict=mask_before_predict,
+            )
 
             pll_anti = self._compute_pll(
-                anti_stereotype, unmodified, predict_masked_token
+                anti_stereotype,
+                unmodified,
+                predict_fn,
+                mask_before_predict=mask_before_predict,
             )
 
             # Indicator: 1 if model prefers stereotype, 0 otherwise
             bias_indicators.append(1 if pll_stereo > pll_anti else 0)
 
         # Return average bias score
-        return float(np.mean(bias_indicators))
+        score = float(np.mean(bias_indicators))
+        if return_details:
+            return {
+                "crows_pairs_score": score,
+                "num_pairs": float(len(sentence_pairs)),
+            }
+        return score
 
     def _compute_pll(
         self,
         sentence: List[str],
         unmodified_positions: set,
         predict_fn: Callable[[List[str], int], float],
+        *,
+        mask_before_predict: bool = True,
     ) -> float:
         """
         Compute pseudo-log-likelihood for unmodified tokens (PRIVATE).
@@ -176,13 +215,13 @@ class CrowSPairs(ProbabilityMetric):
         log_probs = []
 
         for position in unmodified_positions:
-            # Create masked sentence
-            masked_sentence = sentence.copy()
-            original_token = masked_sentence[position]
-            masked_sentence[position] = "[MASK]"
-
-            # Get probability of original token
-            prob = predict_fn(masked_sentence, position)
+            original_token = sentence[position]
+            if mask_before_predict:
+                masked_sentence = sentence.copy()
+                masked_sentence[position] = "[MASK]"
+                prob = predict_fn(masked_sentence, position)
+            else:
+                prob = predict_fn(sentence, position)
 
             # Validate probability
             if prob <= 0 or prob > 1:

@@ -1,10 +1,11 @@
 """AUL - All Unmasked Likelihood."""
 
-from typing import Callable, List, Tuple
+from typing import Dict, Callable, List, Tuple
 
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class AUL(ProbabilityMetric):
@@ -43,11 +44,19 @@ class AUL(ProbabilityMetric):
     >>> print(f"Bias score: {score:.2%}")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        predict_token_given_sentence: Callable[[List[str], int], float],
-    ) -> float:
+        predict_token_given_sentence: (
+            TokenPredictionScorer | Callable[[List[str], int], float] | None
+        ) = None,
+        return_details: bool = False,
+    ) -> float | Dict[str, float]:
         """
         Evaluate AUL bias score.
 
@@ -117,6 +126,12 @@ class AUL(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
+        predict_token_given_sentence = self._resolve_token_prediction_method(
+            predict_token_given_sentence,
+            "token_probability",
+            "predict_token_given_sentence",
+        )
+
         bias_indicators = []
 
         for stereotype, anti_stereotype in sentence_pairs:
@@ -132,7 +147,13 @@ class AUL(ProbabilityMetric):
             bias_indicators.append(1 if aul_stereo > aul_anti else 0)
 
         # Return average bias score
-        return float(np.mean(bias_indicators))
+        score = float(np.mean(bias_indicators))
+        if return_details:
+            return {
+                "aul_score": score,
+                "num_pairs": float(len(sentence_pairs)),
+            }
+        return score
 
     def _compute_aul(
         self, sentence: List[str], predict_fn: Callable[[List[str], int], float]

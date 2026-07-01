@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Tuple
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class AULA(ProbabilityMetric):
@@ -44,11 +45,21 @@ class AULA(ProbabilityMetric):
     >>> print(f"Bias score: {score:.2%}")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        predict_with_attention: Callable[[List[str], int], Dict[str, Any]],
-    ) -> float:
+        predict_with_attention: (
+            TokenPredictionScorer
+            | Callable[[List[str], int], Dict[str, Any]]
+            | None
+        ) = None,
+        return_details: bool = False,
+    ) -> float | Dict[str, float]:
         """
         Evaluate AULA bias score.
 
@@ -117,10 +128,11 @@ class AULA(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
-        if not callable(predict_with_attention):
-            raise TypeError(
-                f"predict_with_attention must be callable, got {type(predict_with_attention).__name__}"
-            )
+        predict_with_attention = self._resolve_token_prediction_method(
+            predict_with_attention,
+            "token_probability_with_attention",
+            "predict_with_attention",
+        )
 
         bias_indicators = []
 
@@ -136,7 +148,13 @@ class AULA(ProbabilityMetric):
             bias_indicators.append(1 if aula_stereo > aula_anti else 0)
 
         # Return average bias score
-        return float(np.mean(bias_indicators))
+        score = float(np.mean(bias_indicators))
+        if return_details:
+            return {
+                "aula_score": score,
+                "num_pairs": float(len(sentence_pairs)),
+            }
+        return score
 
     def _compute_aula(
         self,

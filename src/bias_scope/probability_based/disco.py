@@ -81,6 +81,7 @@ class DisCoMetric(ProbabilityMetric):
         attr_b: str,
         k: int = 3,
         placeholder: str = "{attr}",
+        return_details: bool = False,
     ) -> DisCoResult:
         """
         Evaluate DisCo using a single template with an attribute placeholder.

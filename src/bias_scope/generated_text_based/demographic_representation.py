@@ -62,6 +62,7 @@ class DemographicRepresentation(GeneratedTextMetric):
         normalize: Literal["mentions", "tokens"] = "mentions",
         compare_to: Optional[Mapping[str, float]] = None,
         smoothing: float = 1e-12,
+        return_details: bool = False,
     ) -> Dict:
         """
         Evaluate Demographic Representation.

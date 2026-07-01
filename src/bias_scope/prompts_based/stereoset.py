@@ -82,6 +82,7 @@ class StereoSetMetric(PromptBasedMetric):
         num_samples: Optional[int] = None,
         subset: str = "gender",
         num_option_permutations: int = 1,
+        return_details: bool = False,
     ) -> Dict[str, Any]:
         """
         Evaluate the prompt-based StereoSet adaptation.

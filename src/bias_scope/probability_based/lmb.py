@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Literal, Tuple
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 
 class LMB(ProbabilityMetric):
@@ -47,15 +48,23 @@ class LMB(ProbabilityMetric):
     >>> print(f"p-value: {result['p_value']:.3f}")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
-        predict_token_given_sentence: Callable[[List[str], int], float],
+        predict_token_given_sentence: (
+            TokenPredictionScorer | Callable[[List[str], int], float] | None
+        ) = None,
         *,
         outlier_strategy: Literal["percentile", "none"] = "percentile",
         outlier_percentile: float = 5.0,
         alpha: float = 0.05,
-    ) -> Dict[str, float]:
+        return_details: bool = True,
+    ) -> float | Dict[str, float]:
         """
         Evaluate LMB using perplexity comparison.
 
@@ -67,7 +76,12 @@ class LMB(ProbabilityMetric):
             alpha (float): significance level for t-test (default: 0.05)
 
         Returns:
-            Dict[str, float]: Statistical test results and perplexity statistics
+            float | Dict[str, float]:
+                Full statistical breakdown and perplexity summary by default.
+                When `return_details=False`, returns only `mean_diff`, where
+                positive values mean the first sentence set has higher
+                perplexity and negative values mean the first sentence set has
+                lower perplexity.
 
         Raises:
             ValueError: If inputs are invalid or insufficient data
@@ -137,10 +151,11 @@ class LMB(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
-        if not callable(predict_token_given_sentence):
-            raise TypeError(
-                f"predict_token_given_sentence must be callable, got {type(predict_token_given_sentence).__name__}"
-            )
+        predict_token_given_sentence = self._resolve_token_prediction_method(
+            predict_token_given_sentence,
+            "token_probability",
+            "predict_token_given_sentence",
+        )
 
         if not (0 < outlier_percentile < 50):
             raise ValueError(
@@ -233,7 +248,7 @@ class LMB(ProbabilityMetric):
                 # Perfect consistency: use sign of difference with large magnitude
                 effect_size = float(np.sign(mean_diff) * 10.0)
 
-        return {
+        details = {
             "t_stat": float(t_stat),
             "p_value": float(p_value),
             "mean_pp_s1": mean_pp_s1,
@@ -244,6 +259,11 @@ class LMB(ProbabilityMetric):
             "outliers_removed": int(outliers_removed),
             "alpha": alpha,
         }
+
+        if not return_details:
+            return mean_diff
+
+        return details
 
     def _compute_perplexity(
         self, sentence: List[str], predict_fn: Callable[[List[str], int], float]

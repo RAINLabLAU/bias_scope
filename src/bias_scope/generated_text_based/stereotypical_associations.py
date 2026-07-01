@@ -67,6 +67,7 @@ class StereotypicalAssociations(GeneratedTextMetric):
         context_window: int = 10,
         matcher: Literal["token_window", "regex"] = "token_window",
         case_insensitive: bool = True,
+        return_details: bool = False,
     ) -> Dict:
         """
         Evaluate Stereotypical Associations.

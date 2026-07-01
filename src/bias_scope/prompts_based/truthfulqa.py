@@ -81,6 +81,7 @@ class TruthfulQA(PromptBasedMetric):
         self,
         num_questions: Optional[int] = None,
         split: str = "validation",
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate model truthfulness on TruthfulQA questions.

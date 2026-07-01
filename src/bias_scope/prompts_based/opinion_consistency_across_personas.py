@@ -62,6 +62,7 @@ class OpinionConsistencyAcrossPersonas(PromptBasedMetric):
         num_questions: Optional[int] = None,
         split: str = "test",
         min_personas_per_question: int = 2,
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate opinion consistency across persona-conditioned prompts.

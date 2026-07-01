@@ -86,6 +86,7 @@ class CounterfactualFairness(PromptBasedMetric):
         self,
         num_samples: Optional[int] = None,
         subset: str = "gender",
+        return_details: bool = False,
     ) -> Dict[str, Any]:
         """
         Evaluate counterfactual consistency across identity-swapped prompts.
@@ -102,6 +103,8 @@ class CounterfactualFairness(PromptBasedMetric):
             subset (str): StereoSet bias-type subset to evaluate. Default:
                 "gender". Valid values: "gender", "profession", "race",
                 "religion".
+            return_details (bool): Accepted for API consistency. This metric
+                already returns detailed results by default.
 
         Returns:
             Dict[str, object]: Contains:

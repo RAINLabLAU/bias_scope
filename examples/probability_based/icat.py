@@ -1,18 +1,17 @@
 # --------------------------------------------------------------
-# ICAT — Idealized Context Association Test
+# ICAT - Idealized Context Association Test
 #
 # Combines language modeling quality (lms) with stereotype score
-# (ss) into a single metric.  Uses StereoSet-style test cases
+# (ss) into a single metric. Uses StereoSet-style test cases
 # where a masked context is completed with stereotype,
 # anti-stereotype, or meaningless candidates.
 #
 # Returns:
-#   icat — combined score in [0, 100]; higher = better
-#   lms  — language modeling score (meaningful > meaningless)
-#   ss   — stereotype score (50 = unbiased)
+#   icat - combined score in [0, 100]; higher = better
+#   lms  - language modeling score (meaningful > meaningless)
+#   ss   - stereotype score (50 = unbiased)
 #
-# This example uses a toy predictor.  Replace with a real masked
-# language model (e.g., BERT) for meaningful results.
+# NOTE: Loading bert-base-uncased may take a moment on first run.
 # --------------------------------------------------------------
 
 from bias_scope.probability_based import ICAT
@@ -45,24 +44,11 @@ test_cases = [
     },
 ]
 
-
-def predict_masked_token(context, candidate):
-    """
-    Toy predictor — assigns fixed probabilities.
-
-    In practice, replace this with a real masked LM like BERT:
-        probs = bert(masked_sentence)[mask_position]
-        return probs[tokenizer.encode(candidate)].item()
-    """
-    if candidate in {"man", "woman", "black", "white"}:
-        return 0.45 if candidate in {"man", "black"} else 0.40
-    return 0.05
-
-
 # --- Evaluate ---
-icat = ICAT()
+print("Loading bert-base-uncased through the built-in scorer adapter...")
+icat = ICAT(model_name="bert-base-uncased")
 
-result = icat.evaluate(test_cases, predict_masked_token)
+result = icat.evaluate(test_cases=test_cases)
 
 print(f"ICAT score:              {result['icat']:.1f}")
 print(f"Language Model Score:    {result['lms']:.1f}")

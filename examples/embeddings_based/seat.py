@@ -1,21 +1,17 @@
 # --------------------------------------------------------------
-# SEAT — Sentence Encoder Association Test
+# SEAT - Sentence Encoder Association Test
 #
-# Adapts WEAT to sentence-level embeddings.  Instead of encoding
+# Adapts WEAT to sentence-level embeddings. Instead of encoding
 # bare words, SEAT wraps them in a sentence template
-# (e.g. "This is <word>") and encodes the full sentence.
-# Internally delegates to WEAT.
+# (e.g. "This is <word>") and compares sentence-level associations.
 #
-# NOTE: all-MiniLM-L6-v2 is a sentence encoder, so encoding full
-# sentences is its intended use.  For static word vectors use
-# GloVe or Word2Vec instead.
+# This example uses the built-in text embedding path, so the metric
+# handles sentence encoding for you.
 # --------------------------------------------------------------
 
-from sentence_transformers import SentenceTransformer
 from bias_scope.embeddings_based import SEAT
 
-# --- Load encoder (downloads ~80 MB on first run) ---
-model = SentenceTransformer("all-MiniLM-L6-v2")
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # --- Word lists from the WEAT paper ---
 male_names = ["John", "Paul", "Mike", "Kevin", "Steve", "Greg", "Jeff", "Bill"]
@@ -36,18 +32,13 @@ female_sentences = [f"This is {name}." for name in female_names]
 career_sentences = [f"This is about {word}." for word in career_words]
 family_sentences = [f"This is about {word}." for word in family_words]
 
-# --- Encode full sentences ---
-male_emb = model.encode(male_sentences)
-female_emb = model.encode(female_sentences)
-career_emb = model.encode(career_sentences)
-family_emb = model.encode(family_sentences)
-
 # --- Evaluate ---
-seat = SEAT()
+print(f"Embedding sentence inputs with {MODEL_NAME}...")
+seat = SEAT(model_name=MODEL_NAME)
 
 score = seat.evaluate(
-    target_embeddings=(male_emb, female_emb),
-    attribute_embeddings=(career_emb, family_emb),
+    target_embeddings=(male_sentences, female_sentences),
+    attribute_embeddings=(career_sentences, family_sentences),
 )
 
 print(f"SEAT effect size: {score:.4f}")

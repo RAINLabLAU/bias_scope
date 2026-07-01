@@ -2,9 +2,8 @@
 
 from typing import Any, Callable, Dict, List
 
-import numpy as np
-
 from bias_scope.base import ProbabilityMetric
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based.cat import CAT
 
 
@@ -48,10 +47,18 @@ class ICAT(ProbabilityMetric):
     >>> print(f"SS: {result['ss']:.1f}%")
     """
 
+    def __init__(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        self._init_token_prediction_scorer(model_name=model_name, device=device)
+
     def evaluate(
         self,
         test_cases: List[Dict[str, Any]],
-        predict_masked_token: Callable[[List[str], str], float],
+        predict_masked_token: (
+            TokenPredictionScorer | Callable[[List[str], str], float] | None
+        ) = None,
+        return_details: bool = False,
     ) -> Dict[str, float]:
         """
         Evaluate iCAT score.
@@ -110,6 +117,10 @@ class ICAT(ProbabilityMetric):
             >>> # result['ss'] = 100 (chose stereotype)
             >>> # result['icat'] = 100 * (min(100, 0) / 50) = 0
         """
+        predict_masked_token = self._resolve_token_prediction_method(
+            predict_masked_token, "masked_token_probability", "predict_masked_token"
+        )
+
         # Use CAT to compute LMS and SS
         cat = CAT()
         cat_result = cat.evaluate(test_cases, predict_masked_token)

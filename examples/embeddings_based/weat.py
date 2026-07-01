@@ -1,23 +1,20 @@
 # --------------------------------------------------------------
-# WEAT — Word Embedding Association Test
+# WEAT - Word Embedding Association Test
 #
 # Measures how strongly one target group (e.g. male names)
 # associates with one attribute group (e.g. career words)
 # compared to another (e.g. family words) in the embedding space.
 #
-# Returns a single effect-size float.  Positive -> target 1
-# associates more with attribute 1.  Larger magnitude = stronger bias.
+# Returns a single effect-size float. Positive -> target 1
+# associates more with attribute 1. Larger magnitude = stronger bias.
 #
-# NOTE: all-MiniLM-L6-v2 is a sentence encoder, so these results
-# are illustrative.  For production WEAT evaluations use static
-# embeddings such as GloVe or Word2Vec.
+# This example uses the built-in text embedding path, so you do not
+# need to precompute embeddings manually.
 # --------------------------------------------------------------
 
-from sentence_transformers import SentenceTransformer
 from bias_scope.embeddings_based import WEAT
 
-# --- Load encoder (downloads ~80 MB on first run) ---
-model = SentenceTransformer("all-MiniLM-L6-v2")
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # --- Word lists from the original WEAT paper (Caliskan et al., 2017) ---
 
@@ -35,18 +32,13 @@ family_words = [
     "cousins", "marriage", "wedding", "relatives",
 ]
 
-# --- Encode words into embeddings ---
-male_emb = model.encode(male_names)
-female_emb = model.encode(female_names)
-career_emb = model.encode(career_words)
-family_emb = model.encode(family_words)
-
 # --- Evaluate ---
-weat = WEAT()
+print(f"Embedding text inputs with {MODEL_NAME}...")
+weat = WEAT(model_name=MODEL_NAME)
 
 score = weat.evaluate(
-    target_embeddings=(male_emb, female_emb),
-    attribute_embeddings=(career_emb, family_emb),
+    target_embeddings=(male_names, female_names),
+    attribute_embeddings=(career_words, family_words),
 )
 
 print(f"WEAT effect size: {score:.4f}")

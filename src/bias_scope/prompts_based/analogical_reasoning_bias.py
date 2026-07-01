@@ -230,6 +230,7 @@ class AnalogicalReasoningBias(PromptBasedMetric):
     def evaluate(
         self,
         num_analogies: Optional[int] = None,
+        return_details: bool = False,
     ) -> Dict[str, object]:
         """
         Evaluate analogical reasoning bias across analogy templates.

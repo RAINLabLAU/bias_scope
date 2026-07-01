@@ -5,7 +5,8 @@ Abstract base classes for bias detection metrics.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Sequence
+import inspect
+from typing import Any, Callable, Dict, List, Sequence
 
 import numpy as np
 
@@ -23,6 +24,33 @@ class BiasMetric(ABC):
     ...     def evaluate(self, inputs):
     ...         return 0.5
     """
+
+    def __repr__(self) -> str:
+        """Return a scikit-learn-style representation of the metric config."""
+        try:
+            signature = inspect.signature(type(self).__init__)
+        except (TypeError, ValueError):
+            return f"{type(self).__name__}()"
+
+        params = []
+        for param in signature.parameters.values():
+            if param.name == "self":
+                continue
+            if param.kind in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            ):
+                continue
+            if param.name.startswith("_"):
+                continue
+            if not hasattr(self, param.name):
+                continue
+
+            value = getattr(self, param.name)
+            params.append(f"{param.name}={value!r}")
+
+        joined = ", ".join(params)
+        return f"{type(self).__name__}({joined})"
 
     @abstractmethod
     def evaluate(self, *args, **kwargs) -> float | Dict[str, float]:
@@ -98,15 +126,71 @@ class ProbabilityMetric(BiasMetric):
     """
     Base class for probability-based bias metrics.
 
-    Provides common validation methods for probabilities and sentence pairs.
-    All probability-based metrics (CrowS-Pairs, CAT, AUL, iCAT, AULA, LMB)
-    should inherit from this class.
+    Provides common validation methods for probabilities, sentence pairs,
+    and callable inputs.
     """
 
     @property
     def category(self) -> str:
         """Category is automatically set to 'probability'."""
         return "probability"
+
+    def _validate_callable(self, fn: Callable, name: str) -> None:
+        """
+        Validate a callable input (PRIVATE).
+
+        Args:
+            fn (Callable): Function to validate.
+            name (str): Input name for error messages.
+
+        Raises:
+            TypeError: If fn is not callable.
+        """
+        if not callable(fn):
+            raise TypeError(f"{name} must be callable, got {type(fn).__name__}")
+
+    def _init_token_prediction_scorer(
+        self, model_name: str | None = None, device: str | None = None
+    ) -> None:
+        """
+        Initialize an optional default token prediction scorer (PRIVATE).
+        """
+        self._token_prediction_scorer = None
+        if model_name is not None:
+            from bias_scope.probability_based.scorers import BertPLLScorer
+
+            self._token_prediction_scorer = BertPLLScorer(
+                model_name=model_name, device=device
+            )
+
+    def _resolve_token_prediction_method(
+        self,
+        scorer_or_callback: Any,
+        method_name: str,
+        callback_name: str,
+    ) -> Callable:
+        """
+        Resolve a protocol scorer method or backward-compatible callback (PRIVATE).
+        """
+        if scorer_or_callback is not None:
+            method = getattr(scorer_or_callback, method_name, None)
+            if callable(method):
+                return method
+            self._validate_callable(scorer_or_callback, callback_name)
+            return scorer_or_callback
+
+        scorer = getattr(self, "_token_prediction_scorer", None)
+        if scorer is None:
+            raise TypeError(
+                f"{callback_name} must be callable when model_name is not set"
+            )
+
+        method = getattr(scorer, method_name, None)
+        if not callable(method):
+            raise TypeError(
+                f"Configured scorer must define callable method '{method_name}'"
+            )
+        return method
 
     def _validate_probabilities(
         self, probabilities: np.ndarray, name: str = "probabilities"
@@ -187,7 +271,7 @@ class GeneratedTextMetric(BiasMetric):
             ValueError: If texts is empty or contains empty strings.
         """
         if not isinstance(texts, Sequence) or isinstance(texts, (str, bytes)):
-            raise TypeError(f"{name} must be a Sequence of strings")
+            raise TypeError(f"{name} must be a sequence of strings")
 
         texts_list = list(texts)
         if len(texts_list) == 0:
@@ -236,8 +320,10 @@ class GeneratedTextMetric(BiasMetric):
             raise TypeError(f"{name} must be a float, got {type(value).__name__}")
 
         value_float = float(value)
-        if np.isnan(value_float) or np.isinf(value_float):
-            raise ValueError(f"{name} must be finite, got {value}")
+        if np.isnan(value_float):
+            raise ValueError(f"{name} must be finite. Got NaN")
+        if np.isinf(value_float):
+            raise ValueError(f"{name} must be finite. Got Inf")
         return value_float
 
     def _validate_generated_texts(
@@ -377,19 +463,25 @@ class GeneratedTextMetric(BiasMetric):
         self,
         completions: List[List[str]],
         scores: List[List[float]] | None = None,
-        name: str = "toxicity_scores",
+        name: str = "scores",
+        score_range: tuple[float, float] = (-1.0, 1.0),
+        item_label: str | None = None,
+        item_plural_label: str = "scores",
         sentiment_scores: List[List[float]] | None = None,
     ) -> np.ndarray:
         """
         Validate nested score matrices against completion shape (PRIVATE).
 
-        Supports both generic paired scores in [-1, 1] and toxicity scores
-        in [0, 1] while preserving existing metric call signatures.
+        Supports caller-selected score ranges while preserving existing metric
+        call signatures.
 
         Args:
             completions (List[List[str]]): Completion matrix to align against.
             scores (List[List[float]] | None): Generic score matrix.
             name (str): Score matrix name for error messages.
+            score_range (tuple[float, float]): Inclusive valid score range.
+            item_label (str | None): Singular item label for error messages.
+            item_plural_label (str): Plural item label for shape errors.
             sentiment_scores (List[List[float]] | None): Sentiment score matrix.
 
         Returns:
@@ -407,18 +499,8 @@ class GeneratedTextMetric(BiasMetric):
         if score_matrix is None:
             raise ValueError("scores cannot be None")
 
-        if sentiment_scores is not None:
-            min_value = -1.0
-            max_value = 1.0
-            item_prefix = name
-        elif name == "toxicity_scores":
-            min_value = 0.0
-            max_value = 1.0
-            item_prefix = "toxicity score"
-        else:
-            min_value = -1.0
-            max_value = 1.0
-            item_prefix = name
+        min_value, max_value = score_range
+        item_prefix = item_label if item_label is not None else name
 
         if len(score_matrix) != len(completions):
             raise ValueError(
@@ -434,8 +516,7 @@ class GeneratedTextMetric(BiasMetric):
                 raise ValueError(
                     f"{name} must match completions shape. "
                     f"Template index {i} has K={len(template_completions)} completions "
-                    f"but {len(template_scores)} "
-                    f"{'toxicity scores' if name == 'toxicity_scores' else 'scores'}."
+                    f"but {len(template_scores)} {item_plural_label}."
                 )
 
             casted_template: List[float] = []

@@ -10,33 +10,22 @@ Returns either:
     - or a detailed result with average log-probability statistics
 
 This example:
-  1. Loads a BERT pseudo-log-likelihood scorer
+  1. Loads a BERT pseudo-log-likelihood scorer through model_name
   2. Defines stereotype / anti-stereotype sentence pairs
-  3. Computes LPBS from sentence-level log-probabilities
+  3. Computes LPBS from sentence-level pseudo-log-probabilities
 
-NOTE: LPBS expects tokenized sentence pairs.  Because BERT is a
-masked language model, we use pseudo-log-likelihood (PLL) rather
-than true left-to-right sentence probability. This example uses a
-lightweight offline scoring function so it runs quickly.
+NOTE: LPBS expects tokenized sentence pairs. Because BERT is a
+masked language model, it uses pseudo-log-likelihood (PLL) rather
+than true left-to-right sentence probability.
 --------------------------------------------------------------
 """
 
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from bias_scope.probability_based.lpbs import LPBS
+from bias_scope.probability_based import LPBS
 
 
 # --- Load metric ---
-metric = LPBS()
+print("Loading bert-base-uncased through the built-in scorer adapter...")
+metric = LPBS(model_name="bert-base-uncased")
 
 
 # --- Define stereotype / anti-stereotype sentence pairs ---
@@ -56,21 +45,8 @@ sentence_pairs = [
 ]
 
 
-def logprob_fn(tokens: list[str]) -> float:
-    base = float(len(tokens))
-    stereotype_bonus = 0.0
-    if "man" in tokens:
-        stereotype_bonus += 0.6
-    if "boy" in tokens:
-        stereotype_bonus += 0.3
-    return base + stereotype_bonus
-
-
 # --- Evaluate overall LPBS score ---
-lpbs_score = metric.evaluate(
-    sentence_pairs=sentence_pairs,
-    logprob_fn=logprob_fn,
-)
+lpbs_score = metric.evaluate(sentence_pairs=sentence_pairs)
 
 print("LPBS Example")
 print(f"Number of sentence pairs: {len(sentence_pairs)}")
@@ -81,7 +57,6 @@ print()
 # --- Evaluate with detailed statistics ---
 detailed_result = metric.evaluate(
     sentence_pairs=sentence_pairs,
-    logprob_fn=logprob_fn,
     return_details=True,
 )
 

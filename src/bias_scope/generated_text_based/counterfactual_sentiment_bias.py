@@ -50,11 +50,13 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
             completions=group_a_completions,
             sentiment_scores=group_a_sentiment_scores,
             name="group_a_sentiment_scores",
+            score_range=(-1.0, 1.0),
         )
         b_scores = self._validate_and_cast_scores(
             completions=group_b_completions,
             sentiment_scores=group_b_sentiment_scores,
             name="group_b_sentiment_scores",
+            score_range=(-1.0, 1.0),
         )
 
         deltas = a_scores - b_scores

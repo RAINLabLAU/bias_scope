@@ -1,63 +1,64 @@
-"""Prompt-based bias metrics."""
+"""Prompt-based bias metrics.
 
-try:
-    from bias_scope.prompts_based.analogical_reasoning_bias import AnalogicalReasoningBias
-except ImportError:
-    AnalogicalReasoningBias = None
+Prompt metrics depend on optional dataset and LLM packages, so they are loaded
+on first access instead of during package import.
+"""
 
-try:
-    from bias_scope.prompts_based.bbq import BBQMetric
-except ImportError:
-    BBQMetric = None
+from __future__ import annotations
 
-try:
-    from bias_scope.prompts_based.counterfactual_fairness import CounterfactualFairness
-except ImportError:
-    CounterfactualFairness = None
+from importlib import import_module
 
-try:
-    from bias_scope.prompts_based.demographic_representation_bias import (
-        DemographicRepresentationBias,
+
+_PROMPT_EXPORTS = {
+    "AnalogicalReasoningBias": "bias_scope.prompts_based.analogical_reasoning_bias",
+    "BBQMetric": "bias_scope.prompts_based.bbq",
+    "BOLD": "bias_scope.prompts_based.bold",
+    "CounterfactualFairness": "bias_scope.prompts_based.counterfactual_fairness",
+    "DemographicRepresentationBias": (
+        "bias_scope.prompts_based.demographic_representation_bias"
+    ),
+    "OpinionConsistencyAcrossPersonas": (
+        "bias_scope.prompts_based.opinion_consistency_across_personas"
+    ),
+    "RealToxicityPrompts": "bias_scope.prompts_based.realtoxicityprompts",
+    "StereoSetMetric": "bias_scope.prompts_based.stereoset",
+    "TofNof": "bias_scope.prompts_based.tof_nof",
+    "TruthfulQA": "bias_scope.prompts_based.truthfulqa",
+    "UnQoverMetric": "bias_scope.prompts_based.unqover",
+}
+
+
+def _optional_prompt_dependency_stub(class_name: str, original_error: ImportError):
+    """Create a class-like placeholder for prompt metric optional extras."""
+
+    class _MissingPromptDependency:
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                f"{class_name} requires optional prompt-based dependencies. "
+                "Please install bias-scope[datasets], bias-scope[llm], "
+                "or bias-scope[all] to use this metric."
+            ) from original_error
+
+    _MissingPromptDependency.__name__ = class_name
+    _MissingPromptDependency.__qualname__ = class_name
+    _MissingPromptDependency.__module__ = __name__
+    _MissingPromptDependency.__doc__ = (
+        f"Placeholder for {class_name}; install prompt optional extras to use it."
     )
-except ImportError:
-    DemographicRepresentationBias = None
+    return _MissingPromptDependency
 
-try:
-    from bias_scope.prompts_based.stereoset import StereoSetMetric
-except ImportError:
-    StereoSetMetric = None
 
-try:
-    from bias_scope.prompts_based.tof_nof import TofNof
-except ImportError:
-    TofNof = None
+def __getattr__(name: str):
+    if name not in _PROMPT_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-try:
-    from bias_scope.prompts_based.unqover import UnQoverMetric
-except ImportError:
-    UnQoverMetric = None
+    try:
+        value = getattr(import_module(_PROMPT_EXPORTS[name]), name)
+    except ImportError as exc:
+        value = _optional_prompt_dependency_stub(name, exc)
+    globals()[name] = value
+    return value
 
-try:
-    from bias_scope.prompts_based.bold import BOLD
-except ImportError:
-    BOLD = None
-
-try:
-    from bias_scope.prompts_based.opinion_consistency_across_personas import (
-        OpinionConsistencyAcrossPersonas,
-    )
-except ImportError:
-    OpinionConsistencyAcrossPersonas = None
-
-try:
-    from bias_scope.prompts_based.realtoxicityprompts import RealToxicityPrompts
-except ImportError:
-    RealToxicityPrompts = None
-
-try:
-    from bias_scope.prompts_based.truthfulqa import TruthfulQA
-except ImportError:
-    TruthfulQA = None
 
 __all__ = [
     "AnalogicalReasoningBias",
