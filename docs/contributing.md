@@ -39,7 +39,7 @@
 
 If you find a bug, open an issue in the repository with enough context for maintainers to reproduce it quickly.
 
-<div class="contrib-section">
+<div class="contrib-section" markdown="1">
 
 ### Include in the issue
 
@@ -59,7 +59,7 @@ If you find a bug, open an issue in the repository with enough context for maint
 
 New metric proposals are welcome, especially when they extend coverage across model types, tasks, or demographic dimensions.
 
-<div class="contrib-section">
+<div class="contrib-section" markdown="1">
 
 ### Include in the proposal
 
@@ -79,7 +79,7 @@ New metric proposals are welcome, especially when they extend coverage across mo
 
 Use a standard fork-and-branch workflow for contributions.
 
-<div class="contrib-section">
+<div class="contrib-section" markdown="1">
 
 ### Recommended flow
 
@@ -96,7 +96,7 @@ Use descriptive branch names such as <code>fix/disco-threshold-bug</code> or <co
 
 Small, focused pull requests are easier to review and merge than large mixed changes.
 
-<div class="contrib-section">
+<div class="contrib-section" markdown="1">
 
 ### Before opening a PR
 
@@ -118,7 +118,7 @@ Small, focused pull requests are easier to review and merge than large mixed cha
 
 Contributions should match the existing project structure and style conventions.
 
-<div class="contrib-section contrib-checklist">
+<div class="contrib-section contrib-checklist" markdown="1">
 
 ### Expectations
 
@@ -134,3 +134,4 @@ Contributions should match the existing project structure and style conventions.
 <div class="contrib-note contrib-note-strong">
   <strong>Strong contributions are usually small and clear:</strong> a focused scope, good tests, and a readable PR description matter more than a large mixed change.
 </div>
+
