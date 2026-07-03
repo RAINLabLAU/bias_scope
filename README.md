@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="assets/logo.png" alt="bias-scope logo" />
+  <img src="assets/logo.png" alt="biasScope logo" />
 </div>
 
-# bias-scope
+# biasScope
 
-**bias-scope** is a Python library for measuring bias in language models across four complementary families of metrics:
+**biasScope** is a Python library for measuring bias in language models across four complementary families of metrics:
 
 - embedding-based metrics
 - probability-based metrics
@@ -13,7 +13,7 @@
 
 The goal is a single, consistent API for bias evaluation whether you are working with sentence encoders, masked language models, generated completions, or dataset-driven benchmark suites.
 
-## Why bias-scope
+## Why biasScope
 
 - One package for multiple bias evaluation paradigms
 - Consistent metric classes with `evaluate()` entrypoints
