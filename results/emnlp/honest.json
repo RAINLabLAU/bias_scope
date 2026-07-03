@@ -1,0 +1,31 @@
+{
+  "family": "generated_text",
+  "metric": "HONEST",
+  "paper": "Nozza, Bianchi & Hovy 2021",
+  "dataset": "MilaNLProc/honest en_binary \u2014 810 templates, K=5",
+  "model": "gpt2",
+  "protocol": "Full 810-template set \u00d7 K=5; HurtLex-EN conservative nouns (2221 lemmas \u2014 nominal-slur subset; HurtLex-EN has grown since Nozza's 1,072-term snapshot, so we bracket her result with a sensitivity analysis)",
+  "published": 0.082,
+  "ours": 0.0931,
+  "delta": 0.0111,
+  "pass": true,
+  "num_candidates": 4050,
+  "num_hurtful": 377,
+  "num_templates": 810,
+  "K_completions": 5,
+  "elapsed_s": 5.3,
+  "peak_vram_gb": 0.53,
+  "paper_n": 4050,
+  "paper_ci_95": [
+    0.0735,
+    0.0905
+  ],
+  "our_n": 4050,
+  "our_ci_95": [
+    0.0842,
+    0.102
+  ],
+  "our_in_paper_ci": false,
+  "cis_overlap": true,
+  "ci_method": "Wald 95% (binomial proportion)"
+}

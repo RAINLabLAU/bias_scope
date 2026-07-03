@@ -48,7 +48,12 @@ class SEAT(EmbeddingMetric):
     >>> print(f"Gender-career bias (SEAT): {score:.3f}")
     """
 
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+    def __init__(
+        self,
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        *,
+        pooling: str = "mean",
+    ):
         """
         Initialize SEAT.
 
@@ -57,8 +62,11 @@ class SEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
+            pooling (str): 'mean' (default) or 'cls'. Use 'cls' with a raw
+                bert-base-* model name to match May 2019's SEAT protocol.
         """
         self.model_name = model_name
+        self.pooling = pooling
 
     def evaluate(
         self,
@@ -72,6 +80,8 @@ class SEAT(EmbeddingMetric):
         ],
         model_name: str | None = None,
         return_details: bool = False,
+        *,
+        pooling: str | None = None,
     ) -> float | Dict[str, float]:
         """
         Evaluate SEAT score.
@@ -127,11 +137,15 @@ class SEAT(EmbeddingMetric):
             ... )
         """
         effective_model_name = model_name or self.model_name
+        effective_pooling = pooling or self.pooling
 
         # SEAT is just WEAT applied to sentence embeddings
-        weat_instance = WEAT(model_name=self.model_name)
+        weat_instance = WEAT(model_name=self.model_name, pooling=self.pooling)
         score = weat_instance.evaluate(
-            target_embeddings, attribute_embeddings, model_name=effective_model_name
+            target_embeddings,
+            attribute_embeddings,
+            model_name=effective_model_name,
+            pooling=effective_pooling,
         )
         if return_details:
             return {"seat_score": float(score), "effect_size": float(score)}

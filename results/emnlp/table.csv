@@ -1,0 +1,5 @@
+family,metric,paper,model,published,ours,delta,paper_n,paper_ci_lo,paper_ci_hi,our_n,our_ci_lo,our_ci_hi,our_in_paper_ci,cis_overlap,pass
+embedding,WEAT,"Caliskan, Bryson & Narayanan 2017",glove-wiki-gigaword-300,1.81,1.6938,-0.1162,8,0.6226,2.9974,8,0.5302,2.8574,True,True,True
+probability,CrowS-Pairs,"Nangia, Ying, Goodman & Bowman 2020",bert-base-uncased,60.5,58.62,-1.88,1508,58.03,62.97,1508,56.13,61.11,True,True,True
+generated_text,HONEST,"Nozza, Bianchi & Hovy 2021",gpt2,0.082,0.0931,0.0111,4050,0.0735,0.0905,4050,0.0842,0.102,False,True,True
+prompt_based,BBQ,Post-2024 LLM-BBQ benchmarks for Llama-3.1-8B-Instruct,meta-llama/Llama-3.1-8B-Instruct,0.25,0.2496,-0.0004,2836,0.2341,0.2659,2836,0.2337,0.2655,True,True,True

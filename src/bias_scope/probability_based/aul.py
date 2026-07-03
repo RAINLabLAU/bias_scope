@@ -1,11 +1,15 @@
 """AUL - All Unmasked Likelihood."""
 
-from typing import Dict, Callable, List, Tuple
+from typing import Dict, Callable, List, Literal, Tuple, Union
 
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
 from bias_scope.probability_based.scorers import TokenPredictionScorer
+from bias_scope.probability_based._helpers import _score_wordpiece_pair_aul
+
+
+AULMode = Literal["whitespace", "wordpiece"]
 
 
 class AUL(ProbabilityMetric):
@@ -45,13 +49,36 @@ class AUL(ProbabilityMetric):
     """
 
     def __init__(
-        self, model_name: str | None = None, device: str | None = None
+        self,
+        model_name: str | None = None,
+        device: str | None = None,
+        *,
+        mode: AULMode = "whitespace",
     ) -> None:
-        self._init_token_prediction_scorer(model_name=model_name, device=device)
+        if mode not in ("whitespace", "wordpiece"):
+            raise ValueError(
+                f"mode must be 'whitespace' or 'wordpiece', got {mode!r}"
+            )
+        self.mode = mode
+        if mode == "wordpiece":
+            self._token_prediction_scorer = None
+            self._wordpiece_scorer = None
+            if model_name is not None:
+                from bias_scope.probability_based.scorers import WordPieceBertScorer
+
+                self._wordpiece_scorer = WordPieceBertScorer(
+                    model_name=model_name, device=device
+                )
+        else:
+            self._wordpiece_scorer = None
+            self._init_token_prediction_scorer(model_name=model_name, device=device)
 
     def evaluate(
         self,
-        sentence_pairs: List[Tuple[List[str], List[str]]],
+        sentence_pairs: Union[
+            List[Tuple[List[str], List[str]]],
+            List[Tuple[str, str]],
+        ],
         predict_token_given_sentence: (
             TokenPredictionScorer | Callable[[List[str], int], float] | None
         ) = None,
@@ -126,6 +153,11 @@ class AUL(ProbabilityMetric):
         if len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
+        if self.mode == "wordpiece":
+            return self._evaluate_wordpiece(
+                sentence_pairs, predict_token_given_sentence, return_details
+            )
+
         predict_token_given_sentence = self._resolve_token_prediction_method(
             predict_token_given_sentence,
             "token_probability",
@@ -190,3 +222,47 @@ class AUL(ProbabilityMetric):
 
         # Average (not sum like CrowS-Pairs)
         return float(np.mean(log_probs))
+
+    def _evaluate_wordpiece(
+        self,
+        sentence_pairs,
+        override_scorer,
+        return_details: bool,
+    ) -> float | Dict[str, float]:
+        scorer = override_scorer if override_scorer is not None else self._wordpiece_scorer
+        if scorer is None:
+            raise TypeError(
+                "wordpiece mode requires either model_name= at __init__ or a "
+                "WordPieceBertScorer passed as predict_token_given_sentence=."
+            )
+        for attr in ("encode", "aul_aula"):
+            if not callable(getattr(scorer, attr, None)):
+                raise TypeError(
+                    f"wordpiece-mode scorer must expose callable '{attr}'; "
+                    f"got {type(scorer).__name__}"
+                )
+
+        bias_indicators = []
+        for pair in sentence_pairs:
+            if not (isinstance(pair, tuple) and len(pair) == 2):
+                raise ValueError(
+                    "In wordpiece mode, each sentence_pair must be a "
+                    "(stereotype, anti_stereotype) tuple of strings."
+                )
+            s_more, s_less = pair
+            if not (isinstance(s_more, str) and isinstance(s_less, str)):
+                raise ValueError(
+                    "In wordpiece mode, sentence pairs must be raw strings, "
+                    f"got ({type(s_more).__name__}, {type(s_less).__name__})."
+                )
+            aul_s, aul_a = _score_wordpiece_pair_aul(scorer, s_more, s_less)
+            bias_indicators.append(1 if aul_s > aul_a else 0)
+
+        score = float(np.mean(bias_indicators))
+        if return_details:
+            return {
+                "aul_score": score,
+                "num_pairs": float(len(sentence_pairs)),
+                "mode": "wordpiece",
+            }
+        return score

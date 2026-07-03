@@ -60,7 +60,12 @@ class WEAT(EmbeddingMetric):
     >>> print(weat.category)    # "embedding"
     """
 
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+    def __init__(
+        self,
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        *,
+        pooling: str = "mean",
+    ):
         """
         Initialize WEAT.
 
@@ -69,8 +74,13 @@ class WEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
+            pooling (str): 'mean' (default, sentence-transformers) or 'cls'
+                (raw `[CLS]` embedding from the underlying LM — matches Caliskan/May
+                paper protocols when using bert-base-*). Only applies when raw
+                text inputs are provided; ignored for precomputed arrays.
         """
         self.model_name = model_name
+        self.pooling = pooling
 
     def evaluate(
         self,
@@ -84,6 +94,8 @@ class WEAT(EmbeddingMetric):
         ],
         model_name: str | None = None,
         return_details: bool = False,
+        *,
+        pooling: str | None = None,
     ) -> float | Dict[str, float]:
         """
         Evaluate WEAT effect size.
@@ -139,16 +151,21 @@ class WEAT(EmbeddingMetric):
             >>> print(f"Effect size: {score:.3f}")  # Positive score expected
         """
         effective_model_name = model_name or self.model_name
+        effective_pooling = pooling or self.pooling
 
         # Validate tuple structure
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
 
         target_embeddings = _resolve_embedding_pair(
-            target_embeddings, model_name=effective_model_name
+            target_embeddings,
+            model_name=effective_model_name,
+            pooling=effective_pooling,
         )
         attribute_embeddings = _resolve_embedding_pair(
-            attribute_embeddings, model_name=effective_model_name
+            attribute_embeddings,
+            model_name=effective_model_name,
+            pooling=effective_pooling,
         )
 
         # Unpack and convert to numpy

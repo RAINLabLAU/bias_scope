@@ -1,0 +1,28 @@
+{
+  "family": "probability",
+  "metric": "CrowS-Pairs",
+  "paper": "Nangia, Ying, Goodman & Bowman 2020",
+  "dataset": "CrowS-Pairs (1508 pairs)",
+  "model": "bert-base-uncased",
+  "protocol": "mode='wordpiece' (WordPiece PLL, difflib subword alignment)",
+  "published": 60.5,
+  "ours": 58.62,
+  "delta": -1.88,
+  "pass": true,
+  "pairs_scored": 1508,
+  "elapsed_s": 156.72,
+  "peak_vram_gb": 0.46,
+  "paper_n": 1508,
+  "paper_ci_95": [
+    58.03,
+    62.97
+  ],
+  "our_n": 1508,
+  "our_ci_95": [
+    56.13,
+    61.11
+  ],
+  "our_in_paper_ci": true,
+  "cis_overlap": true,
+  "ci_method": "Wald 95% (binomial proportion)"
+}

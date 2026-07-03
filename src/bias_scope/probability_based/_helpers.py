@@ -88,6 +88,33 @@ def _compute_log_probability_sum(log_probs: List[float]) -> float:
     return float(np.sum(log_probs_array))
 
 
+def _score_wordpiece_pair_crows(scorer, s_more: str, s_less: str) -> Tuple[float, float]:
+    """CrowS-Pairs WordPiece-mode scoring: PLL over UNMODIFIED subwords only.
+
+    Used by ``CrowSPairs(mode='wordpiece')``. Returns (pll_more, pll_less).
+    """
+    ids_a = scorer.encode(s_more)
+    ids_b = scorer.encode(s_less)
+    pos_a, pos_b = scorer.align_unmodified(ids_a, ids_b)
+    pll_a = scorer.pll_over_positions(ids_a, pos_a)
+    pll_b = scorer.pll_over_positions(ids_b, pos_b)
+    return pll_a, pll_b
+
+
+def _score_wordpiece_pair_aul(scorer, s_more: str, s_less: str) -> Tuple[float, float]:
+    """AUL WordPiece-mode scoring per Kaneko & Bollegala 2022 (unmasked)."""
+    aul_a, _ = scorer.aul_aula(scorer.encode(s_more))
+    aul_b, _ = scorer.aul_aula(scorer.encode(s_less))
+    return aul_a, aul_b
+
+
+def _score_wordpiece_pair_aula(scorer, s_more: str, s_less: str) -> Tuple[float, float]:
+    """AULA WordPiece-mode scoring per Kaneko & Bollegala 2022."""
+    _, aula_a = scorer.aul_aula(scorer.encode(s_more))
+    _, aula_b = scorer.aul_aula(scorer.encode(s_less))
+    return aula_a, aula_b
+
+
 def _normalize_probabilities(probs: np.ndarray) -> np.ndarray:
     """
     Normalize probabilities to sum to 1 (PRIVATE).

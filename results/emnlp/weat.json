@@ -1,0 +1,26 @@
+{
+  "family": "embedding",
+  "metric": "WEAT",
+  "paper": "Caliskan, Bryson & Narayanan 2017",
+  "dataset": "WEAT-6 gender-career",
+  "model": "glove-wiki-gigaword-300",
+  "protocol": "GloVe 6B/300d, real vectors via gensim",
+  "published": 1.81,
+  "ours": 1.6938,
+  "delta": -0.1162,
+  "pass": true,
+  "elapsed_s": 0.002,
+  "paper_n": 8,
+  "paper_ci_95": [
+    0.6226,
+    2.9974
+  ],
+  "our_n": 8,
+  "our_ci_95": [
+    0.5302,
+    2.8574
+  ],
+  "our_in_paper_ci": true,
+  "cis_overlap": true,
+  "ci_method": "Hedges-Olkin (Cohen's d SE) \u2014 small-n caveat: n=8/group"
+}

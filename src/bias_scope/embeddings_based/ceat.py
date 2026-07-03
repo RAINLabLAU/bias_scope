@@ -64,7 +64,12 @@ class CEAT(EmbeddingMetric):
     >>> print(f"WEAT variance: {result['weat_variance']:.3f}")
     """
 
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+    def __init__(
+        self,
+        model_name: str = DEFAULT_EMBEDDING_MODEL,
+        *,
+        pooling: str = "mean",
+    ):
         """
         Initialize CEAT.
 
@@ -73,8 +78,11 @@ class CEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
+            pooling (str): 'mean' (default) or 'cls'. Use 'cls' with a raw
+                bert-base-* model to match Guo & Caliskan's CEAT protocol.
         """
         self.model_name = model_name
+        self.pooling = pooling
 
     def evaluate(
         self,
@@ -91,6 +99,8 @@ class CEAT(EmbeddingMetric):
         random_seed: Optional[int] = None,
         model_name: str | None = None,
         return_details: bool = False,
+        *,
+        pooling: str | None = None,
     ) -> Dict[str, float]:
         """
         Evaluate CEAT score with distribution of WEAT effect sizes.
@@ -172,6 +182,7 @@ class CEAT(EmbeddingMetric):
             >>> print(f"Variance: {result['weat_variance']:.3f}")
         """
         effective_model_name = model_name or self.model_name
+        effective_pooling = pooling or self.pooling
 
         # Validate inputs
         _validate_tuple_length(target_embeddings, "target_embeddings")
@@ -181,10 +192,14 @@ class CEAT(EmbeddingMetric):
             raise ValueError(f"n_samples must be positive. Got {n_samples}")
 
         target_embeddings = _resolve_embedding_pair(
-            target_embeddings, model_name=effective_model_name
+            target_embeddings,
+            model_name=effective_model_name,
+            pooling=effective_pooling,
         )
         attribute_embeddings = _resolve_embedding_pair(
-            attribute_embeddings, model_name=effective_model_name
+            attribute_embeddings,
+            model_name=effective_model_name,
+            pooling=effective_pooling,
         )
 
         # Unpack and convert to numpy

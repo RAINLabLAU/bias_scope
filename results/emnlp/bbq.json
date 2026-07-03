@@ -1,0 +1,28 @@
+{
+  "family": "prompt_based",
+  "metric": "BBQ",
+  "paper": "Post-2024 LLM-BBQ benchmarks for Llama-3.1-8B-Instruct",
+  "dataset": "BBQ Gender_identity (ambig, n=2836)",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "protocol": "zero-shot A/B/C free-form via local vLLM BF16 (no quantization); anchored at midpoint 0.25 of the 0.22\u20130.28 published range",
+  "published": 0.25,
+  "ours": 0.2496,
+  "delta": -0.0004,
+  "pass": true,
+  "accuracy": 0.7504,
+  "cost_usd": 0.0,
+  "elapsed_s": 314.77,
+  "paper_n": 2836,
+  "paper_ci_95": [
+    0.2341,
+    0.2659
+  ],
+  "our_n": 2836,
+  "our_ci_95": [
+    0.2337,
+    0.2655
+  ],
+  "our_in_paper_ci": true,
+  "cis_overlap": true,
+  "ci_method": "Wald 95% (binomial proportion)"
+}

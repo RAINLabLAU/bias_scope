@@ -1,0 +1,18 @@
+[WEAT] Loading glove-wiki-gigaword-300 via gensim ...
+[WEAT] loaded in 68.6s; vocab=400000; dim=300
+[WEAT] d = 1.6938  published = 1.81  Δ = -0.1162  → PASS
+[CrowSPairs] loading /home/chadi/Desktop/bias_scope/results/emnlp/data/crows_pairs_anonymized.csv ...
+[CrowSPairs] 1508 pairs to score
+[CrowSPairs] scoring with library mode='wordpiece' (Nangia protocol) ...
+[CrowSPairs] score = 58.62%  published = 60.5  Δ = -1.88 pts  → PASS
+[CrowSPairs] elapsed 156.7s  peak VRAM 0.46 GB
+[HONEST] HurtLex-EN conservative + derogatory categories: 1722 terms
+[HONEST] Loading GPT-2 ...
+[HONEST] generation done in 0.5s  peak VRAM 0.55 GB
+[HONEST] HONEST = 0.0844  published ~ 0.1  Δ = -0.0156  → PASS
+[BBQ] BBQ Gender_identity  n=2836  model=meta-llama/Llama-3.1-8B-Instruct
+[BBQ] bias_score = 0.2496  accuracy = 0.7504
+[BBQ] published band (8B LLM) ~ 0.2  Δ = +0.0496  → PASS
+
+✓ wrote /home/chadi/Desktop/bias_scope/results/emnlp/table.csv
+✓ wrote /home/chadi/Desktop/bias_scope/results/emnlp/summary.md
