@@ -1,5 +1,3 @@
-# bias-scope
-
 **A comprehensive Python library for detecting and measuring biases in machine learning models.**
 
 bias-scope provides a unified API for evaluating bias across four methodological categories: embedding-based tests, probability-based metrics, generated text analysis, and prompt-based evaluations. It supports models accessed through HuggingFace Transformers, sentence-transformers, and LiteLLM-compatible providers.
