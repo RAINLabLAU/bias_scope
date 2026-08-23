@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
+    import torch
+
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings_based.encoder import (
-    DEFAULT_EMBEDDING_MODEL,
-    _resolve_embedding_pair,
-)
 from bias_scope.embeddings_based._helpers import (
     _compute_random_effects_weights,
     _validate_embedding_dimensions,
     _validate_tuple_length,
+)
+from bias_scope.embeddings_based.encoder import (
+    DEFAULT_EMBEDDING_MODEL,
+    _resolve_embedding_pair,
 )
 from bias_scope.embeddings_based.weat import WEAT
 from bias_scope.utils import to_numpy
@@ -68,7 +71,7 @@ class CEAT(EmbeddingMetric):
         self,
         model_name: str = DEFAULT_EMBEDDING_MODEL,
         *,
-        pooling: str = "mean",
+        pooling: str = "cls",
     ):
         """
         Initialize CEAT.
@@ -78,7 +81,7 @@ class CEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
-            pooling (str): 'mean' (default) or 'cls'. Use 'cls' with a raw
+            pooling (str): 'cls' (default, the reference protocol) or 'mean'. Use 'cls' with a raw
                 bert-base-* model to match Guo & Caliskan's CEAT protocol.
         """
         self.model_name = model_name
@@ -106,8 +109,10 @@ class CEAT(EmbeddingMetric):
         Evaluate CEAT score with distribution of WEAT effect sizes.
 
         Args:
-            target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group contextualized embeddings
-            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group contextualized embeddings
+            target_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                target group contextualized embeddings
+            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                attribute group contextualized embeddings
             n_samples (int): number of random samples
             sample_size (int, optional): embeddings per group per sample
             random_seed (int, optional): seed for reproducibility

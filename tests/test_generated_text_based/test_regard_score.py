@@ -1,8 +1,8 @@
 """Tests for Regard Score."""
 
-import pytest
 from unittest.mock import patch
 
+import pytest
 
 # --- Mock helpers ---
 
@@ -182,11 +182,15 @@ class TestRegardScore:
         scores = mock_regard.evaluate(group_a, group_b)
 
         # Check positive difference
-        expected_pos_diff = scores.get('group_a_positive', 0.0) - scores.get('group_b_positive', 0.0)
+        expected_pos_diff = (
+            scores.get('group_a_positive', 0.0) - scores.get('group_b_positive', 0.0)
+        )
         assert abs(scores['positive_difference'] - expected_pos_diff) < 0.01
 
         # Check negative difference
-        expected_neg_diff = scores.get('group_a_negative', 0.0) - scores.get('group_b_negative', 0.0)
+        expected_neg_diff = (
+            scores.get('group_a_negative', 0.0) - scores.get('group_b_negative', 0.0)
+        )
         assert abs(scores['negative_difference'] - expected_neg_diff) < 0.01
 
     def test_single_text_per_group(self, mock_pipeline):

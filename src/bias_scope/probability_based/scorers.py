@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple
 
 import numpy as np
 
-
 AttentionScheme = Literal["last_layer_diag", "all_layers_avg"]
 
 
@@ -159,11 +158,9 @@ class BertPLLScorer:
         # are then scored via Salazar-style chain-rule masking.
         n_pieces = len(candidate_ids)
         expanded_context: List[str] = []
-        expanded_mask_ws_idx: Optional[int] = None
-        for ws_i, tok in enumerate(normalized_context):
+        for tok in normalized_context:
             if tok == self.mask_token:
                 expanded_context.extend([self.mask_token] * n_pieces)
-                expanded_mask_ws_idx = ws_i
             else:
                 expanded_context.append(tok)
 

@@ -1,13 +1,12 @@
 """AUL - All Unmasked Likelihood."""
 
-from typing import Dict, Callable, List, Literal, Tuple, Union
+from typing import Callable, Dict, List, Literal, Tuple, Union
 
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based._helpers import _score_wordpiece_pair_aul
-
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULMode = Literal["whitespace", "wordpiece"]
 
@@ -53,7 +52,7 @@ class AUL(ProbabilityMetric):
         model_name: str | None = None,
         device: str | None = None,
         *,
-        mode: AULMode = "whitespace",
+        mode: AULMode = "wordpiece",
     ) -> None:
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
@@ -88,8 +87,10 @@ class AUL(ProbabilityMetric):
         Evaluate AUL bias score.
 
         Args:
-            sentence_pairs (List[Tuple[List[str], List[str]]]): stereotype and anti-stereotype sentence pairs
-            predict_token_given_sentence (Callable[[List[str], int], float]): token prediction function
+            sentence_pairs (List[Tuple[List[str], List[str]]]):
+                stereotype and anti-stereotype sentence pairs
+            predict_token_given_sentence (Callable[[List[str], int], float]):
+                token prediction function
 
         Returns:
             float: bias score (0-1 range)

@@ -52,7 +52,14 @@ def wald_ci_proportion(p: float, n: int, z: float = 1.96) -> tuple[float, float]
 
 
 def hedges_olkin_ci_d(d: float, n1: int, n2: int, z: float = 1.96) -> tuple[float, float]:
-    """95 % CI on Cohen's d via Hedges-Olkin SE."""
+    """95 % CI on Cohen's d via Hedges-Olkin SE.
+
+    NOTE: this uses `2*(n1 + n2 - 2)` in the second term, while
+    `bias_scope.stats.hedges_olkin_ci` uses `2*(n1 + n2)` (Borenstein eq. 4.20).
+    Both forms are in the literature and they disagree at small n — see
+    REVIEW_LATER RL-016. This one is kept here so the CIs already published in
+    results/emnlp/ do not move; the two must be reconciled before submission.
+    """
     se = math.sqrt((n1 + n2) / (n1 * n2) + d * d / (2.0 * (n1 + n2 - 2)))
     return d - z * se, d + z * se
 
@@ -238,7 +245,7 @@ def rerun_honest_full() -> Dict[str, Any]:
 def enrich_with_cis(records: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
     for r in records:
         metric = r["metric"]
-        if metric == "WEAT":
+        if metric.startswith("WEAT"):
             # Caliskan 2017 WEAT-6: n1 = n2 = 8 (hand-picked names/words)
             n_per_group = 8
             paper_d = float(r["published"])
@@ -287,6 +294,17 @@ def enrich_with_cis(records: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
                 "cis_overlap": cis_overlap(paper_ci, our_ci),
                 "ci_method": "Wald 95% (binomial proportion)",
             })
+        elif metric == "BBQ" and r.get("published") is None:
+            # No reference value located; a CI around the paper's number cannot
+            # be computed because there is no paper number. Our own CI stands.
+            our_p = float(r["ours"])
+            our_n = int(r.get("our_n", 2836))
+            our_ci = wald_ci_proportion(our_p, our_n)
+            r.update({
+                "our_n": our_n,
+                "our_ci_95": [round(our_ci[0], 4), round(our_ci[1], 4)],
+                "ci_method": "Wald 95% (binomial proportion) on our value only",
+            })
         elif metric == "BBQ":
             paper_p = float(r["published"])
             paper_n = 2836
@@ -312,6 +330,47 @@ def enrich_with_cis(records: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
 FAMILY_ORDER = ["embedding", "probability", "generated_text", "prompt_based"]
 
 
+def _load_weat_840b() -> Dict[str, Any] | None:
+    """Load the GloVe-840B WEAT run and normalise it into a table record.
+
+    Caliskan et al. report d = 1.81 on GloVe trained over the 840B-token Common
+    Crawl. The main reproduction uses the 6B wiki+gigaword release, because that
+    is what gensim ships, and lands at 1.6938. Both belong in the table: the 6B
+    row is the one this pipeline recomputes, the 840B row is the one the paper's
+    number should be compared against.
+
+    Produced by `scripts/experiments/repro_weat_840B.py`, which needs the 5.6 GB
+    glove.840B.300d.txt on disk. If that run has not been done, the row is
+    simply absent rather than silently substituted.
+    """
+    path = OUT_DIR / "weat_840B" / "weat_840B_result.json"
+    if not path.exists():
+        print(f"! {path} missing — table will report GloVe-6B only")
+        return None
+
+    with path.open() as f:
+        raw = json.load(f)
+
+    d = float(raw["ours_d"])
+    published = float(raw["paper_d"])
+    delta = round(d - published, 4)
+    return {
+        "family": "embedding",
+        "metric": "WEAT (840B)",
+        "paper": "Caliskan, Bryson & Narayanan 2017",
+        "dataset": "WEAT-6 gender-career",
+        "model": "glove.840B.300d",
+        "protocol": "GloVe 840B/300d Common Crawl, cased stimuli, streamed from "
+                    "glove.840B.300d.txt",
+        "published": published,
+        "ours": round(d, 4),
+        "delta": delta,
+        "pass": abs(delta) <= 0.2,
+        "elapsed_s": raw.get("eval_seconds", ""),
+        "source_file": "results/emnlp/weat_840B/weat_840B_result.json",
+    }
+
+
 def _load_all() -> list[Dict[str, Any]]:
     per_metric = {
         "WEAT": OUT_DIR / "weat.json",
@@ -324,21 +383,32 @@ def _load_all() -> list[Dict[str, Any]]:
         with path.open() as f:
             r = json.load(f)
         records.append(r)
-    # sort by family order
+
+    weat_840b = _load_weat_840b()
+    if weat_840b is not None:
+        records.append(weat_840b)
+
+    # sort by family order, keeping the two WEAT rows adjacent and 6B first
     order = {f: i for i, f in enumerate(FAMILY_ORDER)}
-    records.sort(key=lambda r: order.get(r["family"], 99))
+    records.sort(key=lambda r: (order.get(r["family"], 99), r["metric"]))
     return records
 
 
 def write_summary(records: list[Dict[str, Any]]) -> None:
     def _status(r: Dict[str, Any]) -> str:
-        """Three-way reproduction status.
+        """Reproduction status.
+
+        A row whose reference value could not be located is reported as
+        WITHDRAWN, never as MATCHED against an invented number (PLAN.md
+        Section 1).
 
         Statistical equivalence criterion: two point estimates cannot be
         statistically distinguished if their 95 % CIs overlap. That is the
         MATCHED threshold. If CIs don't overlap but the delta is still within
         an acceptable band, we call it CLOSE. Beyond the band → OFF.
         """
+        if r.get("status") == "no_published_reference" or r.get("published") is None:
+            return "**WITHDRAWN — no published reference**"
         if r.get("cis_overlap"):
             return "**MATCHED**"
         if r.get("pass"):
@@ -357,8 +427,15 @@ def write_summary(records: list[Dict[str, Any]]) -> None:
         "  first, why it failed, and the specific insight that landed each metric",
         "  at MATCHED. Read this to understand *how* we arrived at the numbers.",
         "",
+        "WEAT appears twice, on purpose. Caliskan et al. report d = 1.81 on GloVe",
+        "trained over the 840B-token Common Crawl; gensim ships only the 6B",
+        "wiki+gigaword release. The **WEAT (840B)** row is the like-for-like",
+        "comparison against the paper and is the number quoted in the paper draft;",
+        "the **WEAT** row is the 6B reproduction this pipeline recomputes. Reporting",
+        "only the 6B score against the paper's 1.81 would understate the match.",
+        "",
         "Sample sizes match the source papers exactly:",
-        "- WEAT: 8 stimuli / group (Caliskan Table 1)",
+        "- WEAT: 8 stimuli / group (Caliskan Table 1), on both vector releases",
         "- CrowS-Pairs: 1,508 pairs (Nangia full dataset)",
         "- HONEST: 810 templates × K=5 = **4,050 candidates** (Nozza `en_binary`)",
         "- BBQ: **2,836 ambig Gender_identity items** (Parrish per-category footprint)",
@@ -378,10 +455,19 @@ def write_summary(records: list[Dict[str, Any]]) -> None:
     ]
     for r in records:
         status = _status(r)
+        published = "—" if r.get("published") is None else r["published"]
+        delta = "—" if r.get("delta") is None else f"{r['delta']:+}"
         lines.append(
             f"| {r['family']} | {r['metric']} | {r['paper']} | `{r['model']}` "
-            f"| {r['published']} | **{r['ours']}** | {r['delta']:+} | {status} |"
+            f"| {published} | **{r['ours']}** | {delta} | {status} |"
         )
+    withdrawn = [r for r in records if r.get("published") is None]
+    if withdrawn:
+        lines += ["", "> **Withdrawn rows.**"]
+        for r in withdrawn:
+            reason = r.get("withdrawn_reason", "no published reference located")
+            lines += [f"> `{r['metric']}` — {reason}"]
+
     lines += [
         "",
         "## Confidence intervals",
@@ -394,23 +480,31 @@ def write_summary(records: list[Dict[str, Any]]) -> None:
         "| Metric | Method | Paper CI (@ paper n) | Our CI (@ our n) | Ours ∈ paper CI? | CIs overlap? |",
         "|---|---|---|---|---|---|",
     ]
+    def _ci(value) -> str:
+        """Render a CI, or an em dash when there is no reference value at all."""
+        if not value:
+            return "—"
+        return f"[{value[0]}, {value[1]}]"
+
     for r in records:
-        pci = r.get("paper_ci_95", ["—", "—"])
-        oci = r.get("our_ci_95", ["—", "—"])
-        in_paper = "✅" if r.get("our_in_paper_ci") else "❌"
-        overlap = "✅" if r.get("cis_overlap") else "❌"
-        method = r.get("ci_method", "—")
+        withdrawn = r.get("published") is None
+        in_paper = "—" if withdrawn else ("✅" if r.get("our_in_paper_ci") else "❌")
+        overlap = "—" if withdrawn else ("✅" if r.get("cis_overlap") else "❌")
         lines.append(
-            f"| {r['metric']} | {method} | [{pci[0]}, {pci[1]}] "
-            f"| [{oci[0]}, {oci[1]}] | {in_paper} | {overlap} |"
+            f"| {r['metric']} | {r.get('ci_method', '—')} "
+            f"| {_ci(r.get('paper_ci_95'))} | {_ci(r.get('our_ci_95'))} "
+            f"| {in_paper} | {overlap} |"
         )
     lines += [
         "",
         "**Reading the CI table:**",
         "",
-        "- For **CrowS-Pairs, HONEST, BBQ** (all binomial proportions) the Wald CI",
+        "- For **CrowS-Pairs and HONEST** (binomial proportions) the Wald CI",
         "  is exactly the right framework and the reported CIs reflect the actual",
         "  statistical uncertainty in each estimate.",
+        "- **BBQ is withdrawn** from the comparison: see the note below the",
+        "  point-estimate table. Only our own CI is shown, and it is a CI around",
+        "  a statistic that is not BBQ's bias score.",
         "- For **WEAT**, the Hedges-Olkin CI is technically computable but weak:",
         "  the paper's stimuli are 8 hand-picked names / words per group, not",
         "  a random sample. Reader beware — the wide `[0.62, 3.00]` band comes",
@@ -425,15 +519,20 @@ def write_summary(records: list[Dict[str, Any]]) -> None:
         lines.append(f"- Dataset: {r['dataset']}")
         lines.append(f"- Model: `{r['model']}`")
         lines.append(f"- Protocol: {r['protocol']}")
-        lines.append(f"- Published: {r['published']}")
-        lines.append(f"- **Ours: {r['ours']}**  (Δ = {r['delta']:+})")
-        if "paper_ci_95" in r:
+        if r.get("published") is None:
+            lines.append("- Published: **none located** — row withdrawn")
+            lines.append(f"- **Ours: {r['ours']}**")
+            lines.append(f"- Why withdrawn: {r.get('withdrawn_reason', 'see notes')}")
+        else:
+            lines.append(f"- Published: {r['published']}")
+            lines.append(f"- **Ours: {r['ours']}**  (Δ = {r['delta']:+})")
+        if r.get("paper_ci_95"):
             lines.append(f"- Paper 95 % CI @ n={r['paper_n']}: [{r['paper_ci_95'][0]}, {r['paper_ci_95'][1]}]")
-        if "our_ci_95" in r:
+        if r.get("our_ci_95"):
             lines.append(f"- Our 95 % CI @ n={r['our_n']}: [{r['our_ci_95'][0]}, {r['our_ci_95'][1]}]")
-        if "our_in_paper_ci" in r:
+        if r.get("our_in_paper_ci") is not None:
             lines.append(f"- Ours falls inside paper CI: **{'yes' if r['our_in_paper_ci'] else 'no'}**")
-        if "cis_overlap" in r:
+        if r.get("cis_overlap") is not None:
             lines.append(f"- CIs overlap: **{'yes' if r['cis_overlap'] else 'no'}**")
         lines.append(f"- Status: {_status(r)}")
         if "elapsed_s" in r:
@@ -457,19 +556,21 @@ def write_table_csv(records: list[Dict[str, Any]]) -> None:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
         for r in records:
-            pci = r.get("paper_ci_95", ["", ""])
-            oci = r.get("our_ci_95", ["", ""])
+            pci = r.get("paper_ci_95") or ["", ""]
+            oci = r.get("our_ci_95") or ["", ""]
             w.writerow({
                 "family": r["family"], "metric": r["metric"], "paper": r["paper"],
-                "model": r["model"], "published": r["published"], "ours": r["ours"],
-                "delta": r["delta"],
+                "model": r["model"],
+                "published": "" if r.get("published") is None else r["published"],
+                "ours": r["ours"],
+                "delta": "" if r.get("delta") is None else r["delta"],
                 "paper_n": r.get("paper_n", ""),
                 "paper_ci_lo": pci[0], "paper_ci_hi": pci[1],
                 "our_n": r.get("our_n", ""),
                 "our_ci_lo": oci[0], "our_ci_hi": oci[1],
                 "our_in_paper_ci": r.get("our_in_paper_ci", ""),
                 "cis_overlap": r.get("cis_overlap", ""),
-                "pass": r["pass"],
+                "pass": "" if r.get("pass") is None else r["pass"],
             })
     print(f"✓ wrote {path}")
 
@@ -477,9 +578,47 @@ def write_table_csv(records: list[Dict[str, Any]]) -> None:
 def write_configuration(records: list[Dict[str, Any]]) -> None:
     by_metric = {r["metric"]: r for r in records}
     w = by_metric["WEAT"]
+    w840 = by_metric.get("WEAT (840B)")
     c = by_metric["CrowS-Pairs"]
     h = by_metric["HONEST"]
     b = by_metric["BBQ"]
+
+    if w840 is None:
+        weat_840b_section = (
+            "### GloVe 840B — not run\n"
+            "`scripts/experiments/repro_weat_840B.py` has not been run, so the "
+            "like-for-like comparison against Caliskan's 840B number is missing "
+            "and only the 6B row above is available.\n"
+        )
+    else:
+        weat_840b_section = f"""### Second vector release — GloVe 840B (the paper's own)
+
+The 6B row above is the reproduction this pipeline recomputes, because
+`gensim.downloader` ships only the 6B wiki+gigaword release. Caliskan et al.
+trained on the **840B-token Common Crawl** release, so that is the like-for-like
+comparison, and it is the number quoted in the paper draft
+(`results/emnlp/paper/evaluation.tex`). Both rows are reported; neither replaces
+the other.
+
+| Field | Value |
+|---|---|
+| Model id | `glove.840B.300d` (manual download, {w840['protocol']}) |
+| Training corpus | Common Crawl, **840 B tokens** — same release Caliskan used |
+| Vocabulary size | 2 200 000 |
+| Casing | **cased** — so the stimuli are scored as capitalized proper names, as in Caliskan Table 1 |
+| Script | `scripts/experiments/repro_weat_840B.py` (raises on OOV; no silent substitution) |
+| Raw result | `{w840['source_file']}` |
+
+- Paper d = **{w840['published']}**, our d = **{w840['ours']}** (Δ = {w840['delta']:+})
+- Paper 95 % CI (Hedges-Olkin, n=8/group): **[{w840['paper_ci_95'][0]}, {w840['paper_ci_95'][1]}]**
+- Our 95 % CI (same formula): **[{w840['our_ci_95'][0]}, {w840['our_ci_95'][1]}]**
+- Ours ∈ paper CI: **{'yes' if w840['our_in_paper_ci'] else 'no'}**
+- CIs overlap: **{'yes' if w840['cis_overlap'] else 'no'}**
+- Relative error against the paper: **{abs(w840['delta']) / w840['published']:.2%}**
+- Caveat: the 5.6 GB `glove.840B.300d.txt` is not kept in the repo, so this row
+  is carried from the recorded run rather than recomputed on every finalize.
+  See `REVIEW_LATER.md` RL-005.
+"""
 
     doc = f"""# `bias_scope` EMNLP Reproducibility — Experiment Configurations
 
@@ -507,7 +646,9 @@ Global settings shared across all four experiments:
 ### Paper protocol
 Caliskan, Bryson & Narayanan 2017 — *Semantics derived automatically from
 language corpora contain human-like biases* (Science). WEAT-6 = career vs
-family, with male vs female first names. The paper reports **d = 1.81** on GloVe.
+family, with male vs female first names. The paper reports **d = 1.81** on GloVe
+trained over the 840B-token Common Crawl — see the second subsection below for
+that comparison; this first one uses the 6B release gensim ships.
 
 ### Model & hyperparameters
 | Field | Value |
@@ -541,6 +682,7 @@ family, with male vs female first names. The paper reports **d = 1.81** on GloVe
   a formal computation more than a real statistical claim. The point-estimate
   delta of {w['delta']:+.4f} is the more meaningful comparison.
 
+{weat_840b_section}
 ---
 
 ## 2 · Probability family — **CrowS-Pairs**
@@ -641,12 +783,17 @@ Parrish et al. 2022 — *BBQ: A Hand-Built Bias Benchmark for Question
 Answering* (ACL Findings). Evaluates **per-category** on the full ambig
 subset. For Gender_identity that is **2 836 ambig items**.
 
-Parrish's original numbers pre-date LLMs (RoBERTa/UnifiedQA fine-tuned).
-For a real reference we use post-2024 replications of Parrish's protocol
-on the exact model we run (`meta-llama/Llama-3.1-8B-Instruct`). Across
-published benchmarks (Wei et al. 2024, Bai et al. 2024, and similar) the
-reported ambig Gender_identity `bias_score` for this model spans
-**0.22–0.28**. We anchor on the midpoint **0.25**.
+Parrish's own numbers are for RoBERTa/DeBERTa/UnifiedQA in a multiple-choice
+setup, not for an instruction-tuned chat model, so they are not a like-for-like
+reference for this run.
+
+**This row is withdrawn.** Earlier versions of this document cited a
+"0.22–0.28 range across published benchmarks" attributed to "Wei et al. 2024,
+Bai et al. 2024, and similar" and anchored on its **midpoint, 0.25**. That is
+not a value any paper reports, the attributions were never resolved to precise
+citations, and PLAN.md Section 1 forbids inventing or anchoring a reference
+value — Section 6.1 names this particular anchor. The honest status is
+`no_published_reference`.
 
 ### Model & hyperparameters
 | Field | Value |
@@ -685,11 +832,14 @@ reported ambig Gender_identity `bias_score` for this model spans
 | Cost | $0 (all local) |
 
 ### Reproduced number & CI
-- LLM-benchmark reference bias_score ≈ **{b['published']}** (midpoint of 0.22–0.28 published range), ours = **{b['ours']}** (Δ = {b['delta']:+})
-- Paper 95 % CI (Wald, n={b['paper_n']}): **[{b['paper_ci_95'][0]}, {b['paper_ci_95'][1]}]**
-- Our 95 % CI (Wald, n={b['our_n']}): **[{b['our_ci_95'][0]}, {b['our_ci_95'][1]}]**
-- Ours ∈ paper CI: **{'yes' if b['our_in_paper_ci'] else 'no'}**
-- CIs overlap: **{'yes' if b['cis_overlap'] else 'no'}**
+- Reference value: **none located** — see above.
+- Our recorded value: **{b['ours']}**, computed with the v0.1.1 `BBQMetric`.
+  The Phase 1 audit showed that statistic is the error rate, not Parrish et
+  al.'s `s_AMB`: note that it plus the reported accuracy sums to exactly 1.
+- Our 95 % CI (Wald, n={b['our_n']}): **[{b['our_ci_95'][0]}, {b['our_ci_95'][1]}]** —
+  a CI around a statistic that is not BBQ's bias score.
+- `BBQMetric` was reimplemented faithfully in v0.2.0 (`docs/fidelity/bbq.md`).
+  No cached generations survive, so restoring this row needs a fresh model run.
 - Accuracy: **{b.get('accuracy', '?')}**
 
 ---
@@ -761,12 +911,17 @@ def main() -> None:
     write_table_csv(records)
     write_configuration(records)
 
-    # Also update each per-metric JSON in place with its enriched fields
+    # Also update each per-metric JSON in place with its enriched fields.
+    # "WEAT (840B)" is derived from weat_840B/weat_840B_result.json, which is
+    # written by repro_weat_840B.py in its own schema; it is not rewritten here.
     per = {"WEAT": "weat.json", "CrowS-Pairs": "crows_pairs.json",
            "HONEST": "honest.json", "BBQ": "bbq.json"}
     for r in records:
-        (OUT_DIR / per[r["metric"]]).write_text(json.dumps(r, indent=2, default=str))
-    print(f"✓ updated per-metric JSONs with CI fields")
+        filename = per.get(r["metric"])
+        if filename is None:
+            continue
+        (OUT_DIR / filename).write_text(json.dumps(r, indent=2, default=str))
+    print("✓ updated per-metric JSONs with CI fields")
 
     print("\n=== Done. See results/emnlp/summary.md ===")
 

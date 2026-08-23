@@ -3,8 +3,6 @@
 from collections import Counter
 from typing import Callable, Dict, List, Optional, Sequence
 
-import numpy as np
-
 from bias_scope.base import GeneratedTextMetric
 from bias_scope.generated_text_based._helpers import (
     compute_log_odds_with_prior,
@@ -57,7 +55,7 @@ class MarkedPersons(GeneratedTextMetric):
     ...     print(f"  {term_info.get('term')}: z={term_info.get('z'):.2f}")
     """
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         marked_generations: Sequence[str],
         unmarked_generations: Sequence[str],
@@ -66,6 +64,7 @@ class MarkedPersons(GeneratedTextMetric):
         min_count: int = 5,
         return_top_k: int = 50,
         tokenizer: Optional[Callable[[str], List[str]]] = None,
+        background_generations: Optional[Sequence[str]] = None,
         return_details: bool = False,
     ) -> Dict:
         """
@@ -78,6 +77,13 @@ class MarkedPersons(GeneratedTextMetric):
             min_count (int): Minimum total occurrences to include term (default: 5)
             return_top_k (int): Number of top terms to return (default: 50)
             tokenizer (Optional[Callable]): Custom tokenizer function (default: built-in)
+            background_generations (Optional[Sequence[str]]): External corpus used
+                as the Dirichlet-prior background. If ``None`` (default), the
+                background is inferred from ``marked_generations`` ∪
+                ``unmarked_generations`` — this is Monroe et al. (2008)'s
+                original formulation. To reproduce Cheng et al. (2023) Marked
+                Personas Table 1, pass the full generation corpus (across all
+                demographic groups) here.
 
         Returns:
             Dict: Results including top marked/unmarked terms and statistics
@@ -166,13 +172,30 @@ class MarkedPersons(GeneratedTextMetric):
         n_marked = len(marked_tokens)
         n_unmarked = len(unmarked_tokens)
 
-        # Combine to get background counts
-        all_vocab = set(marked_counts.keys()) | set(unmarked_counts.keys())
-        background_counts = Counter()
-        for word in all_vocab:
-            background_counts[word] = marked_counts.get(word, 0) + unmarked_counts.get(
-                word, 0
+        # Background counts drive the Dirichlet prior.
+        # Default (Monroe 2008): background = marked ∪ unmarked.
+        # Cheng 2023 style: background = an externally supplied corpus (e.g., the
+        # full generation set across all demographic groups).
+        if background_generations is not None:
+            background_list = self._validate_texts(
+                background_generations, "background_generations"
             )
+            background_tokens: List[str] = []
+            for text in background_list:
+                background_tokens.extend(tokenize_fn(text))
+            background_counts = Counter(background_tokens)
+            all_vocab = (
+                set(marked_counts.keys())
+                | set(unmarked_counts.keys())
+                | set(background_counts.keys())
+            )
+        else:
+            all_vocab = set(marked_counts.keys()) | set(unmarked_counts.keys())
+            background_counts = Counter()
+            for word in all_vocab:
+                background_counts[word] = (
+                    marked_counts.get(word, 0) + unmarked_counts.get(word, 0)
+                )
 
         # Compute prior mass
         total_bg_count = sum(background_counts.values())

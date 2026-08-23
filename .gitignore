@@ -118,3 +118,24 @@ ENV/
 
 # HuggingFace cache
 .hf_cache*/
+
+# ── v0.2 (PLAN.md Section 4.0) ────────────────────────────────────────
+# Retrieved papers and cloned reference implementations: copyright and size.
+# sources/SOURCES.yaml and docs/fidelity/ are the committed evidence.
+sources/papers/
+# `third_party/*` rather than `third_party/`: git cannot re-include a file
+# inside an excluded directory, and LICENSES.md must stay committed.
+third_party/*
+!third_party/LICENSES.md
+
+# Generation cache (PLAN.md Section 1: regenerable from the protocol hash)
+cache/
+!cache/.gitkeep
+
+# Large artefacts under results/. The JSON, markdown, and figures in results/
+# ARE committed — Section 11 depends on them; only weights and vectors are not.
+# See REVIEW_LATER.md RL-007.
+*.tar
+pytorch_model.bin
+optimizer.pt
+glove.*.txt

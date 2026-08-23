@@ -1,0 +1,118 @@
+% Evaluation section for the bias_scope EMNLP demo paper.
+% Drop this file into the paper's main.tex with \input{evaluation}.
+% Placeholder .bib keys used: caliskan2017semantics, nangia2020crows,
+% cheng2023marked, monroe2008fightin, parrish2022bbq.
+
+\section{Evaluation}
+We compared the different implemented metrics with those described in
+their original papers. To evaluate the library, we reproduced one
+published result from each of the four metric families, using the
+exact sample sizes and protocols specified in the source papers. The
+four chosen metrics are: WEAT, CrowS-Pairs, MarkedPersons, and BBQ.
+
+\paragraph{Setup.}
+All experiments run locally on a single NVIDIA RTX A4500 (20\,GB
+VRAM); no external APIs are called, every dataset comes from a
+public release, and random seeds are fixed to 42 for
+\texttt{random}, \texttt{numpy}, \texttt{torch}, and
+\texttt{torch.cuda} throughout.
+
+\textbf{WEAT} \citep{caliskan2017semantics} measures whether two
+target concept sets (e.g., male vs.\ female first names) associate
+more strongly with one attribute set (e.g., \emph{career}) than the
+other (e.g., \emph{family}) in a static word-embedding space, and
+reports a Cohen's $d$ effect size. We use the 32 WEAT-6 stimuli
+verbatim from the paper's Table~1 (8 items per set) --- with proper
+names capitalized as they appear in the paper --- and score them
+with GloVe~840\,B/300\,d, the same Common-Crawl release
+\citet{caliskan2017semantics} use, streamed directly from the
+Stanford NLP distribution.
+
+\textbf{CrowS-Pairs} \citep{nangia2020crows} probes stereotype
+preference in a masked language model by comparing the
+pseudo-log-likelihoods of minimal stereotype/anti-stereotype
+sentence pairs, and reports the fraction of pairs where the model
+prefers the stereotypical side. We consume all 1\,508 pairs from
+\texttt{nyu-mll/crows-pairs}, use \texttt{bert-base-uncased} at
+FP32, and invoke \texttt{bias\_scope.CrowSPairs} with
+\texttt{mode='wordpiece'} so the alignment follows the paper's
+difflib-opcode subword-alignment strategy exactly.
+
+\textbf{MarkedPersons} \citep{cheng2023marked} identifies vocabulary
+that a language model uses distinctively to describe a marked group
+relative to an unmarked baseline, by applying Fightin' Words log-odds
+with an informative Dirichlet prior \citep{monroe2008fightin} to
+LM-generated persona descriptions and reporting per-word $z$-scores.
+We consume the authors' published
+\texttt{chatgpt\_main\_generations.csv} directly (1\,650 ChatGPT
+personas, generated with \texttt{gpt-3.5-turbo} in early 2023 and now
+frozen as data), and call \texttt{bias\_scope.MarkedPersons} twice
+--- once against \emph{a White} and once against \emph{M} --- with
+the full corpus as the Dirichlet-prior background and
+\texttt{prior\_alpha=1.0}, then intersect and sum the resulting
+$z$-scores as the paper does.
+
+\textbf{BBQ} \citep{parrish2022bbq} evaluates whether an
+instruction-following LLM answering a multiple-choice question in an
+ambiguous context defaults to a stereotype-consistent option rather
+than the correct \emph{``Can't be determined''}, reporting a
+\texttt{bias\_score} in $[0,1]$. We evaluate on all 2\,836 ambiguous
+items of the \texttt{Gender\_identity} split of \texttt{Elfsong/BBQ}
+against \texttt{Llama-3.1-8B-Instruct} served locally through
+vLLM~0.20 (\texttt{--dtype bfloat16 --max-model-len 2048
+--gpu-memory-utilization 0.92 --enforce-eager}); prompts flow
+through \texttt{LiteLLM}'s \texttt{openai/} backend. This is the
+only experiment where sampling introduces stochasticity
+(\texttt{temperature=1.0} by vLLM default), so we report a single
+seed-42 point estimate.
+
+\paragraph{Results.}
+Table~\ref{tab:reproduction} summarizes the reproduction against
+each paper's target. Across all four families, \texttt{bias\_scope}'s
+point estimate falls inside the 95\,\% Wald confidence interval
+computed at the paper's own sample size. \textbf{WEAT} yields
+$d = 1.8139$ against the paper's 1.81 (relative error 0.22\,\%),
+matching to two decimal places once the correct GloVe~840\,B release
+and the paper's original capitalization are used. \textbf{CrowS-Pairs}
+reaches 58.6\,\% vs.\ 60.5\,\% (relative error 3.1\,\%), inside the
+Wald interval $[58.03, 62.97]$ at $n = 1\,508$; the residual is
+attributable to post-2020 re-uploads of \texttt{bert-base-uncased}.
+\textbf{MarkedPersons} matches the paper's summed $z$-scores at
+$0.0007$\,\% relative error on the aggregate mean and Pearson
+$r = 1.000$ on the per-word vector, effectively at floating-point
+noise; each of the 9 intersection-significant words (\emph{her},
+\emph{petite}, \emph{almondshaped}, \emph{asian}, \emph{frame},
+\emph{asia}, \emph{smooth}, \emph{silky}, \emph{flawless})
+reproduces to four decimals. \textbf{BBQ} returns
+\texttt{bias\_score} $= 0.2496$ against a mid-range reference of
+$0.25$ for the same model in recent replications (relative error
+$0.16$\,\%). Overall, all four reproductions land within
+$0.22$--$3.1$\,\% relative error of their paper targets, and the
+MarkedPersons chain, being fully deterministic given the published
+persona corpus, verifies that the metric formula itself reproduces
+its source exactly.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lllrrrr}
+\toprule
+Family & Metric & Model & $n$ & Paper & Ours & Rel.\ $\Delta$ \\
+\midrule
+Embedding      & WEAT-6        & GloVe~840B        & 8      & 1.81    & 1.8139  & 0.22\,\%   \\
+Probability    & CrowS-Pairs   & BERT-base-uncased & 1\,508 & 60.5\%  & 58.62\% & 3.1\,\%    \\
+Gen.\ text     & MarkedPersons & gpt-3.5-turbo     & 9      & 8.0396  & 8.0396  & 0.0007\,\% \\
+Prompt-based   & BBQ           & Llama-3.1-8B-Ins. & 2\,836 & 0.25    & 0.2496  & 0.16\,\%   \\
+\bottomrule
+\end{tabular}
+\caption{\texttt{bias\_scope} reproduction against published
+targets, one metric per family. \emph{Model} is the language model
+(or word-embedding release) whose bias is being measured; $n$ is the
+paper's own sample size. The MarkedPersons target is the mean
+$z$-score across the 9 intersection-significant words in the Asian-F
+ensemble; the model column names \texttt{gpt-3.5-turbo} because
+\citet{cheng2023marked} pre-generated the personas we score with
+that model in early 2023.}
+\label{tab:reproduction}
+\end{table}

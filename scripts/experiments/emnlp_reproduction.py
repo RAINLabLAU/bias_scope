@@ -148,9 +148,10 @@ def run_weat() -> Dict[str, Any]:
         "model": GLOVE,
         "protocol": "GloVe 6B/300d, real vectors via gensim",
         "published": PUBLISHED,
+        "status": "no_published_reference" if PUBLISHED is None else "pending",
         "ours": round(d, 4),
-        "delta": round(delta, 4),
-        "pass": bool(passed),
+        "delta": None if delta is None else round(delta, 4),
+        "pass": None if passed is None else bool(passed),
         "elapsed_s": round(eval_s, 3),
     }
     _save_json(OUT_DIR / "weat.json", result)
@@ -193,7 +194,7 @@ def run_crows_pairs() -> Dict[str, Any]:
     eval_s = time.perf_counter() - t0
 
     ours = float(details["crows_pairs_score"]) * 100
-    delta = ours - PUBLISHED
+    delta = None if PUBLISHED is None else ours - PUBLISHED
     passed = abs(delta) <= 2.0
     log(
         f"score = {ours:.2f}%  published = {PUBLISHED}  Δ = {delta:+.2f} pts  "
@@ -210,6 +211,7 @@ def run_crows_pairs() -> Dict[str, Any]:
         "model": BERT,
         "protocol": "mode='wordpiece' (WordPiece PLL, difflib subword alignment)",
         "published": PUBLISHED,
+        "status": "no_published_reference" if PUBLISHED is None else "pending",
         "ours": round(ours, 2),
         "delta": round(delta, 2),
         "pass": bool(passed),
@@ -300,7 +302,7 @@ def run_honest() -> Dict[str, Any]:
     eval_s = time.perf_counter() - t0
 
     ours = float(result_dict["honest_score"])
-    delta = ours - PUBLISHED
+    delta = None if PUBLISHED is None else ours - PUBLISHED
     passed = abs(delta) <= 0.05
     log(f"HONEST = {ours:.4f}  published ~ {PUBLISHED}  Δ = {delta:+.4f}  → {'PASS' if passed else 'MISS'}")
 
@@ -313,9 +315,10 @@ def run_honest() -> Dict[str, Any]:
         "model": "gpt2",
         "protocol": f"HurtLex-EN conservative × 13 derogatory categories ({len(hurtlex)} lemmas)",
         "published": PUBLISHED,
+        "status": "no_published_reference" if PUBLISHED is None else "pending",
         "ours": round(ours, 4),
-        "delta": round(delta, 4),
-        "pass": bool(passed),
+        "delta": None if delta is None else round(delta, 4),
+        "pass": None if passed is None else bool(passed),
         "elapsed_s": round(gen_s + eval_s, 2),
         "peak_vram_gb": round(peak_gb, 2),
     }
@@ -333,10 +336,14 @@ def run_bbq() -> Dict[str, Any]:
     lines: list[str] = []
     log = lambda m: _log("BBQ", m, lines)
 
-    # Full-precision Llama-3.1-8B-Instruct on ambig Gender_identity is reported
-    # in the 0.22–0.28 range across post-2024 LLM-BBQ benchmarks (Wei et al. 2024,
-    # Bai et al. 2024, and similar). We anchor on the midpoint = 0.25.
-    PUBLISHED = 0.25
+    # NO PUBLISHED REFERENCE. Earlier versions anchored on 0.25, "the midpoint
+    # of a 0.22-0.28 range across post-2024 LLM-BBQ benchmarks", attributed to
+    # sources that were never resolved to precise citations. PLAN.md Section 1
+    # forbids inventing or anchoring a published value and Section 6.1 names
+    # this anchor specifically, so the reference is recorded as absent.
+    # Parrish et al.'s own tables are for RoBERTa/DeBERTa/UnifiedQA in a
+    # multiple-choice setup, not an instruction-tuned chat model.
+    PUBLISHED = None
     MODEL = "meta-llama/Llama-3.1-8B-Instruct"
     # Parrish et al. 2022 report per-category ambig results over the full
     # ambig subset. For Gender_identity that is 2,836 items — matching the
@@ -359,11 +366,16 @@ def run_bbq() -> Dict[str, Any]:
 
     bias = float(result_dict["bias_score"])
     acc = float(result_dict["accuracy"])
-    delta = bias - PUBLISHED
-    passed = abs(delta) <= 0.10  # within 10 pts of the 8B-LLM band
+    delta = None if PUBLISHED is None else bias - PUBLISHED
+    passed = None if PUBLISHED is None else abs(delta) <= 0.10
 
     log(f"bias_score = {bias:.4f}  accuracy = {acc:.4f}")
-    log(f"published band (8B LLM) ~ {PUBLISHED}  Δ = {delta:+.4f}  → {'PASS' if passed else 'MISS'}")
+    if PUBLISHED is None:
+        log("no published reference located — row recorded as "
+            "no_published_reference, not compared")
+    else:
+        log(f"published {PUBLISHED}  Δ = {delta:+.4f}  "
+            f"→ {'PASS' if passed else 'MISS'}")
 
     _write_log("bbq", lines)
     result = {
@@ -374,9 +386,10 @@ def run_bbq() -> Dict[str, Any]:
         "model": MODEL,
         "protocol": "zero-shot A/B/C free-form via local vLLM BF16 (no quantization)",
         "published": PUBLISHED,
+        "status": "no_published_reference" if PUBLISHED is None else "pending",
         "ours": round(bias, 4),
-        "delta": round(delta, 4),
-        "pass": bool(passed),
+        "delta": None if delta is None else round(delta, 4),
+        "pass": None if passed is None else bool(passed),
         "accuracy": round(acc, 4),
         "cost_usd": 0.0,
         "elapsed_s": round(eval_s, 2),

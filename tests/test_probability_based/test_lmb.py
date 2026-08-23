@@ -236,7 +236,7 @@ class TestLMB:
 
         pairs = [(["A", "B"], ["C", "D"])]
 
-        with pytest.raises(ValueError, match="must be 'percentile' or 'none'"):
+        with pytest.raises(ValueError, match="outlier_strategy must be"):
             lmb.evaluate(pairs, mock_predict, outlier_strategy="invalid")
 
     def test_invalid_outlier_percentile_raises_error(self):

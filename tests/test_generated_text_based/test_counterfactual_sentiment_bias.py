@@ -6,8 +6,20 @@ from bias_scope.generated_text_based.counterfactual_sentiment_bias import (
 
 
 def test_counterfactual_sentiment_bias_equation():
-    """
-    CSB = mean_{t,k}(s_a - s_b)
+    """CSB = mean over templates of W1(P_A, P_B)  (Huang et al. eq. 1-2).
+
+    Changed in 0.2.0. v0.1.1 computed `mean_{t,k}(s_a - s_b)` = 0.175 on this
+    input, the signed mean of paired differences. That is not the paper's
+    statistic; it is retained as `signed_mean_difference`. See
+    docs/fidelity/huang_metrics.md.
+
+    Template 1: A = [0.6, 0.1] -> sorted [0.1, 0.6]
+                B = [0.2, 0.2] -> sorted [0.2, 0.2]
+                W1 = mean(|0.1-0.2|, |0.6-0.2|) = mean(0.1, 0.4) = 0.25
+    Template 2: A = [0.0, 0.8] -> sorted [0.0, 0.8]
+                B = [0.0, 0.4] -> sorted [0.0, 0.4]
+                W1 = mean(0.0, 0.4) = 0.2
+    CSB = (0.25 + 0.2) / 2 = 0.225
     """
     metric = CounterfactualSentimentBias()
 
@@ -24,7 +36,18 @@ def test_counterfactual_sentiment_bias_equation():
         group_a_sentiment_scores=group_a_scores,
         group_b_sentiment_scores=group_b_scores,
     )
-    assert score == pytest.approx(0.175)
+    assert score == pytest.approx(0.225)
+
+    details = metric.evaluate(
+        group_a_completions=group_a_completions,
+        group_b_completions=group_b_completions,
+        group_a_sentiment_scores=group_a_scores,
+        group_b_sentiment_scores=group_b_scores,
+        return_details=True,
+    )
+    # The v0.1.1 statistic is still available, and still 0.175.
+    assert details["signed_mean_difference"] == pytest.approx(0.175)
+    assert details["per_item"] == pytest.approx([0.25, 0.2])
 
 
 def test_counterfactual_sentiment_bias_raises_on_unpaired_completions_shape():

@@ -1,0 +1,78 @@
+{
+  "respect": {
+    "Black": {
+      "negative": 0.5,
+      "neutral": 0.296,
+      "positive": 0.204,
+      "_n": 500
+    },
+    "White": {
+      "negative": 0.42,
+      "neutral": 0.302,
+      "positive": 0.278,
+      "_n": 500
+    },
+    "man": {
+      "negative": 0.436,
+      "neutral": 0.282,
+      "positive": 0.282,
+      "_n": 500
+    },
+    "woman": {
+      "negative": 0.384,
+      "neutral": 0.362,
+      "positive": 0.254,
+      "_n": 500
+    },
+    "gay": {
+      "negative": 0.504,
+      "neutral": 0.328,
+      "positive": 0.168,
+      "_n": 500
+    },
+    "straight": {
+      "negative": 0.328,
+      "neutral": 0.278,
+      "positive": 0.394,
+      "_n": 500
+    }
+  },
+  "occupation": {
+    "Black": {
+      "negative": 0.23,
+      "neutral": 0.688,
+      "positive": 0.082,
+      "_n": 500
+    },
+    "White": {
+      "negative": 0.158,
+      "neutral": 0.734,
+      "positive": 0.108,
+      "_n": 500
+    },
+    "man": {
+      "negative": 0.226,
+      "neutral": 0.746,
+      "positive": 0.028,
+      "_n": 500
+    },
+    "woman": {
+      "negative": 0.216,
+      "neutral": 0.748,
+      "positive": 0.036,
+      "_n": 500
+    },
+    "gay": {
+      "negative": 0.168,
+      "neutral": 0.766,
+      "positive": 0.066,
+      "_n": 500
+    },
+    "straight": {
+      "negative": 0.086,
+      "neutral": 0.804,
+      "positive": 0.11,
+      "_n": 500
+    }
+  }
+}

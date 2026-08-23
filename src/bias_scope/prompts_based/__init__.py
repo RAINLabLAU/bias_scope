@@ -8,21 +8,30 @@ from __future__ import annotations
 
 from importlib import import_module
 
-
 _PROMPT_EXPORTS = {
     "AnalogicalReasoningBias": "bias_scope.prompts_based.analogical_reasoning_bias",
     "BBQMetric": "bias_scope.prompts_based.bbq",
     "BOLD": "bias_scope.prompts_based.bold",
-    "CounterfactualFairness": "bias_scope.prompts_based.counterfactual_fairness",
-    "DemographicRepresentationBias": (
-        "bias_scope.prompts_based.demographic_representation_bias"
-    ),
+    "FirstPersonFairness": "bias_scope.prompts_based.first_person_fairness",
+    "IdentitySwapConsistency": "bias_scope.prompts_based.identity_swap_consistency",
+    "OccupationPronounSkew": "bias_scope.prompts_based.occupation_pronoun_skew",
+    "WinoBias": "bias_scope.prompts_based.winobias",
+    "ImplicitAssociationTest": "bias_scope.prompts_based.implicit_association",
+    "LLMDecisionBias": "bias_scope.prompts_based.implicit_association",
+    "DiscrimEval": "bias_scope.prompts_based.discrim_eval",
+    "DecodingTrustStereotype": "bias_scope.prompts_based.decodingtrust",
+    "DecodingTrustFairness": "bias_scope.prompts_based.decodingtrust",
+    "PoliticalEvenHandedness": "bias_scope.prompts_based.political_even_handedness",
     "OpinionConsistencyAcrossPersonas": (
         "bias_scope.prompts_based.opinion_consistency_across_personas"
     ),
     "RealToxicityPrompts": "bias_scope.prompts_based.realtoxicityprompts",
     "StereoSetMetric": "bias_scope.prompts_based.stereoset",
     "TofNof": "bias_scope.prompts_based.tof_nof",
+    "TrustLLMStereotypeRecognition": "bias_scope.prompts_based.trustllm",
+    "TrustLLMStereotypeAgreement": "bias_scope.prompts_based.trustllm",
+    "TrustLLMDisparagement": "bias_scope.prompts_based.trustllm",
+    "TrustLLMPreference": "bias_scope.prompts_based.trustllm",
     "TruthfulQA": "bias_scope.prompts_based.truthfulqa",
     "UnQoverMetric": "bias_scope.prompts_based.unqover",
 }
@@ -48,7 +57,24 @@ def _optional_prompt_dependency_stub(class_name: str, original_error: ImportErro
     return _MissingPromptDependency
 
 
+#: Renamed in 0.2.0. The old name stays importable and raises a
+#: DeprecationWarning (PLAN.md Section 1). This is a pure rename — the
+#: statistic is unchanged — so the alias is safe; contrast LPBS, where the old
+#: name now means a different (correct) metric and no alias exists.
+_RENAMED = {
+    "DemographicRepresentationBias": "OccupationPronounSkew",
+    "CounterfactualFairness": "IdentitySwapConsistency",
+}
+
+
 def __getattr__(name: str):
+    if name in _RENAMED:
+        from bias_scope._deprecation import deprecated_alias
+
+        value = deprecated_alias(__getattr__(_RENAMED[name]), name)
+        globals()[name] = value
+        return value
+
     if name not in _PROMPT_EXPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -64,12 +90,27 @@ __all__ = [
     "AnalogicalReasoningBias",
     "BBQMetric",
     "BOLD",
-    "CounterfactualFairness",
-    "DemographicRepresentationBias",
+    "FirstPersonFairness",
+    "IdentitySwapConsistency",
+    "OccupationPronounSkew",
     "OpinionConsistencyAcrossPersonas",
     "RealToxicityPrompts",
     "StereoSetMetric",
     "TofNof",
+    "TrustLLMStereotypeRecognition",
+    "TrustLLMStereotypeAgreement",
+    "TrustLLMDisparagement",
+    "TrustLLMPreference",
     "TruthfulQA",
     "UnQoverMetric",
+    "WinoBias",
+    "ImplicitAssociationTest",
+    "LLMDecisionBias",
+    "DiscrimEval",
+    "DecodingTrustStereotype",
+    "DecodingTrustFairness",
+    "PoliticalEvenHandedness",
+    # Deprecated alias, removed in 0.3.0.
+    "DemographicRepresentationBias",
+    "CounterfactualFairness",
 ]

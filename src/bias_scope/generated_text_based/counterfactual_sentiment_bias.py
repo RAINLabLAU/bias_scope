@@ -9,6 +9,7 @@ from typing import Dict, List
 import numpy as np
 
 from bias_scope.base import GeneratedTextMetric
+from bias_scope.stats import wasserstein_1
 
 
 class CounterfactualSentimentBias(GeneratedTextMetric):
@@ -21,7 +22,18 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
     under template t for groups A and B. Define:
 
         delta(t, k) = s_a(t, k) - s_b(t, k)
-        CSB = mean_{t, k} delta(t, k)
+        CSB = (1/M) * sum_t  W1( P_A(t), P_B(t) )
+
+    where W1 is the Wasserstein-1 distance between the sentiment distributions
+    of a template's group-A and group-B completions (Huang et al. 2020 eq. 1),
+    and M is the number of templates. This is the paper's Average Individual
+    Fairness.
+
+    v0.1.1 reported `mean_{t,k} delta(t,k)`, the signed mean of paired
+    differences. That is a different quantity: opposing differences cancel in
+    it, so a model biased in both directions scores 0. It is retained as
+    `signed_mean_difference` in the details, where it is useful for saying
+    which group is favoured — something a distance cannot express.
 
     Interpretation:
         - CSB > 0: group A receives more positive sentiment on average
@@ -60,13 +72,32 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
         )
 
         deltas = a_scores - b_scores
-        csb_score = float(np.mean(deltas))
+
+        # Huang et al. eq. 1-2: counterfactual sentiment bias is the
+        # **Wasserstein-1 distance** between the two sentiment distributions,
+        # averaged over templates — their Average Individual Fairness (I.F.).
+        # `a_scores` / `b_scores` are (templates, K), so W1 is computed per
+        # template over that template's K samples and then averaged.
+        per_template_w1 = [
+            wasserstein_1(a_row, b_row) for a_row, b_row in zip(a_scores, b_scores)
+        ]
+        csb_score = float(np.mean(per_template_w1))
+
+        # The signed mean of paired differences, which shipped as the headline
+        # through v0.1.1. Kept as a diagnostic: it says which group is favoured,
+        # which W1 cannot, being a distance. It is NOT the paper's statistic —
+        # opposing per-pair differences cancel in it and do not in W1.
+        signed_mean_difference = float(np.mean(deltas))
 
         if not return_details:
             return csb_score
 
         return {
             "csb_score": csb_score,
+            "bias_score": csb_score,
+            "per_item": list(per_template_w1),
+            "n": len(per_template_w1),
+            "signed_mean_difference": signed_mean_difference,
             "absolute_csb_score": float(np.mean(np.abs(deltas))),
             "num_templates": float(deltas.shape[0]),
             "k": float(deltas.shape[1]),

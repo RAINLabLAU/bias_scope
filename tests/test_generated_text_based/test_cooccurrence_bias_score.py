@@ -1,8 +1,10 @@
 """Tests for CoOccurrenceBiasScore metric."""
 
-import pytest
 import json
+
 import numpy as np
+import pytest
+
 from bias_scope.generated_text_based import CoOccurrenceBiasScore
 
 

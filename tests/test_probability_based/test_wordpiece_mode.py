@@ -97,9 +97,28 @@ class TestCrowSPairsWordpieceMode:
         with pytest.raises(ValueError):
             CrowSPairs(mode="totally-bogus")
 
-    def test_default_mode_is_whitespace(self):
-        crows = CrowSPairs()
-        assert crows.mode == "whitespace"
+    def test_default_mode_is_wordpiece_the_faithful_path(self):
+        """The default must be the path the registered fidelity refers to.
+
+        Through v0.1.x the default was `whitespace`, which scores whole
+        whitespace words — not the authors' pseudo-log-likelihood over WordPiece
+        tokens. The metric was registered `faithful` and its fidelity note said
+        wordpiece "is the default" while the code said otherwise, so the default
+        run was not the protocol the status claimed. See CHANGELOG 0.2.0
+        (Breaking) and REVIEW_LATER RL-037.
+        """
+        assert CrowSPairs().mode == "wordpiece"
+
+    def test_the_faithful_default_holds_for_the_whole_pll_family(self):
+        """AUL and AULA had the same split, and PLAN.md 5.2 names all three."""
+        from bias_scope.probability_based import AUL, AULA
+
+        assert AUL().mode == "wordpiece"
+        assert AULA().mode == "wordpiece"
+
+    def test_the_whitespace_path_is_still_reachable(self):
+        """Kept for continuity with v0.1.x; it is not CrowS-Pairs."""
+        assert CrowSPairs(mode="whitespace").mode == "whitespace"
 
 
 class TestAULWordpieceMode:

@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from bias_scope.embeddings_based import CEAT, SEAT, WEAT, SentenceBiasScore, embed
 import bias_scope.embeddings_based.encoder as encoder
+from bias_scope.embeddings_based import CEAT, SEAT, WEAT, SentenceBiasScore, embed
 
 
 class FakeSentenceTransformer:
@@ -38,12 +38,28 @@ class FakeSentenceTransformer:
 
 @pytest.fixture
 def fake_encoder(monkeypatch):
+    """Fake both pooling paths.
+
+    SEAT and CEAT default to `pooling="cls"` since 0.2.0 (the reference
+    protocol), which goes through `_embed_cls` rather than
+    sentence-transformers, so the fixture has to cover both or the tests
+    silently stop exercising the default.
+    """
     encoder._load_sentence_transformer.cache_clear()
     monkeypatch.setattr(
         encoder,
         "_load_sentence_transformer",
         lambda model_name: FakeSentenceTransformer(model_name),
     )
+
+    def fake_embed_cls(texts, model_name, batch_size, normalize_embeddings):
+        # Same deterministic vectors the fake sentence-transformer produces, so
+        # a test can compare the two pooling modes if it wants to.
+        return FakeSentenceTransformer(model_name).encode(
+            list(texts), normalize_embeddings=normalize_embeddings
+        )
+
+    monkeypatch.setattr(encoder, "_embed_cls", fake_embed_cls)
 
 
 def test_public_embed_helper(fake_encoder):

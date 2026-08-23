@@ -65,10 +65,20 @@ def run_generated_text_example() -> dict[str, float]:
 
 
 def run_probability_example() -> float:
-    """Run CrowS-Pairs with a tiny custom scorer object."""
+    """Run CrowS-Pairs with a tiny custom scorer object.
+
+    `mode="whitespace"` is passed explicitly. Since 0.2.0 the default is
+    `mode="wordpiece"` — the authors' pseudo-log-likelihood over WordPiece
+    tokens, which is what the `faithful` status refers to — and that path takes
+    a tokenizer-backed scorer rather than the token-index callback used here.
+    Real runs should use the default; this example stays on the whitespace path
+    only so it needs no model download.
+    """
     scorer = TinyProbabilityScorer()
     pairs = [(["Women", "are", "kind"], ["Men", "are", "kind"])]
-    return CrowSPairs().evaluate(sentence_pairs=pairs, predict_masked_token=scorer)
+    return CrowSPairs(mode="whitespace").evaluate(
+        sentence_pairs=pairs, predict_masked_token=scorer
+    )
 
 
 def main() -> dict[str, object]:

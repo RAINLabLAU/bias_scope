@@ -11,7 +11,7 @@ class TestCrowSPairs:
 
     def test_basic_functionality(self):
         """Test with simple biased prediction function."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         # Mock prediction: biased toward stereotypes
         def biased_predict(sentence, pos):
@@ -32,7 +32,7 @@ class TestCrowSPairs:
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         # Mock prediction: slightly varying probabilities to avoid exact ties
         def unbiased_predict(sentence, pos):
@@ -53,7 +53,7 @@ class TestCrowSPairs:
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -63,7 +63,7 @@ class TestCrowSPairs:
 
     def test_different_length_raises_error(self):
         """Test sentences with different lengths raise error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -75,7 +75,7 @@ class TestCrowSPairs:
 
     def test_empty_sentence_raises_error(self):
         """Test empty sentence raises error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -87,7 +87,7 @@ class TestCrowSPairs:
 
     def test_invalid_probability_raises_error(self):
         """Test invalid probabilities raise error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         # Returns invalid probability
         def bad_predict(sentence, pos):
@@ -100,7 +100,7 @@ class TestCrowSPairs:
 
     def test_negative_probability_raises_error(self):
         """Test negative probability raises error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def bad_predict(sentence, pos):
             return -0.1
@@ -112,7 +112,7 @@ class TestCrowSPairs:
 
     def test_categorizes_tokens_correctly(self):
         """Test modified/unmodified categorization."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         # Track which positions are masked
         masked_positions = []
@@ -134,7 +134,7 @@ class TestCrowSPairs:
 
     def test_multiple_modified_tokens(self):
         """Test with multiple modified tokens."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.6
@@ -152,7 +152,7 @@ class TestCrowSPairs:
 
     def test_all_tokens_modified_raises_error(self):
         """Test completely different sentences raise error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -164,7 +164,7 @@ class TestCrowSPairs:
 
     def test_single_pair(self):
         """Test with single sentence pair."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.7
@@ -178,7 +178,7 @@ class TestCrowSPairs:
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return np.random.uniform(0.3, 0.7)
@@ -192,7 +192,7 @@ class TestCrowSPairs:
 
     def test_deterministic_with_same_function(self):
         """Test same function produces same results."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def deterministic_predict(sentence, pos):
             # Deterministic based on sentence content
@@ -207,7 +207,7 @@ class TestCrowSPairs:
 
     def test_long_sentences(self):
         """Test with longer sentences."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -225,7 +225,7 @@ class TestCrowSPairs:
 
     def test_zero_probability_raises_error(self):
         """Test zero probability raises error."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         def bad_predict(sentence, pos):
             return 0.0  # Zero probability
@@ -237,7 +237,7 @@ class TestCrowSPairs:
 
     def test_mask_token_replacement(self):
         """Test that [MASK] token is correctly placed."""
-        crows = CrowSPairs()
+        crows = CrowSPairs(mode="whitespace")
 
         # Track masked sentences
         masked_sentences = []

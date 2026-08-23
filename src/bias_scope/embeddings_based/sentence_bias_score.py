@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
+    import torch
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based.encoder import (

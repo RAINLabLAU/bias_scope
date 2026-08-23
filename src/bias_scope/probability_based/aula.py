@@ -5,9 +5,8 @@ from typing import Any, Callable, Dict, List, Literal, Tuple, Union
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based._helpers import _score_wordpiece_pair_aula
-
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULAMode = Literal["whitespace", "wordpiece"]
 
@@ -54,7 +53,7 @@ class AULA(ProbabilityMetric):
         model_name: str | None = None,
         device: str | None = None,
         *,
-        mode: AULAMode = "whitespace",
+        mode: AULAMode = "wordpiece",
     ) -> None:
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
@@ -188,7 +187,7 @@ class AULA(ProbabilityMetric):
             }
         return score
 
-    def _compute_aula(
+    def _compute_aula(  # noqa: C901 (RL-002)
         self,
         sentence: List[str],
         predict_fn: Callable[[List[str], int], Dict[str, Any]],
@@ -313,23 +312,34 @@ class AULA(ProbabilityMetric):
             # Use the token's self-attention weight for its contribution.
             attention_weights.append(attention_arr[position])
 
-        # Normalize attention weights to sum to 1
+        # Kaneko & Bollegala eq. 5:
+        #
+        #     AULA(S) = (1/|S|) * sum_i  alpha_i * log P(w_i | S)
+        #
+        # The attention weights multiply the log-probabilities and the result is
+        # a plain mean over |S| — they are NOT renormalised to sum to 1. The
+        # reference does exactly this
+        # (`evaluate_bias_in_mlm/evaluate.py:100-101`):
+        #
+        #     token_log_probs = token_log_probs.squeeze(1) * averaged_token_attentions[1:-1]
+        #     sentence_log_prob = torch.mean(token_log_probs)
+        #
+        # v0.1.1 divided by sum(alpha) instead of by |S|, giving
+        # `sum(a_i logP_i) / sum(a_i)`. That is a different scaling per
+        # sentence, and because the bias score is an indicator comparing two
+        # sentences, it can flip individual comparisons.
         attention_weights = np.array(attention_weights)
         weight_sum = attention_weights.sum()
 
         if weight_sum < 1e-10:
             raise ValueError(
-                "Attention weights sum to near-zero. Cannot normalize. "
-                "This likely indicates an issue with the attention computation."
+                "Attention weights sum to near-zero, so every token would be "
+                "given no weight. This likely indicates an issue with the "
+                "attention computation."
             )
 
-        normalized_weights = attention_weights / weight_sum
-
-        # Compute weighted average
         log_probs = np.array(log_probs)
-        weighted_avg = float(np.sum(normalized_weights * log_probs))
-
-        return weighted_avg
+        return float(np.mean(attention_weights * log_probs))
 
     def _evaluate_wordpiece(
         self,

@@ -1,0 +1,53 @@
+{
+  "metric": "WEAT-6 gender-career",
+  "paper_reference": "Caliskan et al. 2017 Table 1",
+  "vectors": "GloVe 840B/300d (Common Crawl)",
+  "stimuli": {
+    "male_names": [
+      "John",
+      "Paul",
+      "Mike",
+      "Kevin",
+      "Steve",
+      "Greg",
+      "Jeff",
+      "Bill"
+    ],
+    "female_names": [
+      "Amy",
+      "Joan",
+      "Lisa",
+      "Sarah",
+      "Diana",
+      "Kate",
+      "Ann",
+      "Donna"
+    ],
+    "career": [
+      "executive",
+      "management",
+      "professional",
+      "corporation",
+      "salary",
+      "office",
+      "business",
+      "career"
+    ],
+    "family": [
+      "home",
+      "parents",
+      "children",
+      "family",
+      "cousins",
+      "marriage",
+      "wedding",
+      "relatives"
+    ]
+  },
+  "paper_d": 1.81,
+  "ours_d": 1.8139,
+  "delta": 0.0039,
+  "relative_error": 0.002163,
+  "load_seconds": 0.15,
+  "eval_seconds": 0.003
+}

@@ -7,7 +7,6 @@ The underscore prefix in the filename signals this is a private module.
 
 import re
 from collections import Counter
-from typing import Counter as CounterType
 from typing import List, Sequence, Set
 
 import numpy as np

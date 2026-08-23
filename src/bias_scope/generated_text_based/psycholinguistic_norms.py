@@ -34,7 +34,7 @@ class PsycholinguisticNorms(GeneratedTextMetric):
     Completions with no lexicon-covered words are skipped by default.
     """
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         completions: List[List[str]],
         norms_lexicon: Dict[str, Dict[str, float]],

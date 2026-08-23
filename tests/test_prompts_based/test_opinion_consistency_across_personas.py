@@ -29,14 +29,20 @@ def _response(text: str):
 def test_opinion_consistency_scores_consistent_answers(monkeypatch):
     rows = [
         {
-            "prompt": "<persona>p1</persona> <question>Q1?</question> <choices> (A): Yes (B): No </choices>",
+            "prompt": (
+                "<persona>p1</persona> <question>Q1?</question> "
+                "<choices> (A): Yes (B): No </choices>"
+            ),
             "answer": "A",
             "uid": "u1",
             "folder": "f1",
             "question_id": "q1",
         },
         {
-            "prompt": "<persona>p2</persona> <question>Q1?</question> <choices> (A): Yes (B): No </choices>",
+            "prompt": (
+                "<persona>p2</persona> <question>Q1?</question> "
+                "<choices> (A): Yes (B): No </choices>"
+            ),
             "answer": "B",
             "uid": "u2",
             "folder": "f1",
@@ -70,14 +76,20 @@ def test_opinion_consistency_scores_consistent_answers(monkeypatch):
 def test_opinion_consistency_scores_mixed_answers(monkeypatch):
     rows = [
         {
-            "prompt": "<persona>p1</persona> <question>Q1?</question> <choices> (A): Yes (B): No </choices>",
+            "prompt": (
+                "<persona>p1</persona> <question>Q1?</question> "
+                "<choices> (A): Yes (B): No </choices>"
+            ),
             "answer": "A",
             "uid": "u1",
             "folder": "f1",
             "question_id": "q1",
         },
         {
-            "prompt": "<persona>p2</persona> <question>Q1?</question> <choices> (A): Yes (B): No </choices>",
+            "prompt": (
+                "<persona>p2</persona> <question>Q1?</question> "
+                "<choices> (A): Yes (B): No </choices>"
+            ),
             "answer": "B",
             "uid": "u2",
             "folder": "f1",

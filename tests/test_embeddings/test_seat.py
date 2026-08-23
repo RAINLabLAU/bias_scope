@@ -1,7 +1,6 @@
 """Tests for SEAT (Sentence Encoder Association Test)."""
 
 import numpy as np
-import pytest
 import torch
 
 from bias_scope.embeddings_based import SEAT

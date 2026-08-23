@@ -1,0 +1,20 @@
+{
+  "_source": "Eyeball measurements from Sheng et al. 2019 Figure 2 row (1) GPT-2 samples. Bars are stacked negative (black) / neutral (dotted) / positive (grey). Visual uncertainty per bar ~ ±0.03 absolute (~10% relative for values near 0.3).",
+  "_page_image": "results/emnlp/regard_full/sheng_p5.png",
+  "_chart_1a_respect_regard": {
+    "Black":    {"negative": 0.55, "neutral": 0.08, "positive": 0.37},
+    "White":    {"negative": 0.32, "neutral": 0.13, "positive": 0.55},
+    "man":      {"negative": 0.36, "neutral": 0.13, "positive": 0.51},
+    "woman":    {"negative": 0.32, "neutral": 0.12, "positive": 0.56},
+    "gay":      {"negative": 0.62, "neutral": 0.05, "positive": 0.33},
+    "straight": {"negative": 0.24, "neutral": 0.04, "positive": 0.72}
+  },
+  "_chart_1c_occupation_regard": {
+    "Black":    {"negative": 0.22, "neutral": 0.68, "positive": 0.10},
+    "White":    {"negative": 0.10, "neutral": 0.83, "positive": 0.07},
+    "man":      {"negative": 0.16, "neutral": 0.80, "positive": 0.04},
+    "woman":    {"negative": 0.28, "neutral": 0.68, "positive": 0.04},
+    "gay":      {"negative": 0.33, "neutral": 0.60, "positive": 0.07},
+    "straight": {"negative": 0.05, "neutral": 0.88, "positive": 0.07}
+  }
+}

@@ -1,10 +1,27 @@
-"""Regard Score - Sentiment-based bias detection."""
+"""RegardScore — regard-based bias detection (Sheng et al. 2019)."""
 
 from typing import Dict, List
 
-import numpy as np
-
 from bias_scope.base import GeneratedTextMetric
+
+#: Sheng et al.'s regard classifier, published as a Hugging Face checkpoint.
+#: **Not** a sentiment classifier: the paper's Table 2 gives explicit examples
+#: where sentiment and regard labels disagree, and building a dedicated regard
+#: classifier is the paper's contribution.
+DEFAULT_REGARD_MODEL = "sasha/regardv3"
+
+#: The four buckets the regardv3 checkpoint emits. `other` means the classifier
+#: could not place the text on the regard scale at all, which is *not* the same
+#: as placing it in the middle, so it is reported separately from `neutral`.
+REGARD_LABELS = ("negative", "neutral", "positive", "other")
+
+#: regardv3's label indices.
+_LABEL_INDEX = {
+    "LABEL_0": "negative",
+    "LABEL_1": "neutral",
+    "LABEL_2": "positive",
+    "LABEL_3": "other",
+}
 
 
 def pipeline(*args, **kwargs):
@@ -67,16 +84,25 @@ class RegardScore(GeneratedTextMetric):
     >>> # {'positive_diff': 0.15, 'negative_diff': -0.10, 'neutral_diff': -0.05}
     """
 
-    def __init__(self, model_name: str = "siebert/sentiment-roberta-large-english"):
+    def __init__(self, model_name: str = DEFAULT_REGARD_MODEL):
         """
-        Initialize Regard Score metric.
+        Initialize the Regard Score metric.
 
         Args:
-            model_name (str): HuggingFace model for sentiment classification.
-                Default: "siebert/sentiment-roberta-large-english"
+            model_name (str): Hugging Face model used to classify **regard**.
+                Default: `sasha/regardv3`, Sheng et al.'s published regard
+                checkpoint.
+
+        Warning:
+            Passing a *sentiment* classifier here does not compute regard.
+            Sheng et al. 2019 exists precisely to show the two differ — their
+            Table 2 lists sentences where the sentiment and regard labels have
+            opposite signs. v0.1.1 defaulted to a sentiment model, which was a
+            mismatch; see `docs/fidelity/regard_score.md`.
         """
-        self.sentiment_classifier = pipeline(
-            "sentiment-analysis", model=model_name, return_all_scores=True
+        self.model_name = model_name
+        self.regard_classifier = pipeline(
+            "text-classification", model=model_name, return_all_scores=True
         )
 
     def evaluate(
@@ -167,7 +193,7 @@ class RegardScore(GeneratedTextMetric):
         flat_a = [t for sublist in group_a_texts for t in sublist]
         flat_b = [t for sublist in group_b_texts for t in sublist]
 
-        # Get sentiments
+        # Classify regard
         sentiments_a = self._score_sentiments(flat_a)
         sentiments_b = self._score_sentiments(flat_b)
 
@@ -179,15 +205,12 @@ class RegardScore(GeneratedTextMetric):
         results = {}
 
         # Differences
-        for label in ["positive", "negative", "neutral"]:
+        for label in REGARD_LABELS:
             diff = dist_a.get(label, 0.0) - dist_b.get(label, 0.0)
             results[f"{label}_difference"] = float(diff)
-
-        # Add absolute scores for details
-        for label, score in dist_a.items():
-            results[f"group_a_{label}"] = float(score)
-        for label, score in dist_b.items():
-            results[f"group_b_{label}"] = float(score)
+            results[f"{label}_diff"] = float(diff)
+            results[f"group_a_{label}"] = float(dist_a.get(label, 0.0))
+            results[f"group_b_{label}"] = float(dist_b.get(label, 0.0))
 
         return results
 
@@ -206,7 +229,7 @@ class RegardScore(GeneratedTextMetric):
 
         # HuggingFace pipeline returns list of dicts: [{'label': 'POSITIVE', 'score': 0.9}, ...]
         # Note: Return structure depends on model, but we map to standard 3 classes
-        results = self.sentiment_classifier(texts)
+        results = self.regard_classifier(texts)
 
         labels = []
         for res in results:
@@ -222,24 +245,31 @@ class RegardScore(GeneratedTextMetric):
 
         return labels
 
-    def _normalize_label(self, label: str) -> str:
+    @staticmethod
+    def _normalize_label(label: str) -> str:
         """
-        Normalize sentiment label to standard set (PRIVATE).
+        Map a raw classifier label onto one of `REGARD_LABELS` (PRIVATE).
+
+        `LABEL_3` is regardv3's **other** bucket and is kept distinct: v0.1.1
+        folded every unrecognised label into `neutral`, which silently turned
+        "the classifier could not place this" into "this is neutral regard".
 
         Args:
-            label (str): Raw label from model (e.g., "LABEL_0", "POS")
+            label (str): Raw label, e.g. "LABEL_0" or "positive".
 
         Returns:
-            str: 'positive', 'negative', or 'neutral'
+            str: One of `REGARD_LABELS`.
         """
-        label = label.upper()
-
-        if "POS" in label or "LABEL_2" in label:
+        upper = label.upper()
+        if upper in _LABEL_INDEX:
+            return _LABEL_INDEX[upper]
+        if "POS" in upper:
             return "positive"
-        elif "NEG" in label or "LABEL_0" in label:
+        if "NEG" in upper:
             return "negative"
-        else:
-            return "neutral"
+        if "OTHER" in upper:
+            return "other"
+        return "neutral"
 
     def _compute_distribution(self, labels: List[str]) -> Dict[str, float]:
         """
