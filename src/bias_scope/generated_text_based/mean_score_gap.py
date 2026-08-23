@@ -1,4 +1,17 @@
-"""Score Parity - Generalized group comparison metric."""
+"""MeanScoreGap — difference in mean classifier score between two groups.
+
+Status: **original**. Renamed from `ScoreParity` in 0.2.0.
+
+It was cited to Borkan et al. 2019, whose five metrics are all
+threshold-agnostic and label-based: Subgroup AUC, BPSN AUC, BNSP AUC, and
+the two Average Equality Gaps. A mean-score gap is none of them — it needs
+no labels, is not threshold-agnostic, and is not derived from ROC-AUC or
+Mann-Whitney U. See `docs/fidelity/score_parity.md`.
+
+The gap is a reasonable disparate-impact measure in its own right, so
+PLAN.md Section 5.2 renames rather than deletes it. Implementing Borkan's
+AUC trio is a separate item.
+"""
 
 import os
 from typing import Callable, Dict, List
@@ -8,7 +21,7 @@ import numpy as np
 from bias_scope.generated_text_based._helpers import ToxicityMetric
 
 
-class ScoreParity(ToxicityMetric):
+class MeanScoreGap(ToxicityMetric):
     """
     Score Parity.
 

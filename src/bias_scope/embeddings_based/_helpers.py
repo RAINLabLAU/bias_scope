@@ -84,8 +84,14 @@ def _compute_random_effects_weights(
     """
     Compute random-effects model weights for CEAT (PRIVATE).
 
-    Uses a simplified DerSimonian-Laird estimator to compute inverse-variance
-    weights that account for between-sample heterogeneity.
+    Guo & Caliskan 2021 define the combined effect size as the weighted mean
+
+        CES = Σ v_i · ES_i / Σ v_i
+
+    where ``v_i`` is the inverse of (in-sample variance ``V_i`` + between-sample
+    variance ``σ²_between``). This is the DerSimonian-Laird estimator of
+    ``τ² = σ²_between``, computed in full: fixed-effect weights, the Q
+    statistic, the C term, then ``τ² = max(0, (Q − df) / C)``.
 
     Parameters
     ----------
@@ -99,13 +105,12 @@ def _compute_random_effects_weights(
 
     Notes
     -----
-    Formula:
-        w_i = 1 / (var + tau^2 + epsilon)
+    Per-sample within-variance uses the standard large-sample expression for
+    the variance of a standardised mean difference at equal group sizes:
 
-    Where:
-        - var: sample variance of WEAT scores
-        - tau^2: between-sample variance (max(0, var - 0))
-        - epsilon: small constant for numerical stability
+        V_i = 2/n + ES_i² / (4n − 4)
+
+    Weights are normalised to sum to 1, so `CES` is a weighted mean.
     """
     if len(weat_scores) == 1:
         return np.array([1.0], dtype=float)

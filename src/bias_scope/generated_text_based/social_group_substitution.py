@@ -64,7 +64,7 @@ class SocialGroupSubstitution(GeneratedTextMetric):
     >>> print(f"Group Disparity: {result.get('group_disparity').get('_overall'):.3f}")
     """
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         prompts: Sequence[str],
         substitutions: Mapping[str, Sequence[str]],

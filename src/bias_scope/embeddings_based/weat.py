@@ -2,21 +2,41 @@
 
 from __future__ import annotations
 
-from typing import Dict, Sequence, Tuple
+import itertools
+import math
+from typing import TYPE_CHECKING, Dict, Sequence, Tuple
 
 import numpy as np
 
+if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
+    import torch
+
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings_based.encoder import (
-    DEFAULT_EMBEDDING_MODEL,
-    _resolve_embedding_pair,
-)
 from bias_scope.embeddings_based._helpers import (
     _compute_similarity_measure,
     _validate_embedding_dimensions,
     _validate_tuple_length,
 )
+from bias_scope.embeddings_based.encoder import (
+    DEFAULT_EMBEDDING_MODEL,
+    _resolve_embedding_pair,
+)
 from bias_scope.utils import to_numpy
+
+#: Enumerate partitions exactly up to this many; sample beyond it. C(16,8) is
+#: 12,870, so Caliskan's own 8-per-group tests are always exact.
+EXACT_PERMUTATION_LIMIT = 100_000
+
+#: Samples used when the partition count exceeds the limit.
+DEFAULT_PERMUTATION_SAMPLES = 10_000
+
+
+
+def _partition_statistic(pooled: np.ndarray, left_indices) -> float:
+    """s(Xi, Yi, A, B) for one partition: sum(left) - sum(the rest)."""
+    mask = np.zeros(pooled.size, dtype=bool)
+    mask[list(left_indices)] = True
+    return float(pooled[mask].sum() - pooled[~mask].sum())
 
 
 class WEAT(EmbeddingMetric):
@@ -96,13 +116,17 @@ class WEAT(EmbeddingMetric):
         return_details: bool = False,
         *,
         pooling: str | None = None,
+        n_permutation_samples: int = DEFAULT_PERMUTATION_SAMPLES,
+        permutation_seed: int = 42,
     ) -> float | Dict[str, float]:
         """
         Evaluate WEAT effect size.
 
         Args:
-            target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group word embeddings
-            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group word embeddings
+            target_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                target group word embeddings
+            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                attribute group word embeddings
             model_name (str | None): SentenceTransformer/Hugging Face model used
                 when text inputs are provided. If omitted, uses the ``model_name``
                 configured on ``__init__``. If passed here, it overrides the
@@ -198,16 +222,92 @@ class WEAT(EmbeddingMetric):
 
         # Compute and return effect size (private method)
         score = self._compute_effect_size(cos_target1, cos_target2, cos_union)
-        if return_details:
-            return {
-                "weat_score": score,
-                "effect_size": score,
-                "n_target_group_1": float(len(target1)),
-                "n_target_group_2": float(len(target2)),
-                "n_attribute_group_1": float(len(attr1)),
-                "n_attribute_group_2": float(len(attr2)),
-            }
-        return score
+        if not return_details:
+            return score
+
+        p_value, exact, num_partitions, note = self._permutation_test(
+            cos_target1, cos_target2, n_permutation_samples, permutation_seed
+        )
+        return {
+            "weat_score": score,
+            "effect_size": score,
+            "p_value": p_value,
+            "p_value_exact": exact,
+            "num_partitions": num_partitions,
+            "p_value_note": note,
+            "n_target_group_1": float(len(target1)),
+            "n_target_group_2": float(len(target2)),
+            "n_attribute_group_1": float(len(attr1)),
+            "n_attribute_group_2": float(len(attr2)),
+        }
+
+    @staticmethod
+    def _permutation_test(
+        scores1: list,
+        scores2: list,
+        n_samples: int,
+        seed: int,
+    ) -> tuple:
+        """
+        One-sided permutation p-value (Caliskan et al. 2017).
+
+        The paper: let {(Xi, Yi)} be all partitions of X u Y into two sets of
+        equal size; the p-value is Pr_i[s(Xi, Yi, A, B) > s(X, Y, A, B)], where
+        s(X, Y, A, B) = sum_{x in X} s(x,A,B) - sum_{y in Y} s(y,A,B).
+
+        Enumerated exactly when there are few enough partitions, as the
+        reference implementation does (`sent-bias/sentbias/weat.py:82-152`);
+        sampled otherwise. The observed partition is always counted, so the
+        p-value has a floor of 1/num_partitions rather than reaching zero.
+
+        Returns:
+            (p_value, exact, num_partitions, note)
+        """
+        # s(w, A, B) is already computed per word; the test statistic is a sum,
+        # so partitions can be evaluated on the association scores directly.
+        n1, n2 = len(scores1), len(scores2)
+        if n1 != n2:
+            return (
+                None,
+                False,
+                0,
+                "Caliskan's permutation test partitions X u Y into two sets of "
+                f"equal size, but |X| = {n1} and |Y| = {n2}. No p-value is "
+                "defined for unequal target sets.",
+            )
+
+        pooled = np.asarray(list(scores1) + list(scores2), dtype=float)
+        observed = float(np.sum(scores1) - np.sum(scores2))
+        total = len(pooled)
+        num_partitions = math.comb(total, n1)
+
+        if num_partitions <= EXACT_PERMUTATION_LIMIT:
+            at_least = sum(
+                1
+                for left in itertools.combinations(range(total), n1)
+                if _partition_statistic(pooled, left) >= observed - 1e-12
+            )
+            return (
+                at_least / num_partitions,
+                True,
+                num_partitions,
+                f"Exact test over all {num_partitions} partitions.",
+            )
+
+        rng = np.random.default_rng(seed)
+        indices = np.arange(total)
+        at_least = 1  # count the observed partition itself
+        for _ in range(n_samples):
+            rng.shuffle(indices)
+            if _partition_statistic(pooled, indices[:n1]) >= observed - 1e-12:
+                at_least += 1
+        return (
+            at_least / (n_samples + 1),
+            False,
+            num_partitions,
+            f"Sampled test: {n_samples} of {num_partitions} partitions "
+            "(too many to enumerate).",
+        )
 
     def _compute_effect_size(
         self, scores1: list, scores2: list, scores_union: list

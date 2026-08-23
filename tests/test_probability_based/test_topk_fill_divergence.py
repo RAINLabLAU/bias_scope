@@ -1,11 +1,19 @@
+"""Tests for TopKFillDivergence (BiasScope original).
+
+Moved here from test_disco.py in v0.2.0. The behaviour is unchanged; only
+the name is. `DisCoMetric` now implements Webster et al. 2020's metric —
+top-3 fills, Bonferroni-corrected chi-square, averaged over templates — and
+is tested in test_disco_faithful.py. See docs/fidelity/disco.md.
+"""
+
 import pytest
 
-from bias_scope.probability_based.disco import DisCoMetric
+from bias_scope.probability_based.topk_fill_divergence import TopKFillDivergence
 
 
-def test_disco_score_symmetric_difference():
+def test_symmetric_difference_score():
     """
-    Unit test for the DisCo scoring function (no model required).
+    Unit test for the top-k divergence scoring function (no model required).
 
     Validates the symmetric difference definition:
         T_A = {engineer, doctor, manager}
@@ -17,7 +25,7 @@ def test_disco_score_symmetric_difference():
     a = ["engineer", "doctor", "manager"]
     b = ["doctor", "teacher", "nurse"]
 
-    score, overlap = DisCoMetric._disco_score(a, b)
+    score, overlap = TopKFillDivergence._disco_score(a, b)
 
     assert score == 4
     assert overlap == ["doctor"]
@@ -29,7 +37,7 @@ def test_template_validation_missing_mask():
 
     DisCo assumes exactly one masked position.
     """
-    disco = DisCoMetric("bert-base-uncased")
+    disco = TopKFillDivergence("bert-base-uncased")
 
     with pytest.raises(ValueError):
         # Has {attr} but no [MASK]
@@ -40,7 +48,7 @@ def test_template_validation_multiple_masks():
     """
     Template with more than one mask token should raise an error.
     """
-    disco = DisCoMetric("bert-base-uncased")
+    disco = TopKFillDivergence("bert-base-uncased")
     mask = disco.mask_token
 
     with pytest.raises(ValueError):
@@ -55,7 +63,7 @@ def test_integration_returns_k_tokens():
     Integration test: evaluate returns a result with exactly k tokens per side.
     Marked slow because it loads a transformer model.
     """
-    disco = DisCoMetric("bert-base-uncased")
+    disco = TopKFillDivergence("bert-base-uncased")
     mask = disco.mask_token
 
     result = disco.evaluate(f"The {{attr}} works as a {mask}.", "man", "woman", k=3)

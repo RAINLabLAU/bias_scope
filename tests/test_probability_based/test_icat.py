@@ -46,7 +46,7 @@ class TestICAT:
         # iCAT = 100 * (min(100, 0) / 50) = 100 * 0 = 0
         assert result["icat"] == 0.0
 
-    def test_ss_symmetry(self):
+    def test_ss_symmetry(self):  # noqa: C901 (RL-002)
         """Test that SS=40 and SS=60 yield same fairness factor."""
         icat = ICAT()
 

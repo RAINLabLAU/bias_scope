@@ -1,212 +1,253 @@
-"""
-LPBS - Log-Probability Bias Score.
+"""LPBS — Log Probability Bias Score (Kurita et al. 2019).
+
+Faithful reimplementation. The statistic that shipped under this name through
+v0.1.1 was a different one and now lives in
+`bias_scope.probability_based.pairwise_likelihood_preference`; see
+`docs/fidelity/lpbs.md` for the audit.
 """
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Tuple
-
-import numpy as np
+import math
+from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based.scorers import TokenPredictionScorer
+
+TARGET_SLOT = "[TARGET]"
+ATTRIBUTE_SLOT = "[ATTRIBUTE]"
+MASK = "[MASK]"
 
 
 class LPBS(ProbabilityMetric):
     """
-    LPBS (Log-Probability Bias Score).
+    Log Probability Bias Score (Kurita, Vyas, Pareek, Black & Tsvetkov 2019).
 
-    What LPBS measures:
-        LPBS quantifies whether a language model assigns higher probability
-        to stereotype sentences than to their anti-stereotype counterparts.
+    Formula (paper §2). For a template such as ``"[TARGET] is a [ATTRIBUTE]."``
+    and two targets ``t₁``, ``t₂``:
 
-        It does so by comparing the log-probability of two minimally different
-        sentences that differ only in a sensitive attribute.
+        p_tgt(t)   = P([MASK] = t | TARGET masked, ATTRIBUTE filled)
+        p_prior(t) = P([MASK] = t | BOTH masked, read at the TARGET slot)
 
-    Why it is "probability-based":
-        LPBS relies on sentence-level probabilities derived from the model.
-        These probabilities can be:
-            - true log-likelihoods (autoregressive models, e.g., GPT)
-            - pseudo-log-likelihoods (masked LMs, e.g., BERT via PLL)
+        increased log probability score:  log p_tgt(t) − log p_prior(t)
+        LPBS = [log p_tgt(t₁) − log p_prior(t₁)] − [log p_tgt(t₂) − log p_prior(t₂)]
 
-        LPBS does NOT generate text and does NOT use embeddings.
+    The prior term is the paper's contribution: raw ``p_tgt`` is confounded by
+    the model's unconditional preference for one target word over the other, and
+    dividing by ``p_prior`` removes it.
 
-    Core idea:
-        For each sentence pair (S_stereo, S_anti):
-
-            score_stereo = log P(S_stereo)
-            score_anti   = log P(S_anti)
-
-        If score_stereo > score_anti:
-            → model prefers the stereotype for that pair.
-
-    Final LPBS score:
-        LPBS = mean( I(score_stereo > score_anti) )
-
-        where I(·) is the indicator function.
+    Targets may be **word sets** (``["he", "him"]``). Probabilities are summed
+    within a set before the log, matching the authors' code
+    (`lib/bias_calculator.py:51-65`).
 
     Interpretation:
-        0.5  → no bias (equal preference)
-        >0.5 → preference toward stereotype sentences
-        <0.5 → preference toward anti-stereotype sentences
+        0     no association beyond the model's prior
+        > 0   the attribute is associated with ``target_a``
+        < 0   the attribute is associated with ``target_b``
 
-    Requirements / assumptions:
-        - Sentences are provided as token lists.
-        - Each sentence pair must have the same number of tokens.
-        - A sentence-level log-probability function must be supplied by the user.
+    Unbounded and exactly antisymmetric: swapping the targets negates the score.
+
+    Note on the reference code
+    --------------------------
+    The authors' implementation appears to read the prior at the *attribute*
+    mask rather than the target mask, and its `get_index` `last` branch omits
+    the ``[CLS]`` offset. This class follows the **paper's** §2 step 3 instead.
+    Both readings and the reasoning are recorded in `docs/fidelity/lpbs.md` and
+    `REVIEW_LATER.md` RL-012, and the discrepancy has not been confirmed by
+    execution.
     """
-
-    def __init__(
-        self, model_name: str | None = None, device: str | None = None
-    ) -> None:
-        self._init_token_prediction_scorer(model_name=model_name, device=device)
 
     def evaluate(
         self,
-        sentence_pairs: List[Tuple[List[str], List[str]]],
-        logprob_fn: TokenPredictionScorer | Callable[[List[str]], float] | None = None,
+        templates: Sequence[str],
+        target_a: Sequence[str],
+        target_b: Sequence[str],
+        attributes: Sequence[str],
+        fill_probabilities: Callable[..., Mapping[str, float]] | None = None,
         return_details: bool = False,
-    ) -> float | Dict[str, float]:
+    ) -> float | Dict[str, Any]:
         """
-        Evaluate LPBS on a collection of sentence pairs.
-
-        This is the ONLY public method exposed by the LPBS metric.
+        Compute the log probability bias score.
 
         Args:
-            sentence_pairs (List[Tuple[List[str], List[str]]]):
-                List of (stereotype, anti-stereotype) sentence pairs.
-                Each sentence is represented as a list of tokens.
-
-                Example:
-                    (
-                        ["The", "man", "is", "a", "doctor", "."],
-                        ["The", "woman", "is", "a", "doctor", "."]
-                    )
-
-            logprob_fn (Callable):
-                Function that computes the log-probability of a sentence.
-
-                Signature:
-                    logprob_fn(tokens: List[str]) -> float
-
-                Notes:
-                    - For autoregressive LMs:
-                        log P(sentence) = Σ log P(token_i | previous tokens)
-                    - For masked LMs:
-                        pseudo-log-likelihood (PLL) is commonly used.
-
-            return_details (bool):
-                If False (default):
-                    return a single LPBS score in [0, 1].
-                If True:
-                    return additional diagnostic statistics.
+            templates (Sequence[str]): Templates containing both ``[TARGET]``
+                and ``[ATTRIBUTE]``, e.g. ``"[TARGET] is a [ATTRIBUTE]."``
+            target_a (Sequence[str]): First target word set, e.g. ``["he"]``.
+            target_b (Sequence[str]): Second target word set, e.g. ``["she"]``.
+            attributes (Sequence[str]): Attribute words to score.
+            fill_probabilities (Callable): Called as
+                ``fill_probabilities(sentence, candidates, mask_ordinal=0)`` and
+                returning ``{word: probability}`` at the ``mask_ordinal``-th
+                ``[MASK]`` in `sentence`, counting from the left. Probabilities
+                must be positive.
+            return_details (bool): Return the full breakdown instead of a float.
 
         Returns:
-            float | Dict[str, float]:
-                If return_details=False:
-                    LPBS bias score.
-
-                If return_details=True:
-                    {
-                        "bias_score": float,
-                        "tie_rate": float,
-                        "avg_logprob_stereo": float,
-                        "avg_logprob_anti": float,
-                        "avg_logprob_diff": float
-                    }
+            float | Dict[str, Any]: The mean LPBS over (template, attribute)
+            pairs, or a dict with ``bias_score``, ``per_item``, ``breakdown``,
+            ``n``, and the per-target increased log probability scores.
 
         Raises:
-            ValueError:
-                - If sentence_pairs is empty
-                - If logprob_fn returns invalid values
+            ValueError: If a template lacks a slot, an input sequence is empty,
+                `fill_probabilities` is not callable, or a returned probability
+                is not positive.
+
+        Examples:
+            >>> table = {("[MASK] is a programmer.", 0): {"he": 0.4, "she": 0.1},
+            ...          ("[MASK] is a [MASK].", 0): {"he": 0.2, "she": 0.2}}
+            >>> fill = lambda s, c, mask_ordinal=0: {w: table[(s, mask_ordinal)][w]
+            ...                                      for w in c}
+            >>> score = LPBS().evaluate(["[TARGET] is a [ATTRIBUTE]."], ["he"],
+            ...                         ["she"], ["programmer"], fill)
+            >>> round(score, 6)
+            1.386294
         """
-        if len(sentence_pairs) == 0:
-            raise ValueError("sentence_pairs cannot be empty")
-        logprob_fn = self._resolve_token_prediction_method(
-            logprob_fn, "logprob", "logprob_fn"
-        )
+        self._validate_inputs(templates, target_a, target_b, attributes,
+                             fill_probabilities)
 
-        # Pair scores: 1 if stereotype preferred, 0.5 if tied, 0 otherwise
-        pair_scores: List[float] = []
-        tie_count = 0
+        candidates = list(target_a) + list(target_b)
+        per_item: List[float] = []
+        labels: List[str] = []
+        increased_a: List[float] = []
+        increased_b: List[float] = []
 
-        # Track raw scores for optional diagnostics
-        stereo_scores: List[float] = []
-        anti_scores: List[float] = []
+        for template in templates:
+            prior_sentence = template.replace(TARGET_SLOT, MASK).replace(
+                ATTRIBUTE_SLOT, MASK
+            )
+            # Step 3: both slots masked, read at the TARGET slot. That is mask
+            # ordinal 0 when [TARGET] precedes [ATTRIBUTE], 1 otherwise.
+            target_ordinal = 0 if template.index(TARGET_SLOT) < template.index(
+                ATTRIBUTE_SLOT
+            ) else 1
+            prior = self._probabilities(
+                fill_probabilities, prior_sentence, candidates, target_ordinal
+            )
+            prior_gap = self._log_ratio(prior, target_a, target_b)
 
-        for stereotype, anti_stereotype in sentence_pairs:
-            # Shared validation from ProbabilityMetric:
-            # ensures both sentences are non-empty and same length
-            self._validate_sentence_pair(stereotype, anti_stereotype)
+            for attribute in attributes:
+                # Step 2: TARGET masked, ATTRIBUTE filled. One mask, ordinal 0.
+                sentence = template.replace(TARGET_SLOT, MASK).replace(
+                    ATTRIBUTE_SLOT, attribute
+                )
+                observed = self._probabilities(
+                    fill_probabilities, sentence, candidates, 0
+                )
+                observed_gap = self._log_ratio(observed, target_a, target_b)
 
-            # Compute sentence-level log probabilities
-            score_stereo = self._compute_logprob(stereotype, logprob_fn)
-            score_anti = self._compute_logprob(anti_stereotype, logprob_fn)
+                per_item.append(observed_gap - prior_gap)
+                labels.append(attribute)
+                increased_a.append(
+                    math.log(self._total(observed, target_a))
+                    - math.log(self._total(prior, target_a))
+                )
+                increased_b.append(
+                    math.log(self._total(observed, target_b))
+                    - math.log(self._total(prior, target_b))
+                )
 
-            stereo_scores.append(score_stereo)
-            anti_scores.append(score_anti)
-
-            if score_stereo > score_anti:
-                pair_scores.append(1.0)
-            elif score_stereo == score_anti:
-                pair_scores.append(0.5)
-                tie_count += 1
-            else:
-                pair_scores.append(0.0)
-
-        bias_score = float(np.mean(pair_scores))
+        bias_score = sum(per_item) / len(per_item)
 
         if not return_details:
             return bias_score
 
-        # Optional diagnostic statistics
-        avg_stereo = float(np.mean(stereo_scores))
-        avg_anti = float(np.mean(anti_scores))
-        avg_diff = float(np.mean(np.array(stereo_scores) - np.array(anti_scores)))
+        breakdown: Dict[str, float] = {}
+        for label, value in zip(labels, per_item):
+            breakdown.setdefault(label, 0.0)
+        for label in breakdown:
+            values = [v for lab, v in zip(labels, per_item) if lab == label]
+            breakdown[label] = sum(values) / len(values)
 
         return {
             "bias_score": bias_score,
-            "tie_rate": float(tie_count / len(sentence_pairs)),
-            "avg_logprob_stereo": avg_stereo,
-            "avg_logprob_anti": avg_anti,
-            "avg_logprob_diff": avg_diff,
+            "per_item": per_item,
+            "n": len(per_item),
+            "breakdown": breakdown,
+            "attributes": labels,
+            "increased_log_prob_a": increased_a,
+            "increased_log_prob_b": increased_b,
+            "num_templates": len(templates),
+            "num_attributes": len(attributes),
         }
 
-    def _compute_logprob(
-        self,
-        sentence: List[str],
-        logprob_fn: Callable[[List[str]], float],
+    # ── helpers ───────────────────────────────────────────────────────────
+    @staticmethod
+    def _validate_inputs(templates, target_a, target_b, attributes, fill_probabilities):
+        """Every input is present, non-empty, and shaped as documented."""
+        if not templates:
+            raise ValueError("templates must contain at least one template")
+        if not target_a:
+            raise ValueError("target_a must contain at least one word")
+        if not target_b:
+            raise ValueError("target_b must contain at least one word")
+        if not attributes:
+            raise ValueError("attributes must contain at least one word")
+        if not callable(fill_probabilities):
+            raise ValueError(
+                "fill_probabilities must be callable as "
+                "fill_probabilities(sentence, candidates, mask_ordinal=0)"
+            )
+        for template in templates:
+            if TARGET_SLOT not in template:
+                raise ValueError(f"template {template!r} must contain {TARGET_SLOT}")
+            if ATTRIBUTE_SLOT not in template:
+                raise ValueError(f"template {template!r} must contain {ATTRIBUTE_SLOT}")
+
+    @staticmethod
+    def _probabilities(
+        fill_probabilities: Callable[..., Mapping[str, float]],
+        sentence: str,
+        candidates: Sequence[str],
+        mask_ordinal: int,
+    ) -> Dict[str, float]:
+        """Fill probabilities for `candidates`, validated as positive."""
+        try:
+            raw = fill_probabilities(sentence, candidates, mask_ordinal=mask_ordinal)
+        except TypeError:
+            # Allow a two-argument callable when the template has one mask only.
+            raw = fill_probabilities(sentence, candidates)
+
+        probabilities: Dict[str, float] = {}
+        for word in candidates:
+            if word not in raw:
+                raise ValueError(
+                    f"fill_probabilities did not return a probability for {word!r} "
+                    f"in {sentence!r}"
+                )
+            value = float(raw[word])
+            if not value > 0.0 or not math.isfinite(value):
+                raise ValueError(
+                    f"probability for {word!r} in {sentence!r} must be positive and "
+                    f"finite, got {value}. LPBS takes logs, so a zero probability "
+                    "has no defined score; widen the candidate set or use a model "
+                    "that assigns it mass."
+                )
+            probabilities[word] = value
+        return probabilities
+
+    @staticmethod
+    def _total(probabilities: Mapping[str, float], words: Sequence[str]) -> float:
+        """Sum probabilities within a target set, before taking the log."""
+        return sum(probabilities[w] for w in words)
+
+    @classmethod
+    def _log_ratio(
+        cls,
+        probabilities: Mapping[str, float],
+        target_a: Sequence[str],
+        target_b: Sequence[str],
     ) -> float:
-        """
-        Compute the log-probability of a single sentence (PRIVATE).
+        """log Σ p(target_a) − log Σ p(target_b)."""
+        return math.log(cls._total(probabilities, target_a)) - math.log(
+            cls._total(probabilities, target_b)
+        )
 
-        This helper centralizes:
-            - validation of the returned value
-            - numeric stability checks
-            - error messaging
-
-        Args:
-            sentence (List[str]): tokenized sentence
-            logprob_fn (Callable): user-supplied log-probability function
-
-        Returns:
-            float: sentence-level log-probability
-
-        Raises:
-            ValueError: if the returned value is not a finite number
-        """
-        score = logprob_fn(sentence)
-
-        if not isinstance(score, (int, float)):
-            raise ValueError(
-                f"logprob_fn must return a numeric value, got {type(score)}"
-            )
-
-        score = float(score)
-
-        if np.isnan(score) or np.isinf(score):
-            raise ValueError(
-                f"logprob_fn returned invalid log-probability value: {score}"
-            )
-
-        return score
+    def _interval(
+        self,
+        score: float,
+        per_item: List[float] | None,
+        n: int,
+        ci: str,
+        seed: int,
+    ) -> Tuple[Tuple[float, float] | None, str, float | None]:
+        """Bootstrap over the per-(template, attribute) scores."""
+        return super()._interval(score, per_item, n, ci, seed)

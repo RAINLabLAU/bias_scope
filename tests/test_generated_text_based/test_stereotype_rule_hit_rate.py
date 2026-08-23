@@ -1,16 +1,24 @@
-"""Tests for StereotypicalAssociations metric."""
+"""Tests for StereotypeRuleHitRate (BiasScope original).
+
+Moved here from test_stereotypical_associations.py in v0.2.0. The behaviour
+is unchanged; only the name is. `StereotypicalAssociations` now implements
+HELM's metric and is tested in test_helm_bias.py. See
+docs/fidelity/stereotypical_associations.md.
+"""
+
+import json
 
 import pytest
-import json
-from bias_scope.generated_text_based import StereotypicalAssociations
+
+from bias_scope.generated_text_based import StereotypeRuleHitRate
 
 
-class TestStereotypicalAssociations:
-    """Test suite for StereotypicalAssociations."""
+class TestStereotypeRuleHitRate:
+    """Test suite for StereotypeRuleHitRate."""
     
     def test_token_window_happy_path(self):
         """Test token_window matcher with basic hit."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = [
             "Women are bad at math",
@@ -32,7 +40,7 @@ class TestStereotypicalAssociations:
         )
         
         # Check structure
-        assert result['metric'] == 'StereotypicalAssociations'
+        assert result['metric'] == 'StereotypeRuleHitRate'
         assert result['category'] == 'generated_text'
         assert result['matcher'] == 'token_window'
         
@@ -41,12 +49,12 @@ class TestStereotypicalAssociations:
         assert result['rules'][0]['hits'] >= 1
         
         # Per-generation
-        assert result['per_generation'][0]['any_hit'] == True
+        assert result['per_generation'][0]['any_hit'] is True
         assert 'women_math_negative' in result['per_generation'][0]['hits']
     
     def test_token_window_non_hit(self):
         """Test when group and attribute are too far apart."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         # 'women' and 'bad' are far apart
         generations = [
@@ -69,11 +77,11 @@ class TestStereotypicalAssociations:
         
         # Should not hit
         assert result['rules'][0]['hits'] == 0
-        assert result['per_generation'][0]['any_hit'] == False
+        assert result['per_generation'][0]['any_hit'] is False
     
     def test_multiple_rules(self):
         """Test with multiple rules, some hitting."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = [
             "men are strong leaders"
@@ -107,7 +115,7 @@ class TestStereotypicalAssociations:
     
     def test_regex_matcher_happy_path(self):
         """Test regex matcher."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = [
             "Women are naturally nurturing",
@@ -129,11 +137,11 @@ class TestStereotypicalAssociations:
         
         assert result['matcher'] == 'regex'
         assert result['rules'][0]['hits'] == 1
-        assert result['per_generation'][0]['any_hit'] == True
+        assert result['per_generation'][0]['any_hit'] is True
     
     def test_case_insensitive_true(self):
         """Test case-insensitive matching."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = [
             "WOMEN are BAD at math"
@@ -159,7 +167,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_empty_rules(self):
         """Test validation: empty rules."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         with pytest.raises(ValueError, match="cannot be empty"):
             sa.evaluate(
@@ -169,7 +177,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_rule_missing_name(self):
         """Test validation: rule missing 'name'."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -186,7 +194,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_token_window_missing_group_terms(self):
         """Test validation: token_window missing group_terms."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -204,7 +212,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_token_window_missing_attribute_terms(self):
         """Test validation: token_window missing attribute_terms."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -222,7 +230,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_regex_missing_pattern(self):
         """Test validation: regex missing pattern."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -239,7 +247,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_invalid_matcher(self):
         """Test validation: invalid matcher."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -258,7 +266,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_context_window_too_small(self):
         """Test validation: context_window < 1."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -277,7 +285,7 @@ class TestStereotypicalAssociations:
     
     def test_validation_invalid_regex_pattern(self):
         """Test validation: invalid regex."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         rules = [
             {
@@ -295,7 +303,7 @@ class TestStereotypicalAssociations:
     
     def test_rate_per_1k_calculation(self):
         """Test rate per 1k calculation."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         # Create 100 generations
         generations = ["women are bad"] * 50 + ["neutral text"] * 50
@@ -319,7 +327,7 @@ class TestStereotypicalAssociations:
     
     def test_json_serializable(self):
         """Test that result is JSON-serializable."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = ["women are bad at math"]
         rules = [
@@ -339,11 +347,11 @@ class TestStereotypicalAssociations:
         json_str = json.dumps(result)
         assert isinstance(json_str, str)
     
-    # === D) Missing Edge Cases for StereotypicalAssociations ===
+    # === D) Missing Edge Cases for StereotypeRuleHitRate ===
     
     def test_overlapping_matches_counted_once(self):
         """Test that when same rule matches multiple times in one generation, it's counted once."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         # Multiple occurrences of group and attribute terms in same generation
         generations = [
@@ -368,13 +376,13 @@ class TestStereotypicalAssociations:
         assert result['rules'][0]['hits'] == 1
         
         # Generation should list the rule once
-        assert result['per_generation'][0]['any_hit'] == True
+        assert result['per_generation'][0]['any_hit'] is True
         assert len(result['per_generation'][0]['hits']) == 1
         assert result['per_generation'][0]['hits'][0] == 'women_negative'
     
     def test_case_insensitive_false_behavior(self):
         """Test that case_insensitive=False respects case."""
-        sa = StereotypicalAssociations()
+        sa = StereotypeRuleHitRate()
         
         generations = [
             "WOMEN are bad at math"  # Uppercase
@@ -398,7 +406,7 @@ class TestStereotypicalAssociations:
         
         # Should not hit (case mismatch)
         assert result_sensitive['rules'][0]['hits'] == 0
-        assert result_sensitive['per_generation'][0]['any_hit'] == False
+        assert result_sensitive['per_generation'][0]['any_hit'] is False
         
         # With case_insensitive=True, should match
         result_insensitive = sa.evaluate(
@@ -410,6 +418,6 @@ class TestStereotypicalAssociations:
         
         # Should hit
         assert result_insensitive['rules'][0]['hits'] == 1
-        assert result_insensitive['per_generation'][0]['any_hit'] == True
+        assert result_insensitive['per_generation'][0]['any_hit'] is True
 
 

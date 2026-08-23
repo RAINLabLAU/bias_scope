@@ -8,6 +8,9 @@ from bias_scope.probability_based.crows_pairs import CrowSPairs
 from bias_scope.probability_based.icat import ICAT
 from bias_scope.probability_based.lmb import LMB
 from bias_scope.probability_based.lpbs import LPBS
+from bias_scope.probability_based.pairwise_likelihood_preference import (
+    PairwiseLikelihoodPreference,
+)
 from bias_scope.probability_based.scorers import BertPLLScorer, TokenPredictionScorer
 
 
@@ -36,10 +39,15 @@ try:
 except ImportError as exc:
     CBS = _torch_dependency_stub("CBS", exc)
 
+# DisCoMetric is pure Python since 0.2.0 — the caller supplies the fills, so it
+# needs no torch. TopKFillDivergence (the v0.1.1 statistic) still loads a model
+# itself, so it keeps the optional-dependency stub.
+from bias_scope.probability_based.disco import DisCoMetric
+
 try:
-    from bias_scope.probability_based.disco import DisCoMetric
+    from bias_scope.probability_based.topk_fill_divergence import TopKFillDivergence
 except ImportError as exc:
-    DisCoMetric = _torch_dependency_stub("DisCoMetric", exc)
+    TopKFillDivergence = _torch_dependency_stub("TopKFillDivergence", exc)
 
 # Public API - classes only
 __all__ = [
@@ -50,8 +58,10 @@ __all__ = [
     "AULA",
     "LMB",
     "LPBS",
+    "PairwiseLikelihoodPreference",
     "CBS",
     "DisCoMetric",
+    "TopKFillDivergence",
     "BertPLLScorer",
     "TokenPredictionScorer",
 ]

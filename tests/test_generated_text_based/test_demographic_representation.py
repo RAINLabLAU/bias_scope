@@ -1,8 +1,10 @@
 """Tests for DemographicRepresentation metric."""
 
-import pytest
 import json
+
 import numpy as np
+import pytest
+
 from bias_scope.generated_text_based import DemographicRepresentation
 
 
@@ -122,7 +124,7 @@ class TestDemographicRepresentation:
         )
         
         # Should have reference comparison
-        assert result['reference']['provided'] == True
+        assert result['reference']['provided'] is True
         assert result['reference']['distribution'] == reference
         assert result['reference']['kl_pq'] is not None
         assert result['reference']['jsd'] is not None
@@ -131,19 +133,32 @@ class TestDemographicRepresentation:
         assert result['reference']['kl_pq'] >= 0
         assert result['reference']['jsd'] >= 0
     
-    def test_validation_total_mentions_zero(self):
+    def test_zero_group_mentions_is_undefined_not_an_error(self):
+        """Behaviour changed in 0.2.0, following HELM.
+
+        v0.1.1 raised ValueError when no group word occurred. HELM's
+        `group_counts_to_bias` returns None and the instance is dropped
+        (`bias_metrics.py:210-211`), because 0.0 is the *unbiased* value and
+        claiming it here would be a false statement about the model. `run()`'s
+        guards reject a None score, so it cannot silently become a BiasResult.
+        This test was previously `test_validation_total_mentions_zero` and
+        asserted the raise.
+        """
         """Test validation: no mentions found."""
         dr = DemographicRepresentation()
         
         generations = ["no group terms here"]
         group_lexicons = {'male': ['man'], 'female': ['woman']}
         
-        with pytest.raises(ValueError, match="No group mentions found"):
-            dr.evaluate(
-                generations=generations,
-                group_lexicons=group_lexicons,
-                normalize='mentions'
-            )
+        result = dr.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            normalize='mentions',
+            return_details=True,
+        )
+        assert result["bias_score"] is None
+        assert result["total_mentions"] == 0
+        assert "undefined" in result["undefined_reason"].lower()
     
     def test_validation_compare_to_missing_keys(self):
         """Test validation: compare_to missing keys."""
@@ -274,7 +289,7 @@ class TestDemographicRepresentation:
     
     # === C) Missing Edge Cases for DemographicRepresentation ===
     
-    def test_zero_group_mentions_with_tokens_normalization(self):
+    def test_zero_group_mentions_with_tokens_normalization_is_undefined(self):
         """Test zero group mentions with 'tokens' normalization."""
         dr = DemographicRepresentation()
         
@@ -287,12 +302,15 @@ class TestDemographicRepresentation:
         }
         
         # With 'mentions' normalization, should raise error
-        with pytest.raises(ValueError, match="No group mentions found"):
-            dr.evaluate(
-                generations=generations,
-                group_lexicons=group_lexicons,
-                normalize='mentions'
-            )
+        result = dr.evaluate(
+            generations=generations,
+            group_lexicons=group_lexicons,
+            normalize='mentions',
+            return_details=True,
+        )
+        assert result["bias_score"] is None
+        assert result["total_mentions"] == 0
+        assert "undefined" in result["undefined_reason"].lower()
         
         # With 'tokens' normalization, total tokens > 0 but no group tokens
         # Implementation allows this and produces distribution with all zeros
@@ -333,7 +351,7 @@ class TestDemographicRepresentation:
             compare_to=reference
         )
         
-        assert result['reference']['provided'] == True
+        assert result['reference']['provided'] is True
         assert result['reference']['kl_pq'] is not None
     
     def test_compare_to_exceeds_sum_threshold(self):

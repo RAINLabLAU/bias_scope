@@ -1,11 +1,11 @@
 """Tests for Score Parity."""
 
 import pytest
-import numpy as np
-from bias_scope.generated_text_based import ScoreParity
+
+from bias_scope.generated_text_based import MeanScoreGap
 
 
-class TestScoreParity:
+class TestMeanScoreGap:
     """Test suite for Score Parity metric."""
     
     @pytest.fixture
@@ -26,7 +26,7 @@ class TestScoreParity:
     
     def test_basic_functionality(self, simple_classifier):
         """Test basic score parity computation."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high score", "high value"]]
         group_b = [["low score", "low value"]]
@@ -40,7 +40,7 @@ class TestScoreParity:
     
     def test_equal_groups(self, simple_classifier):
         """Test when both groups have same scores."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high", "high"]]
         group_b = [["high", "high"]]
@@ -53,7 +53,7 @@ class TestScoreParity:
 
     def test_default_toxicity_classifier(self):
         """Test built-in toxicity scorer path when classifier is omitted."""
-        parity = ScoreParity(api_key="mock_key")
+        parity = MeanScoreGap(api_key="mock_key")
 
         class MockPerspective:
             def score_batch(self, texts):
@@ -75,16 +75,16 @@ class TestScoreParity:
         monkeypatch.delenv("PERSPECTIVE_API_KEY", raising=False)
 
         with pytest.raises(ValueError, match="api_key cannot be empty"):
-            ScoreParity()
+            MeanScoreGap()
 
     def test_non_callable_classifier_raises_error(self):
         """Test that non-callable classifier raises ValueError."""
         with pytest.raises(ValueError, match="callable"):
-            ScoreParity(classifier="not_callable")
+            MeanScoreGap(classifier="not_callable")
     
     def test_empty_group_raises_error(self, simple_classifier):
         """Test that empty group raises ValueError."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["test"]]
         group_b = []
@@ -94,7 +94,7 @@ class TestScoreParity:
     
     def test_empty_inner_list_raises_error(self, simple_classifier):
         """Test that empty inner list raises ValueError."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["test"]]
         group_b = [[]]
@@ -104,7 +104,7 @@ class TestScoreParity:
     
     def test_return_keys(self, simple_classifier):
         """Test that all expected keys are in result."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high"]]
         group_b = [["low"]]
@@ -121,12 +121,12 @@ class TestScoreParity:
     
     def test_metadata_category(self, simple_classifier):
         """Test metric category property."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         assert parity.category == "generated_text"
     
     def test_effect_size_calculation(self, simple_classifier):
         """Test Cohen's d effect size calculation."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
 
         # Need variation within groups for non-zero pooled std
         group_a = [["high", "high", "medium"]]
@@ -139,7 +139,7 @@ class TestScoreParity:
     
     def test_standard_deviation(self, simple_classifier):
         """Test standard deviation calculation."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         # Group with variation
         group_a = [["high", "low", "medium"]]
@@ -152,7 +152,7 @@ class TestScoreParity:
     
     def test_multiple_prompts(self, simple_classifier):
         """Test with multiple prompts per group."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [
             ["high", "high"],
@@ -171,7 +171,7 @@ class TestScoreParity:
     
     def test_return_type_is_dict(self, simple_classifier):
         """Test that evaluate returns dictionary."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["test"]]
         group_b = [["test"]]
@@ -181,7 +181,7 @@ class TestScoreParity:
     
     def test_all_values_are_floats(self, simple_classifier):
         """Test that all returned values are floats."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high"]]
         group_b = [["low"]]
@@ -193,7 +193,7 @@ class TestScoreParity:
     
     def test_difference_consistency(self, simple_classifier):
         """Test that difference matches mean difference."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high"]]
         group_b = [["low"]]
@@ -205,7 +205,7 @@ class TestScoreParity:
     
     def test_single_text_per_group(self, simple_classifier):
         """Test with minimal input."""
-        parity = ScoreParity(classifier=simple_classifier)
+        parity = MeanScoreGap(classifier=simple_classifier)
         
         group_a = [["high"]]
         group_b = [["low"]]
@@ -223,7 +223,7 @@ class TestScoreParity:
             # Use fixed max=10 to ensure consistent scoring across groups
             return [min(len(text.split()) / 10.0, 1.0) for text in texts]
         
-        parity = ScoreParity(classifier=word_count_classifier)
+        parity = MeanScoreGap(classifier=word_count_classifier)
         
         group_a = [["one two three four five"]]
         group_b = [["one"]]
@@ -239,7 +239,7 @@ class TestScoreParity:
         def bad_classifier(texts):
             return [1.5] * len(texts)  # Out of range
         
-        parity = ScoreParity(classifier=bad_classifier)
+        parity = MeanScoreGap(classifier=bad_classifier)
         
         group_a = [["test"]]
         group_b = [["test"]]

@@ -102,7 +102,8 @@ class GenderPolarity(GeneratedTextMetric):
                     neutral_completions += 1
                     if neutral_policy == "error":
                         raise ValueError(
-                            "Encountered completion with no gendered lexicon hits while neutral_policy='error'."
+                            "Encountered completion with no gendered lexicon hits "
+                            "while neutral_policy='error'."
                         )
                     if neutral_policy == "skip":
                         continue

@@ -103,7 +103,11 @@ class TestSeatCeatPoolingPropagation:
         # Patch WEAT.evaluate inside SEAT to observe the kwarg.
         with patch("bias_scope.embeddings_based.seat.WEAT") as WEAT_cls:
             weat_inst = MagicMock()
-            weat_inst.evaluate.return_value = 0.42
+            # SEAT delegates with return_details=True (see the note below).
+            weat_inst.evaluate.return_value = {
+                "weat_score": 0.42, "effect_size": 0.42,
+                "n_target_group_1": 2.0, "n_target_group_2": 2.0,
+            }
             WEAT_cls.return_value = weat_inst
             s = SEAT(model_name="fake", pooling="cls")
             score = s.evaluate(
@@ -116,21 +120,42 @@ class TestSeatCeatPoolingPropagation:
         assert weat_inst.evaluate.call_args.kwargs["pooling"] == "cls"
         assert score == 0.42
 
-    def test_seat_default_pooling_is_mean(self):
+    def test_seat_default_pooling_is_cls(self):
+        """Changed in 0.2.0 to match the reference protocol.
+
+        May et al.'s `sent-bias/sentbias/encoders/bert.py:26` takes
+        `enc[:, 0, :]` — the position-0 representation — so `cls` is the
+        reference's pooling, not `mean`. PLAN.md 4.2 asks for this default.
+        This test previously asserted `mean`.
+        """
         with patch("bias_scope.embeddings_based.seat.WEAT") as WEAT_cls:
             weat_inst = MagicMock()
-            weat_inst.evaluate.return_value = 0.0
+            # SEAT now delegates with return_details=True so it can carry
+            # WEAT's group sizes and p-value through; without them `run()`
+            # cannot build an interval. The mock must match that call.
+            weat_inst.evaluate.return_value = {
+                "weat_score": 0.0,
+                "effect_size": 0.0,
+                "p_value": 1.0,
+                "p_value_exact": True,
+                "num_partitions": 1,
+                "p_value_note": "",
+                "n_target_group_1": 2.0,
+                "n_target_group_2": 2.0,
+                "n_attribute_group_1": 2.0,
+                "n_attribute_group_2": 2.0,
+            }
             WEAT_cls.return_value = weat_inst
             SEAT().evaluate(
                 (np.zeros((2, 4)), np.zeros((2, 4))),
                 (np.zeros((2, 4)), np.zeros((2, 4))),
             )
-        assert WEAT_cls.call_args.kwargs["pooling"] == "mean"
+        assert WEAT_cls.call_args.kwargs["pooling"] == "cls"
 
     def test_ceat_stores_pooling(self):
         c = CEAT(pooling="cls")
         assert c.pooling == "cls"
-        assert CEAT().pooling == "mean"
+        assert CEAT().pooling == "cls"
 
     def test_weat_stores_pooling(self):
         w = WEAT(pooling="cls")

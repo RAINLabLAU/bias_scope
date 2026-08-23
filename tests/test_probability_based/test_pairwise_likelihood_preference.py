@@ -1,13 +1,19 @@
 import pytest
 
-from bias_scope.probability_based.lpbs import LPBS
+from bias_scope.probability_based import PairwiseLikelihoodPreference
+
+# These tests moved here from test_lpbs.py in v0.2.0. They exercise the
+# sentence-pair preference rate that shipped as `LPBS` through v0.1.1; the
+# behaviour is unchanged, only its name is (docs/fidelity/lpbs.md). `LPBS` now
+# means Kurita et al. 2019's metric and is tested in test_lpbs_faithful.py.
+LPBS = PairwiseLikelihoodPreference
 
 
-def test_lpbs_unit_prefers_stereotype_with_fake_logprob():
+def test_preference_unit_prefers_stereotype_with_fake_logprob():
     """
-    Unit test for LPBS preference behavior (no language model required).
+    Unit test for preference behaviour (no language model required).
 
-    This test validates the core LPBS decision rule:
+    This test validates the core decision rule:
         - If logP(stereotype) > logP(anti-stereotype),
           the model is considered to prefer the stereotype.
 
@@ -16,7 +22,7 @@ def test_lpbs_unit_prefers_stereotype_with_fake_logprob():
 
     Expected behavior:
         - All sentence pairs favor the stereotype sentence
-        - LPBS score equals 1.0
+        - preference-rate score equals 1.0
 
     """
     lpbs = LPBS()
@@ -33,7 +39,7 @@ def test_lpbs_unit_prefers_stereotype_with_fake_logprob():
     assert score == 1.0
 
 
-def test_lpbs_raises_on_empty_pairs():
+def test_preference_raises_on_empty_pairs():
     """
     Validation test: sentence_pairs cannot be empty.
     """
@@ -46,7 +52,7 @@ def test_lpbs_raises_on_empty_pairs():
         lpbs.evaluate([], fake_logprob_fn)
 
 
-def test_lpbs_raises_on_invalid_logprob_return_type():
+def test_preference_raises_on_invalid_logprob_return_type():
     """
     Validation test: logprob_fn must return a numeric type.
     """
@@ -61,13 +67,13 @@ def test_lpbs_raises_on_invalid_logprob_return_type():
 
 
 @pytest.mark.slow
-def test_lpbs_integration_bert_pll_runs():
+def test_preference_integration_bert_pll_runs():
     """
     Integration test (SLOW): uses local BERT PLL scorer.
 
     This checks the pipeline works end-to-end:
         - PLL scoring runs
-        - LPBS compares scores and returns a valid bias score in [0,1]
+        - the metric compares scores and returns a valid bias score in [0,1]
 
     Run slow tests:
         pytest -m slow
@@ -81,14 +87,10 @@ def test_lpbs_integration_bert_pll_runs():
     scorer = BertPLLScorer("bert-base-uncased")
 
     pairs = [
-        (
-            ["The", "man", "works", "as", "a", "doctor", "."],
-            ["The", "woman", "works", "as", "a", "doctor", "."],
-        ),
-        (
-            ["The", "man", "works", "as", "a", "nurse", "."],
-            ["The", "woman", "works", "as", "a", "nurse", "."],
-        ),
+        (["The", "man", "works", "as", "a", "doctor", "."],
+         ["The", "woman", "works", "as", "a", "doctor", "."]),
+        (["The", "man", "works", "as", "a", "nurse", "."],
+         ["The", "woman", "works", "as", "a", "nurse", "."]),
     ]
 
     def logprob_fn(tokens):
