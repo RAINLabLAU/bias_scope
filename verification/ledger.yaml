@@ -1,0 +1,770 @@
+# ledger.yaml — the verification standard (PLAN.md Section 1).
+#
+# Passing tests is necessary, not sufficient. A metric or feature is *done*
+# only when its row here is complete, every criterion has an evidence pointer
+# (a test name, a result file, or a PROGRESS.md entry), and
+# `scripts/verification/render_ledger.py` confirms that evidence exists.
+# The rendered results/verification/VERIFICATION.md is what the maintainer reads.
+#
+# Evidence values are one of:
+#   tests/test_embeddings/test_weat.py::TestWEAT::test_caliskan_table1   a test
+#   results/verification/weat/gpt2.json                                  a file
+#   PROGRESS.md#2026-09-03                                               a note
+#   exempt: <reason>          a criterion the metric cannot satisfy by design
+#
+# An empty string means not yet done. Do not fill a cell without the evidence.
+
+metrics:
+- metric: CEAT
+  family: embedding
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: SEAT
+  family: embedding
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: SentenceBiasScore
+  family: embedding
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: WEAT
+  family: embedding
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: AUL
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: AULA
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CAT
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CBS
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CrowSPairs
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: DisCoMetric
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: ICAT
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: LMB
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: LPBS
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CoOccurrenceBiasScore
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CounterfactualSentimentBias
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: DemographicRepresentation
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: EMT
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: FGB
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: GenderPolarity
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: HONEST
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: MarkedPersons
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: PGB
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: PsycholinguisticNorms
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: RegardScore
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: ScoreParity
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: SocialGroupSubstitution
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: StereotypicalAssociations
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: ToxicityFraction
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: ToxicityProbability
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: AnalogicalReasoningBias
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: BBQMetric
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: BOLD
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: CounterfactualFairness
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: DemographicRepresentationBias
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: OpinionConsistencyAcrossPersonas
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: RealToxicityPrompts
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: StereoSetMetric
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: TofNof
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: TruthfulQA
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: UnQoverMetric
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: DecodingTrustFairness
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/decodingtrust.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_decodingtrust.py::TestParityFormulas::test_equalized_odds_takes_the_larger_of_the_two_ranges
+    oracle_agreement: tests/oracles/test_fairlearn_oracle.py::test_agrees_with_fairlearn_on_random_inputs
+    properties: tests/test_prompts_based/test_decodingtrust.py::TestParityFormulas::test_equal_treatment_gives_zero_parity_difference
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/oracles/test_fairlearn_oracle.py::test_agrees_with_fairlearn_on_random_inputs
+    golden_output: tests/test_prompts_based/test_decodingtrust.py::TestParityFormulas::test_a_group_with_no_negatives_gets_fairlearns_zero_not_a_skip
+    errors: tests/test_prompts_based/test_decodingtrust.py::TestFairnessMetric::test_all_unparseable_raises_rather_than_reporting_zero_disparity
+- metric: DecodingTrustStereotype
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/decodingtrust.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_decodingtrust.py::TestStereotypeAgreement::test_the_leaderboard_score_rounds_before_subtracting
+    oracle_agreement: 'exempt: phrase-list classification; every phrase is covered individually instead'
+    properties: tests/test_prompts_based/test_decodingtrust.py::TestStereotypeAgreement::test_cells_are_weighted_equally_not_by_generation_count
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_decodingtrust.py::TestClassifyResponse::test_the_commonest_refusal_wording_is_scored_as_disagreement
+    golden_output: tests/test_prompts_based/test_decodingtrust.py::TestStereotypeAgreement::test_the_rate_is_over_all_generations_in_the_cell
+    errors: tests/test_prompts_based/test_decodingtrust.py::TestStereotypeAgreement::test_a_generation_without_a_response_raises
+- metric: DiscrimEval
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: FirstPersonFairness
+  family: prompt
+  fidelity: adaptation
+  fidelity_note: docs/fidelity/first_person_fairness.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_first_person_fairness.py::TestNetHarm::test_the_papers_chance_case_nets_to_zero
+    oracle_agreement: 'exempt: no reference implementation exists (SOURCES.yaml code_status: none_found)'
+    properties: tests/test_prompts_based/test_first_person_fairness.py::TestNetHarm::test_no_stereotype_scores_zero
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: 'exempt: no reference implementation and no released per-item outputs (SOURCES.yaml code_status: none_found); see docs/fidelity/first_person_fairness.md'
+    golden_output: tests/test_prompts_based/test_first_person_fairness.py::TestNetHarm::test_an_order_biased_judge_is_halved_not_ignored
+    errors: tests/test_prompts_based/test_first_person_fairness.py::TestValidation::test_a_pair_missing_a_key_raises_and_names_it
+- metric: IdentitySwapConsistency
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: ImplicitAssociationTest
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/implicit_association.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_implicit_association.py::TestTheFormula::test_the_papers_maximal_example
+    oracle_agreement: 'exempt: the reference itself is the oracle — see reference_agreement'
+    properties: tests/test_prompts_based/test_implicit_association.py::TestTheFormula::test_an_even_split_is_zero
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/equivalence/test_implicit_association_equivalence.py::TestPerResponseEquivalence::test_every_scored_response_matches_the_authors_value
+    golden_output: tests/test_prompts_based/test_implicit_association.py::TestTheReferenceEpsilon::test_sixteen_words_reproduce_the_released_maximum
+    errors: tests/test_prompts_based/test_implicit_association.py::TestImplicitValidation::test_overlapping_groups_raise
+- metric: LLMDecisionBias
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/implicit_association.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_implicit_association.py::TestDecisionBias::test_an_unbiased_model_scores_the_neutral_half
+    oracle_agreement: 'exempt: a mean of binary judge labels; no independent formula to cross-check'
+    properties: tests/test_prompts_based/test_implicit_association.py::TestDecisionBias::test_always_discriminating_scores_one
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_implicit_association.py::TestDecisionBias::test_the_unparseable_labels_in_the_released_data_are_rejections
+    golden_output: tests/test_prompts_based/test_implicit_association.py::TestDecisionBias::test_a_refusal_is_excluded_and_reported
+    errors: tests/test_prompts_based/test_implicit_association.py::TestDecisionBias::test_all_refused_raises_rather_than_inventing_a_rate
+- metric: MeanScoreGap
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: OccupationPronounSkew
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: PairwiseLikelihoodPreference
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: PoliticalEvenHandedness
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: StereotypeRuleHitRate
+  family: generated_text
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: TopKFillDivergence
+  family: probability
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+- metric: TrustLLMDisparagement
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/trustllm.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_trustllm.py::TestDisparagement::test_a_perfectly_split_prediction_gives_a_small_p_value
+    oracle_agreement: tests/oracles/test_chi_square_oracle.py::TestAgainstScipy::test_the_2x4_shape_trustllm_disparagement_produces
+    properties: tests/test_prompts_based/test_trustllm.py::TestDisparagement::test_identical_distributions_give_a_p_value_of_one
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_trustllm.py::TestSalaryOptionParsing::test_the_reference_mapping
+    golden_output: tests/test_prompts_based/test_trustllm.py::TestDisparagement::test_the_contingency_table_is_returned
+    errors: tests/test_prompts_based/test_trustllm.py::TestDisparagement::test_a_missing_attribute_column_raises
+- metric: TrustLLMPreference
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/trustllm.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_trustllm.py::TestPreference::test_the_overall_is_the_mean_of_the_two_types
+    oracle_agreement: 'exempt: a refusal rate from a caller-supplied classifier'
+    properties: tests/test_prompts_based/test_trustllm.py::TestPreference::test_refusing_everything_is_the_ideal_score
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_trustllm.py::TestPreference::test_a_short_forced_choice_counts_as_an_answer_not_a_refusal
+    golden_output: tests/test_prompts_based/test_trustllm.py::TestPreference::test_a_long_reply_naming_a_goes_to_the_classifier
+    errors: tests/test_prompts_based/test_trustllm.py::TestPreference::test_an_unknown_type_raises
+- metric: TrustLLMStereotypeAgreement
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/trustllm.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_trustllm.py::TestStereotypeAgreement::test_agreeing_with_everything_scores_one
+    oracle_agreement: 'exempt: a keyword rate; no independent formula'
+    properties: tests/test_prompts_based/test_trustllm.py::TestStereotypeAgreement::test_disagreeing_with_everything_scores_zero
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_trustllm.py::TestStereotypeAgreement::test_unclear_replies_stay_in_the_denominator
+    golden_output: tests/test_prompts_based/test_trustllm.py::TestStereotypeAgreement::test_a_reply_with_both_words_is_not_agreement
+    errors: tests/test_prompts_based/test_trustllm.py::TestStereotypeAgreement::test_empty_responses_raise
+- metric: TrustLLMStereotypeRecognition
+  family: prompt
+  fidelity: faithful
+  fidelity_note: docs/fidelity/trustllm.md
+  criteria:
+    known_answer: tests/test_prompts_based/test_trustllm.py::TestStereotypeRecognition::test_a_perfect_classifier_scores_one
+    oracle_agreement: 'exempt: an accuracy over parsed labels; no independent formula'
+    properties: tests/test_prompts_based/test_trustllm.py::TestStereotypeRecognition::test_a_wrong_classifier_scores_zero
+    runs_end_to_end: results/verification/suite/new_metrics.md
+    reference_agreement: tests/test_prompts_based/test_trustllm.py::TestRecognitionCorrectness::test_anti_stereotype_does_not_satisfy_a_stereotype_label
+    golden_output: tests/test_prompts_based/test_trustllm.py::TestStereotypeRecognition::test_unparseable_answers_leave_the_denominator
+    errors: tests/test_prompts_based/test_trustllm.py::TestStereotypeRecognition::test_all_unparseable_raises_rather_than_scoring_zero
+- metric: WinoBias
+  family: prompt
+  fidelity: ''
+  fidelity_note: ''
+  criteria:
+    known_answer: ''
+    oracle_agreement: ''
+    properties: ''
+    runs_end_to_end: ''
+    reference_agreement: ''
+    golden_output: ''
+    errors: ''
+features:
+- feature: run()
+  description: BiasMetric.run returning a BiasResult (PLAN.md 5.3)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: BiasSuite
+  description: multi-metric execution over one model (5.4)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: recommend_metrics
+  description: metric selection from access/axis/language (5.4)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: reports
+  description: save_json / to_markdown / to_html (5.4)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: judge
+  description: Judge abstraction over LiteLLM (7.1)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: adapters
+  description: lm-evaluation-harness and hf evaluate wrappers (Phase 5)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
+- feature: viz
+  description: the five plots and the HTML report (Phase 6)
+  criteria:
+    unit_tests: ''
+    integration_test: ''
+    real_run: ''
+    docs_example: ''
+    acceptance_checks: ''
