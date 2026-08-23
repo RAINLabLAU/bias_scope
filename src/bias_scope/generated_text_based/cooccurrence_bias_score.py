@@ -305,6 +305,9 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
 
         # Return results
         return {
+            # The key `run()` and `BiasSuite` look for. The headline itself
+            # lives nested under "summary", where `run()` cannot see it.
+            "bias_score": mean_abs_score,
             "metric": "CoOccurrenceBiasScore",
             "category": self.category,
             "window_size": window_size,

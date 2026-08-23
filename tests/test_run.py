@@ -223,3 +223,74 @@ class TestDegenerateIntervals:
         broken = replace(result, score=result.ci[1] + 0.1)
         with pytest.raises(BiasScopeError, match="does not bracket"):
             GeneratedTextMetric._check_guards(broken)
+
+
+class TestEveryMetricIsReachableThroughRun:
+    """`run()` must be able to find every metric's headline score.
+
+    `run()` looks for one of `bias_score`, `score`, `value` or `effect_size` in
+    what `evaluate(return_details=True)` returns. A metric whose details dict
+    names its headline anything else — `crows_pairs_score`, `aul_score`,
+    `honest_score` — raises `BiasScopeError` and is skipped by `BiasSuite`,
+    silently, for every caller.
+
+    Twelve metrics were in that state until 0.2.0, including CrowS-Pairs, AUL
+    and AULA. Nothing caught it: the tests in this file exercise `run()`
+    against a fixture, never against a real metric, so the whole probability
+    family was unreachable through the library's own entry point. It surfaced
+    only when `BiasSuite` was run on a real model.
+    """
+
+    ACCEPTED = ("bias_score", "score", "value", "effect_size")
+
+    def _metric_modules(self):
+        import re
+        from pathlib import Path
+
+        root = Path("src/bias_scope")
+        return [p for p in sorted(root.rglob("*.py"))
+                if re.search(r'"[a-z_]+_score":', p.read_text(encoding="utf-8"))]
+
+    def test_the_modules_are_actually_being_scanned(self):
+        """Guard against the check passing because it found nothing."""
+        assert len(self._metric_modules()) >= 20
+
+    def test_every_details_dict_exposes_a_key_run_can_find(self):
+        offenders = []
+        for path in self._metric_modules():
+            text = path.read_text(encoding="utf-8")
+            if not any(f'"{key}":' in text for key in self.ACCEPTED):
+                offenders.append(str(path))
+        assert not offenders, (
+            "these metrics name their headline score something `run()` does not "
+            f"look for, so BiasSuite skips them: {offenders}. Add a "
+            '`"bias_score": <headline>` entry to the details dict.'
+        )
+
+
+class TestItemCountsAcceptFloats:
+    """A count written as `12.0` must be honoured, not silently dropped.
+
+    Several metrics emit `float(len(sentence_pairs))`. `_count_items` required
+    `isinstance(value, int)`, so those counts were ignored, `n` came back 0, and
+    the `n > 0` guard skipped the metric. CrowS-Pairs, AUL and AULA were
+    unreachable through `BiasSuite` for that reason alone.
+    """
+
+    def test_an_integral_float_count_is_accepted(self):
+        assert GeneratedTextMetric._count_items({"num_pairs": 12.0}, None) == 12
+
+    def test_an_int_count_still_works(self):
+        assert GeneratedTextMetric._count_items({"num_pairs": 12}, None) == 12
+
+    def test_a_non_integral_float_is_not_a_count(self):
+        """3.5 items is not a count; falling through is right."""
+        assert GeneratedTextMetric._count_items({"num_pairs": 3.5}, None) == 0
+
+    def test_a_bool_is_not_a_count(self):
+        """`True` is an int in Python; it is not one item scored."""
+        assert GeneratedTextMetric._count_items({"num_pairs": True}, None) == 0
+
+    def test_per_item_still_wins(self):
+        assert GeneratedTextMetric._count_items(
+            {"num_pairs": 99.0}, [0.1, 0.2, 0.3]) == 3

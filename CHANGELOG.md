@@ -53,6 +53,15 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   running the suite for real rather than by a unit test.
 
 ### Breaking
+- **`CrowSPairs`, `AUL` and `AULA` now report a percentage by default.** Their
+  papers report percentages (Nangia et al. give 60.5 for BERT) and their
+  `MetricInfo` already declared `neutral_value=50.0, value_range=(0.0, 100.0)`,
+  but `evaluate()` returned a 0-1 fraction. `normalized_deviation` was then
+  `0.667 - 50 = -49.33`, so a stereotyped model appeared on the
+  **anti-stereotypical** side of every profile and dumbbell figure.
+  `percentage=False` returns the old fraction for continuity, and `run()`
+  raises rather than accepting it, because that combination reproduces the bug.
+  (REVIEW_LATER RL-038.)
 - **`CrowSPairs`, `AUL` and `AULA` now default to `mode="wordpiece"`.** All
   three are registered `faithful`, and `wordpiece` — the authors'
   pseudo-log-likelihood over WordPiece tokens — is the path that status refers
@@ -69,6 +78,16 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   now states what the two modes are and cites the reproduction.
 
 ### Fixed
+- **Twelve metrics were unreachable through `run()` and `BiasSuite`.**
+  CrowS-Pairs, AUL, AULA, HONEST, CEAT, StereoSet, UnQover and five others name
+  their headline score `<metric>_score`, which `run()` does not look for, so
+  every one raised and was skipped silently. Each now also exposes
+  `bias_score`, with a test that fails if any metric's headline becomes
+  unreachable again.
+- **Valid item counts were rejected on their Python type.** `_count_items`
+  required `isinstance(value, int)`; several metrics emit
+  `float(len(sentence_pairs))`, so `n` came back 0 and the `n > 0` guard
+  skipped them. Any integral count is now accepted. (REVIEW_LATER RL-039.)
 - **`run()` rejected legitimate results.** A metric whose per-item values are
   all equal gives a degenerate bootstrap interval `[v, v]`, and the mean can
   miss both endpoints by one ULP from summation order, so the bracketing guard

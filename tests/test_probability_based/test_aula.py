@@ -11,7 +11,7 @@ class TestAULA:
 
     def test_basic_functionality(self):
         """Test with biased predictions and uniform attention."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         # Biased: higher probs for stereotypes
         def biased_predict(sentence, pos):
@@ -41,7 +41,7 @@ class TestAULA:
         `sum(a_i)` rather than `|S|`, so this test previously expected
         `log(0.9)`. See docs/fidelity/aul_aula.md.
         """
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_with_focused_attention(sentence, pos):
             n = len(sentence)
@@ -71,7 +71,7 @@ class TestAULA:
 
     def test_attention_normalization(self):
         """Test that attention weights are normalized to sum to 1."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_with_unnormalized_attention(sentence, pos):
             n = len(sentence)
@@ -94,7 +94,7 @@ class TestAULA:
 
     def test_missing_attention_raises_error(self):
         """Test that missing attention key raises clear error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_without_attention(sentence, pos):
             # Missing 'attention' key
@@ -107,7 +107,7 @@ class TestAULA:
 
     def test_missing_prob_raises_error(self):
         """Test that missing prob key raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_without_prob(sentence, pos):
             return {"attention": np.array([0.5, 0.5])}
@@ -119,7 +119,7 @@ class TestAULA:
 
     def test_attention_shape_mismatch_raises_error(self):
         """Test attention shape mismatch raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_wrong_shape(sentence, pos):
             # Attention length doesn't match sentence
@@ -133,7 +133,7 @@ class TestAULA:
 
     def test_attention_not_1d_raises_error(self):
         """Test non-1D attention raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_2d_attention(sentence, pos):
             # 2D attention (not pre-aggregated)
@@ -146,7 +146,7 @@ class TestAULA:
 
     def test_attention_nan_raises_error(self):
         """Test attention with NaN raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_nan_attention(sentence, pos):
             return {"prob": 0.5, "attention": np.array([np.nan, 0.5])}
@@ -158,7 +158,7 @@ class TestAULA:
 
     def test_attention_negative_raises_error(self):
         """Test negative attention raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_negative_attention(sentence, pos):
             return {"prob": 0.5, "attention": np.array([-0.1, 0.5])}
@@ -170,7 +170,7 @@ class TestAULA:
 
     def test_attention_zero_sum_raises_error(self):
         """Test attention summing to zero raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_zero_attention(sentence, pos):
             return {"prob": 0.5, "attention": np.array([0.0, 0.0])}
@@ -182,7 +182,7 @@ class TestAULA:
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def mock_predict(sentence, pos):
             return {"prob": 0.5, "attention": np.ones(len(sentence))}
@@ -192,7 +192,7 @@ class TestAULA:
 
     def test_different_length_raises_error(self):
         """Test sentences with different lengths raise error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def mock_predict(sentence, pos):
             return {"prob": 0.5, "attention": np.ones(len(sentence))}
@@ -204,7 +204,7 @@ class TestAULA:
 
     def test_empty_sentence_raises_error(self):
         """Test empty sentence raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def mock_predict(sentence, pos):
             return {"prob": 0.5, "attention": np.array([])}
@@ -216,7 +216,7 @@ class TestAULA:
 
     def test_invalid_probability_raises_error(self):
         """Test invalid probability raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def bad_predict(sentence, pos):
             return {"prob": 1.5, "attention": np.ones(len(sentence))}
@@ -228,7 +228,7 @@ class TestAULA:
 
     def test_predict_function_not_dict_raises_error(self):
         """Test predict function not returning dict raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def bad_predict(sentence, pos):
             return 0.5  # Not a dict!
@@ -240,7 +240,7 @@ class TestAULA:
 
     def test_weighted_vs_unweighted_comparison(self):
         """Test that attention weighting changes the result vs uniform."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         # Scenario: token 0 has high prob, token 1 has low prob
         def predict_varied_probs(sentence, pos):
@@ -287,7 +287,7 @@ class TestAULA:
 
     def test_pair_comparison(self):
         """Test stereotype vs anti-stereotype comparison."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_biased(sentence, pos):
             n = len(sentence)
@@ -311,7 +311,7 @@ class TestAULA:
 
     def test_unbiased_model_near_fifty(self):
         """Test unbiased model returns score near 0.5."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def predict_unbiased(sentence, pos):
             n = len(sentence)
@@ -332,7 +332,7 @@ class TestAULA:
 
     def test_result_type(self):
         """Test that result is a float."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def mock_predict(sentence, pos):
             return {"prob": 0.5, "attention": np.ones(len(sentence))}
@@ -348,7 +348,7 @@ class TestAULA:
 
     def test_predict_function_not_callable_raises_error(self):
         """Test that non-callable predict_function raises TypeError."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         pairs = [(["A", "B"], ["C", "D"])]
 
@@ -362,7 +362,7 @@ class TestAULA:
 
     def test_predict_function_returning_nan_prob_raises_error(self):
         """Test that predict_function returning NaN probability raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def nan_prob_predict(sentence, pos):
             return {"prob": np.nan, "attention": np.ones(len(sentence))}
@@ -374,7 +374,7 @@ class TestAULA:
 
     def test_predict_function_returning_inf_prob_raises_error(self):
         """Test that predict_function returning Inf probability raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def inf_prob_predict(sentence, pos):
             return {"prob": np.inf, "attention": np.ones(len(sentence))}
@@ -386,7 +386,7 @@ class TestAULA:
 
     def test_attention_with_inf_raises_error(self):
         """Test that attention containing Inf raises error."""
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         def inf_attention_predict(sentence, pos):
             attention = np.ones(len(sentence))
@@ -407,7 +407,7 @@ class TestAULA:
         should be consistent. AULA uses > comparison, so ties count as 0
         (no preference for stereotype).
         """
-        aula = AULA(mode="whitespace")
+        aula = AULA(mode="whitespace", percentage=False)
 
         # Identical predictions for both sentences
         def identical_predict(sentence, pos):

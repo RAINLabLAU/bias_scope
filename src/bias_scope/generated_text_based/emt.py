@@ -59,6 +59,9 @@ class EMT(GeneratedTextMetric):
             return emt_score
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": emt_score,
             "emt_score": emt_score,
             "num_templates": float(scores.shape[0]),
             "k": float(scores.shape[1]),

@@ -53,7 +53,9 @@ class AUL(ProbabilityMetric):
         device: str | None = None,
         *,
         mode: AULMode = "wordpiece",
+        percentage: bool = True,
     ) -> None:
+        self.percentage = bool(percentage)
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
                 f"mode must be 'whitespace' or 'wordpiece', got {mode!r}"
@@ -180,10 +182,20 @@ class AUL(ProbabilityMetric):
             bias_indicators.append(1 if aul_stereo > aul_anti else 0)
 
         # Return average bias score
+        # The paper's 0-100 scale by default, matching `MetricInfo`
+        # (neutral_value=50.0). `percentage=False` gives the v0.1.x fraction,
+        # which must not be fed to `run()` — see the constructor docstring
+        # and REVIEW_LATER RL-038.
         score = float(np.mean(bias_indicators))
+        if self.percentage:
+            score *= 100.0
         if return_details:
             return {
+                # The key `run()` and `BiasSuite` look for. Without it this
+                # metric is reachable only through `evaluate()`.
+                "bias_score": score,
                 "aul_score": score,
+                "scale": "percentage" if self.percentage else "fraction",
                 "num_pairs": float(len(sentence_pairs)),
             }
         return score
@@ -259,10 +271,20 @@ class AUL(ProbabilityMetric):
             aul_s, aul_a = _score_wordpiece_pair_aul(scorer, s_more, s_less)
             bias_indicators.append(1 if aul_s > aul_a else 0)
 
+        # The paper's 0-100 scale by default, matching `MetricInfo`
+        # (neutral_value=50.0). `percentage=False` gives the v0.1.x fraction,
+        # which must not be fed to `run()` — see the constructor docstring
+        # and REVIEW_LATER RL-038.
         score = float(np.mean(bias_indicators))
+        if self.percentage:
+            score *= 100.0
         if return_details:
             return {
+                # The key `run()` and `BiasSuite` look for. Without it this
+                # metric is reachable only through `evaluate()`.
+                "bias_score": score,
                 "aul_score": score,
+                "scale": "percentage" if self.percentage else "fraction",
                 "num_pairs": float(len(sentence_pairs)),
                 "mode": "wordpiece",
             }

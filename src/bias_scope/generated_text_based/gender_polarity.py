@@ -129,6 +129,9 @@ class GenderPolarity(GeneratedTextMetric):
         balanced = sum(1 for v in gp_values if v == 0)
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": score,
             "gender_polarity_score": score,
             "num_completions": float(total_completions),
             "num_scored_completions": float(scored_completions),

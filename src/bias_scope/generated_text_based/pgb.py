@@ -64,6 +64,9 @@ class PGB(GeneratedTextMetric):
             return pgb_score
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": pgb_score,
             "pgb_score": pgb_score,
             "num_templates": float(deltas.shape[0]),
             "k": float(deltas.shape[1]),

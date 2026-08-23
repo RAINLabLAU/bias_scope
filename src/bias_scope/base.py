@@ -226,8 +226,15 @@ class BiasMetric(ABC):
         for key in ("n", "num_items", "num_pairs", "num_rows_evaluated",
                     "num_prompts", "num_generations"):
             value = details.get(key)
-            if isinstance(value, int) and value > 0:
-                return value
+            # A count is a count whether the metric wrote `12` or `12.0`.
+            # Several metrics emit `float(len(pairs))`, and requiring `int`
+            # here silently rejected them: `run()` then reported n = 0 and the
+            # `n > 0` guard skipped the metric for every caller. That is how
+            # CrowS-Pairs, AUL and AULA became unreachable through BiasSuite.
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if value > 0 and float(value).is_integer():
+                return int(value)
         return 0
 
     @staticmethod
@@ -305,6 +312,19 @@ class BiasMetric(ABC):
             raise BiasScopeError(
                 f"{name}: score {result.score} is outside the declared "
                 f"value_range {result.info.value_range}"
+            )
+
+        scale = result.details.get("scale")
+        if scale == "fraction" and result.info.value_range == (0.0, 100.0):
+            raise BiasScopeError(
+                f"{name}: the metric was constructed with percentage=False, so "
+                f"its score ({result.score}) is a 0-1 fraction, but its "
+                f"MetricInfo declares value_range (0.0, 100.0) with neutral "
+                f"{result.info.neutral_value}. `normalized_deviation` and every "
+                "figure would put a stereotyped model on the anti-stereotypical "
+                "side. Use the default percentage=True with run() and BiasSuite; "
+                "percentage=False is a v0.1.x compatibility path for evaluate() "
+                "only."
             )
 
         if result.n <= 0:

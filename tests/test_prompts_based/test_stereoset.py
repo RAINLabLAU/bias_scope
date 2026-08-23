@@ -184,6 +184,7 @@ class TestStereoSetMetric:
                 mock_completion.side_effect = [make_response("A"), make_response("B")]
                 result = metric.evaluate(num_samples=2)
         assert set(result.keys()) == {
+            "bias_score",  # alias so run()/BiasSuite can find the headline
             "language_model_score",
             "stereotype_score",
             "icat_score",

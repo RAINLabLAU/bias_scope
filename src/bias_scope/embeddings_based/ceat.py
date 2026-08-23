@@ -255,6 +255,9 @@ class CEAT(EmbeddingMetric):
 
         # Return comprehensive results
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": ceat_score,
             "ceat_score": ceat_score,
             "weat_mean": float(np.mean(weat_scores)),
             "weat_std": weat_std,

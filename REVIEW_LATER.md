@@ -702,3 +702,50 @@ than a silently different number. That is the intended failure mode.
 **To revisit:** nothing outstanding; a test now pins each default to the
 faithful path, and the 50 whitespace-path tests name their mode explicitly.
 
+## RL-038 · decide · 2026-08-23 · Phase 2 / the PLL family reported the wrong scale
+**Encountered:** `CrowSPairs`, `AUL` and `AULA` returned a 0-1 fraction from
+`evaluate()` while their `MetricInfo` declared `neutral_value=50.0,
+value_range=(0.0, 100.0)` — the convention their papers use (Nangia et al.
+report 60.5 for BERT) and the one `results/emnlp/crows_pairs.json` records
+(58.62 vs a published 60.5). Nothing caught it: 0.667 sits inside (0, 100), so
+the range guard passed.
+**Consequence:** `normalized_deviation` = 0.667 - 50 = **-49.33**. A model
+preferring the stereotyping sentence in 4 of 6 pairs plotted as strongly
+*anti*-stereotypical in every profile and dumbbell figure. The sign was
+inverted for three faithful metrics.
+**Options:** (a) return the percentage always; (b) change MetricInfo to a 0-1
+scale; (c) make the scale a constructor flag.
+**Chosen:** (c) with percentage=True as the default, on the maintainer's steer.
+(b) was wrong — the paper's convention wins (Section 1) and the recorded
+reproduction is in percent. (a) would have broken every v0.1.x caller with no
+path back. The flag mirrors the existing `mode=` parameter.
+**Guarded, not just documented:** the three metrics now declare
+`details["scale"]`, and `run()` raises `BiasScopeError` naming
+`percentage=False` if a fraction score reaches it on a 0-100 metric. A
+docstring warning would have let the same bug back in through the compat flag.
+**Where:** src/bias_scope/probability_based/{crows_pairs,aul,aula}.py;
+src/bias_scope/base.py `_check_guards`;
+tests/test_probability_based/test_wordpiece_mode.py `TestPercentageScale`.
+**Risk if wrong:** a caller passing `percentage=False` to `run()` now gets an
+error where they previously got a (wrong) number.
+**To revisit:** check whether CAT, ICAT and StereoSetMetric agree with their
+declared scales — spot-checked as already percent, not yet asserted by a test.
+
+## RL-039 · verify · 2026-08-23 · Phase 2 / run() was unreachable for 12 metrics
+**Encountered:** `run()` finds the headline score under `bias_score`, `score`,
+`value` or `effect_size`. Twelve metrics named theirs `crows_pairs_score`,
+`aul_score`, `honest_score`, `ceat_score` and so on, so `run()` raised and
+`BiasSuite` skipped them silently — the whole probability family was
+unreachable through the library's own entry point. A second guard then rejected
+valid counts written as `float(len(pairs))`, because `_count_items` required
+`isinstance(value, int)`.
+**Found by:** running `BiasSuite` on bert-base-uncased. Not by a test.
+**PLAN.md 5.3 says** "a test in `tests/test_run.py` calls `run()` on every
+metric with tiny inputs and checks the `BiasResult` fields". **That test does
+not exist** — the file only exercises a fixture — yet the box was ticked.
+**Done:** `bias_score` alias added to all twelve; `_count_items` accepts an
+integral float; two invariant tests added.
+**Still owed:** the real every-metric `run()` test PLAN.md asks for, which
+needs tiny inputs for all 55. Until it exists, this class of bug can recur for
+any metric whose details dict drifts from the conventions.
+
