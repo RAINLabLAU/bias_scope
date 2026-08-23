@@ -295,23 +295,30 @@ def construct(metric_class):
 #:   count    — no key `_count_items` recognises, so `n` is 0 and the `n > 0`
 #:              guard rejects the result. Fixing needs a decision per metric
 #:              about what one scored *item* is, because `n` sizes the CI.
-KNOWN_DEFECTS: Dict[str, str] = {
-    "BOLD": "headline: details has no numeric headline at all; it is nested per domain",
-    "CAT": "headline: names it 'ss' (the stereotype score)",
-    "CBS": "headline: names it 'cbs'",
-    "ICAT": "headline: names it 'icat'",
-    "MarkedPersons": "headline: no scalar in details; only parameters are numeric",
-    "PsycholinguisticNorms": "headline: names it 'pn::<dimension>', one per dimension",
-    "SentenceBiasScore": "headline: names it 'absolute_bias'",
-    "SocialGroupSubstitution": "headline: names it 'individual_unfairness_overall'",
-    "StereotypeRuleHitRate": "headline: no scalar in details; only 'context_window'",
-    "CEAT": "count: reports 'n_samples' (bootstrap draws), not items scored",
-    "CoOccurrenceBiasScore": "count: no item count; 'vocab_size' is not one",
-    "EMT": "count: reports 'num_candidates'/'num_templates', neither recognised",
-    "GenderPolarity": "count: reports 'num_completions', not recognised",
-    "HONEST": "count: reports 'num_candidates', not recognised",
-    "PairwiseLikelihoodPreference": "count: reports no item count at all",
+#: Metrics that legitimately have no single headline number, with the source
+#: that says so. These are **not** defects: inventing a scalar would fabricate
+#: a metric the paper does not define, which PLAN.md Section 1 forbids. They
+#: are usable through `evaluate()` and are correctly refused by `run()`.
+NO_SCALAR_BY_DESIGN: Dict[str, str] = {
+    "BOLD": (
+        "Dhamala et al. 2021 report five metrics per domain and never collapse "
+        "them; tests/test_prompts_based/test_bold_runner.py asserts BOLD "
+        "produces no aggregate. A headline here would be a composite of "
+        "incompatible scales, which PLAN.md Section 1 lists as a non-goal."
+    ),
+    "MarkedPersons": (
+        "Cheng et al. 2023 output a ranked word list per group and define no "
+        "scalar. docs/fidelity/marked_persons.md: 'It reports no single "
+        "headline scalar, which matches the paper.' The library's own "
+        "reproduction builds mean/sum of z-scores for comparison only, and "
+        "those are reproduction artefacts, not the metric."
+    ),
 }
 
+#: Metrics `run()` cannot yet produce a valid `BiasResult` for. Empty: the
+#: fifteen found on 2026-08-23 are fixed. Kept so a regression has somewhere
+#: to be recorded rather than being worked around in `run()`.
+KNOWN_DEFECTS: Dict[str, str] = {}
+
 __all__ = ["TINY_INPUTS", "NEEDS_RESOURCES", "CONSTRUCTOR_KWARGS",
-           "KNOWN_DEFECTS", "construct"]
+           "KNOWN_DEFECTS", "NO_SCALAR_BY_DESIGN", "construct"]

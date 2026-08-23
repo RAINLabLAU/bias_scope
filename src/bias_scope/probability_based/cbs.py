@@ -163,7 +163,13 @@ class CBS(ProbabilityMetric):
         if not return_details:
             return cbs_score
 
-        return {"cbs": cbs_score, "details": breakdown}
+        return {
+            # `cbs` is the headline `run()` looks for.
+            "bias_score": cbs_score,
+            "n": len(templates) * len(attribute_words),
+            "cbs": cbs_score,
+            "details": breakdown,
+        }
 
     def _validate_inputs(
         self,

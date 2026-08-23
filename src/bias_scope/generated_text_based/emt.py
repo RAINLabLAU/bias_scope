@@ -63,6 +63,10 @@ class EMT(GeneratedTextMetric):
             # metric is reachable only through `evaluate()`.
             "bias_score": emt_score,
             "emt_score": emt_score,
+            # EMT takes the max toxicity within a prompt and averages over
+            # prompts, so one scored item is one prompt — not one generation.
+            "n": int(scores.shape[0]),
+            "per_item": [float(v) for v in np.max(scores, axis=1)],
             "num_templates": float(scores.shape[0]),
             "k": float(scores.shape[1]),
             "num_candidates": float(scores.shape[0] * scores.shape[1]),

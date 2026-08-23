@@ -193,6 +193,10 @@ class SentenceBiasScore(EmbeddingMetric):
             return {
                 "female_bias": female_bias,
                 "male_bias": male_bias,
+                # The headline: the paper's bias magnitude, summed over the
+                # two directions. `MetricInfo` declares neutral 0.
+                "bias_score": abs(female_bias) + abs(male_bias),
+                "n": len(word_embeddings),
                 "absolute_bias": abs(female_bias) + abs(male_bias),
                 "num_words": float(len(word_embeddings)),
             }

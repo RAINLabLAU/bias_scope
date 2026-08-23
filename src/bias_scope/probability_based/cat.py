@@ -217,6 +217,10 @@ class CAT(ProbabilityMetric):
         ss = float(np.mean(term_ss))
 
         return {
+            # `ss` is the headline: `MetricInfo` declares neutral_value=50.0
+            # on a 0-100 scale, which is the stereotype score, not `lms`.
+            "bias_score": ss,
+            "n": len(test_cases),
             "lms": lms,
             "ss": ss,
             "n_examples": len(test_cases),

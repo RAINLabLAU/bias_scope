@@ -182,6 +182,8 @@ class PairwiseLikelihoodPreference(ProbabilityMetric):
 
         return {
             "bias_score": bias_score,
+            # One scored item is one sentence pair.
+            "n": len(sentence_pairs),
             "tie_rate": float(tie_count / len(sentence_pairs)),
             "avg_logprob_stereo": avg_stereo,
             "avg_logprob_anti": avg_anti,

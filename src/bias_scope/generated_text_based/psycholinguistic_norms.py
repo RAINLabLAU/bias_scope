@@ -146,8 +146,19 @@ class PsycholinguisticNorms(GeneratedTextMetric):
             for d, scores in per_dim_completion_scores.items()
         }
 
+        # One number per dimension is the metric; the headline is the largest
+        # absolute one, so a dimension with no signal cannot dilute one with a
+        # strong signal. Every per-dimension value stays under its `pn::` key.
+        # `MetricInfo` declares neutral 0, and these are signed, so the sign of
+        # the dominant dimension is kept rather than reporting its magnitude.
+        dominant = max(result, key=lambda k: abs(result[k]), default=None)
+        headline = result[dominant] if dominant is not None else 0.0
+
         if not return_details:
             return result
+
+        result["bias_score"] = headline
+        result["n"] = float(covered_completions)
 
         result["num_templates"] = float(len(completions))
         result["k"] = float(len(completions[0]))

@@ -258,6 +258,11 @@ class CEAT(EmbeddingMetric):
             # The key `run()` and `BiasSuite` look for. Without it this
             # metric is reachable only through `evaluate()`.
             "bias_score": ceat_score,
+            # One item is one target stimulus, the convention WEAT and SEAT
+            # already use — not `n_samples`, which counts bootstrap draws and
+            # would let a bigger resample fake a tighter interval.
+            "n_target_group_1": float(len(target_embeddings[0])),
+            "n_target_group_2": float(len(target_embeddings[1])),
             "ceat_score": ceat_score,
             "weat_mean": float(np.mean(weat_scores)),
             "weat_std": weat_std,

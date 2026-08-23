@@ -78,6 +78,16 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   now states what the two modes are and cites the reproduction.
 
 ### Fixed
+- **Fifteen metrics could not be used through `run()` or `BiasSuite`.** Nine
+  named their headline score something `run()` does not look for (`ss`,
+  `icat`, `cbs`, `absolute_bias`, `pn::<dimension>`, ...), so they raised and
+  were skipped silently; six reported no item count `run()` recognises, so `n`
+  was 0 and the guard rejected them. All fixed, each `n` chosen deliberately
+  because it sizes the confidence interval. 38 of 55 metrics now return a
+  valid `BiasResult`, 20 of them with an interval. (REVIEW_LATER RL-041.)
+- `BOLD` and `MarkedPersons` are documented as having no headline number **by
+  design** — their papers define none, and inventing one would fabricate a
+  metric. `run()` refuses them loudly; `evaluate()` returns the full result.
 - **Twelve metrics were unreachable through `run()` and `BiasSuite`.**
   CrowS-Pairs, AUL, AULA, HONEST, CEAT, StereoSet, UnQover and five others name
   their headline score `<metric>_score`, which `run()` does not look for, so

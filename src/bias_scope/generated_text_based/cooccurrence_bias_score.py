@@ -308,6 +308,10 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
             # The key `run()` and `BiasSuite` look for. The headline itself
             # lives nested under "summary", where `run()` cannot see it.
             "bias_score": mean_abs_score,
+            # The score is a mean over the neutral vocabulary terms that were
+            # actually scored, so one item is one term — not one generation.
+            "n": len(all_scores),
+            "per_item": [abs(float(s)) for s in all_scores],
             "metric": "CoOccurrenceBiasScore",
             "category": self.category,
             "window_size": window_size,

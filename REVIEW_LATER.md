@@ -783,3 +783,44 @@ which is worse than the current loud refusal.
 class and the key involved. Until then, 15 of 55 metrics cannot be used through
 `run()` or `BiasSuite`, only through `evaluate()`.
 
+## RL-041 · decide · 2026-08-23 · Phase 2 / the 15 defects from RL-040, resolved
+**Done:** all fifteen are fixed, and `KNOWN_DEFECTS` is empty. 38 of 55 metrics
+now produce a valid `BiasResult` through `run()`; 20 of those carry a
+confidence interval.
+
+*headline* (7 fixed): CAT -> `ss` (the stereotype score, not `lms`); ICAT ->
+`icat`; CBS -> `cbs`; SentenceBiasScore -> `absolute_bias`;
+SocialGroupSubstitution -> `individual_unfairness_overall`;
+PsycholinguisticNorms -> the largest-magnitude `pn::<dimension>`, signed, so a
+quiet dimension cannot dilute a loud one; StereotypeRuleHitRate ->
+`any_hit_rate_per_1k`.
+
+*count* (6 fixed), each a decision about what one scored item is, because `n`
+sizes the interval: CEAT -> target stimuli (WEAT's convention, **not**
+`n_samples`, which counts bootstrap draws and would let a bigger resample fake
+a tighter interval); EMT -> prompts, since the maximum is taken within a prompt
+and averaged across them; HONEST -> completions; GenderPolarity -> the
+completions that actually carried a gendered term; CoOccurrenceBiasScore ->
+neutral-vocabulary terms; PairwiseLikelihoodPreference -> sentence pairs. Four
+of the six now also emit `per_item`, so they gain a bootstrap interval.
+
+**Two were not defects.** `BOLD` and `MarkedPersons` have no headline number
+*by design*, and giving them one would fabricate a metric the paper does not
+define — PLAN.md Section 1. They are in a new `NO_SCALAR_BY_DESIGN` map with
+the source that says so, and a test asserts `run()` refuses them loudly while
+`evaluate()` still returns everything.
+
+**Caught by an existing test.** My first pass gave BOLD a headline of the
+largest absolute gap. `test_no_aggregate_score_is_produced` failed with "the
+paper never collapses the five metrics; neither do we" — and it was right. The
+change was reverted. Worth recording: the composite-score prohibition is
+load-bearing, and it caught a violation written by someone who had just
+finished quoting it.
+
+**Also fixed here:** `StereotypeRuleHitRate`'s `per_item` was a 0/1 indicator
+while its score is a rate per 1,000, so the bootstrap interval did not bracket
+the score and `run()` refused it. `per_item` is now on the same scale.
+**Where:** the seven metric modules above; tests/fixtures/tiny_inputs.py.
+**To revisit:** the 15 in `NEEDS_RESOURCES` still have no `run()` coverage;
+they need integration tests with recorded dataset fixtures.
+

@@ -11,6 +11,7 @@ import pytest
 from tests.fixtures.tiny_inputs import (
     KNOWN_DEFECTS,
     NEEDS_RESOURCES,
+    NO_SCALAR_BY_DESIGN,
     TINY_INPUTS,
     construct,
 )
@@ -320,7 +321,8 @@ class TestRunOnEveryMetric:
 
     def test_every_metric_is_covered(self):
         """A new metric cannot escape this check by being forgotten."""
-        covered = set(TINY_INPUTS) | set(NEEDS_RESOURCES)
+        covered = (set(TINY_INPUTS) | set(NEEDS_RESOURCES)
+                   | set(NO_SCALAR_BY_DESIGN))
         missing = sorted(set(METRIC_INFO) - covered)
         assert not missing, (
             f"{len(missing)} metrics have neither tiny inputs nor a recorded "
@@ -332,7 +334,7 @@ class TestRunOnEveryMetric:
         overlap = sorted(set(TINY_INPUTS) & set(NEEDS_RESOURCES))
         assert not overlap, f"listed as both runnable and blocked: {overlap}"
 
-    @pytest.mark.parametrize("name", sorted(TINY_INPUTS))
+    @pytest.mark.parametrize("name", sorted(set(TINY_INPUTS) - set(NO_SCALAR_BY_DESIGN)))
     def test_run_returns_a_valid_biasresult(self, name, request):
         if name in KNOWN_DEFECTS:
             request.node.add_marker(
@@ -387,6 +389,30 @@ class TestRunOnEveryMetric:
     @pytest.mark.parametrize("name", sorted(NEEDS_RESOURCES))
     def test_blocked_metrics_state_a_reason(self, name):
         assert NEEDS_RESOURCES[name].strip(), f"{name} has an empty reason"
+
+    @pytest.mark.parametrize("name", sorted(NO_SCALAR_BY_DESIGN))
+    def test_metrics_without_a_scalar_are_refused_not_faked(self, name):
+        """`run()` must refuse, and must not invent a number.
+
+        Cheng et al. define no scalar for MarkedPersons. Giving it one would
+        fabricate a metric the paper does not have (PLAN.md Section 1), so the
+        correct behaviour is the loud refusal `run()` already gives — and
+        `evaluate()` still returns the full ranked word list.
+        """
+        metric = construct(getattr(bias_scope, name))
+        with pytest.raises(BiasScopeError, match="headline score"):
+            metric.run(seed=42, **TINY_INPUTS[name])
+
+        details = metric.evaluate(return_details=True, **TINY_INPUTS[name])
+        assert details, f"{name} must still be usable through evaluate()"
+        assert NO_SCALAR_BY_DESIGN[name].strip()
+
+    def test_no_metric_is_both_defective_and_by_design(self):
+        overlap = sorted(set(KNOWN_DEFECTS) & set(NO_SCALAR_BY_DESIGN))
+        assert not overlap, (
+            f"{overlap} are listed both as defects and as deliberate; a metric "
+            "with no scalar by design is not a bug to fix"
+        )
 
     def test_known_defects_are_all_real_metrics(self):
         """A stale entry here would hide a metric that now works."""
