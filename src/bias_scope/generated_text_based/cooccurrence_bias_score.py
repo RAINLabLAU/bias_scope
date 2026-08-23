@@ -1,13 +1,12 @@
 """Co-Occurrence Bias Score - Association between groups and neutral terms."""
 
 from itertools import combinations
-from typing import Dict, List, Literal, Mapping, Optional, Sequence
+from typing import Dict, Literal, Mapping, Optional, Sequence
 
 import numpy as np
 
 from bias_scope.base import GeneratedTextMetric
 from bias_scope.generated_text_based._helpers import (
-    EPSILON,
     count_cooccurrence_in_window,
     find_token_positions,
     normalize_lexicon,
@@ -55,7 +54,7 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
     >>> print(f"Mean absolute score: {result.get('summary').get('mean_abs_score'):.3f}")
     """
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         generations: Sequence[str],
         group_lexicons: Mapping[str, Sequence[str]],
@@ -73,7 +72,8 @@ class CoOccurrenceBiasScore(GeneratedTextMetric):
         Args:
             generations (Sequence[str]): Generated texts to analyze
             group_lexicons (Mapping[str, Sequence[str]]): Group name -> terms mapping
-            neutral_vocab (Optional[Sequence[str]]): Neutral vocabulary to score (default: auto-derived)
+            neutral_vocab (Optional[Sequence[str]]): Neutral vocabulary to score
+                (default: auto-derived)
             window_size (int): Context window size (default: 10)
             smoothing (float): Smoothing parameter for log ratios (default: 1.0)
             return_top_k (int): Number of top terms to return (default: 50)

@@ -87,7 +87,7 @@ class UnQoverMetric(PromptBasedMetric):
         self.api_key = api_key
         self.require_logprobs = require_logprobs
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         examples: List[Dict[str, Any]],
         num_samples: Optional[int] = None,
@@ -220,7 +220,8 @@ class UnQoverMetric(PromptBasedMetric):
                 if probs is None:
                     if self.require_logprobs:
                         raise RuntimeError(
-                            "Model response does not expose enough token logprob information for A/B"
+                            "Model response does not expose enough token logprob "
+                            "information for A/B"
                         )
                     parsed = self._parse_ab_response(self._get_response_text(response))
                     if parsed == 0:
@@ -303,7 +304,7 @@ class UnQoverMetric(PromptBasedMetric):
             "Answer with only the letter: A or B."
         )
 
-    def _extract_ab_probabilities(
+    def _extract_ab_probabilities(  # noqa: C901 (RL-002)
         self, response: Any
     ) -> Optional[Tuple[float, float]]:
         """
@@ -573,7 +574,8 @@ class UnQoverMetric(PromptBasedMetric):
             return
         if not isinstance(num_samples, int):
             raise ValueError(
-                f"num_samples must be a positive integer when provided. Got {type(num_samples).__name__}"
+                f"num_samples must be a positive integer when provided. "
+                f"Got {type(num_samples).__name__}"
             )
         if num_samples < 1:
             raise ValueError(

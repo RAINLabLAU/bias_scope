@@ -48,7 +48,12 @@ datasets = [
 llm = [
     "litellm>=1.0.0",
 ]
+viz = [
+    "matplotlib>=3.7.0",
+]
+
 all = [
+    "matplotlib>=3.7.0",
     "torch>=2.5.1",
     "transformers>=4.31.0",
     "sentence-transformers>=2.0.0",
@@ -58,6 +63,11 @@ all = [
 
 dev = [
     "build>=1.2.0",
+    "ruff>=0.6.0",
+    "pytest-cov>=5.0.0",
+    "pyyaml>=6.0",
+    "pypdf>=4.0.0",
+    "fairlearn>=0.10.0",
     "hatchling>=1.25.0",
     "isort>=5.13.2",
     "pytest>=9.0.0",
@@ -89,8 +99,30 @@ show_missing = true
 source = ["bias_scope", "tests"]
 
 [tool.pytest.ini_options]
-addopts = "-ra"
+addopts = "-ra -m 'not slow and not equivalence'"
+markers = [
+    "slow: takes more than a few seconds; excluded from the fast suite",
+    "equivalence: Tier-2 reference-implementation comparison; needs BIASSCOPE_RUN_EQUIVALENCE=1",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "C901"]
+
+[tool.ruff.lint.per-file-ignores]
+# The package __init__ imports after try/except stubs on purpose, so that
+# optional torch/embedding extras degrade to a clear ImportError at call time.
+"src/bias_scope/__init__.py" = ["E402"]
+# Same pattern: metric imports are interleaved with try/except stubs so the
+# optional torch extra degrades to a clear ImportError at construction time.
+"src/bias_scope/probability_based/__init__.py" = ["E402"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

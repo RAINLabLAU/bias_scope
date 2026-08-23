@@ -11,7 +11,7 @@ class TestAUL:
 
     def test_basic_functionality(self):
         """Test with biased predictions."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         # Biased: higher probs for stereotypes
         def biased_predict(sentence, pos):
@@ -28,7 +28,7 @@ class TestAUL:
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def unbiased_predict(sentence, pos):
             # Add small variation to avoid exact ties
@@ -48,7 +48,7 @@ class TestAUL:
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -58,7 +58,7 @@ class TestAUL:
 
     def test_different_length_raises_error(self):
         """Test sentences with different lengths raise error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -70,7 +70,7 @@ class TestAUL:
 
     def test_empty_sentence_raises_error(self):
         """Test empty sentence raises error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -82,7 +82,7 @@ class TestAUL:
 
     def test_invalid_probability_raises_error(self):
         """Test invalid probabilities raise error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def bad_predict(sentence, pos):
             return 1.5  # > 1
@@ -94,7 +94,7 @@ class TestAUL:
 
     def test_negative_probability_raises_error(self):
         """Test negative probability raises error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def bad_predict(sentence, pos):
             return -0.1
@@ -106,7 +106,7 @@ class TestAUL:
 
     def test_zero_probability_raises_error(self):
         """Test zero probability raises error."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def bad_predict(sentence, pos):
             return 0.0
@@ -118,7 +118,7 @@ class TestAUL:
 
     def test_all_tokens_predicted(self):
         """Test that all tokens in sentence are predicted."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         # Track positions predicted
         predicted_positions = []
@@ -139,7 +139,7 @@ class TestAUL:
 
     def test_single_pair(self):
         """Test with single sentence pair."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.7
@@ -153,7 +153,7 @@ class TestAUL:
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return np.random.uniform(0.3, 0.7)
@@ -166,7 +166,7 @@ class TestAUL:
 
     def test_deterministic_results(self):
         """Test deterministic prediction gives consistent results."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def deterministic_predict(sentence, pos):
             return 0.8 if "Women" in sentence else 0.4
@@ -180,7 +180,7 @@ class TestAUL:
 
     def test_long_sentences(self):
         """Test with longer sentences."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def mock_predict(sentence, pos):
             return 0.5
@@ -199,7 +199,7 @@ class TestAUL:
 
     def test_position_based_probabilities(self):
         """Test with position-dependent probabilities."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def position_predict(sentence, pos):
             # Higher prob for first token
@@ -216,7 +216,7 @@ class TestAUL:
 
     def test_computes_average_not_sum(self):
         """Test that AUL computes average, not sum."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         # Track log probs to verify averaging
         call_count = [0]
@@ -235,7 +235,7 @@ class TestAUL:
 
     def test_anti_stereotype_preference(self):
         """Test when model prefers anti-stereotypes."""
-        aul = AUL()
+        aul = AUL(mode="whitespace")
 
         def anti_bias_predict(sentence, pos):
             if "Men" in sentence:

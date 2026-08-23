@@ -57,7 +57,7 @@ class OpinionConsistencyAcrossPersonas(PromptBasedMetric):
         self.model_name = model_name
         self.api_key = api_key
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         num_questions: Optional[int] = None,
         split: str = "test",

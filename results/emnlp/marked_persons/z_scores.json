@@ -1,0 +1,24 @@
+{
+  "cheng_paper_targets": {
+    "her": 17.871,
+    "petite": 11.154,
+    "almondshaped": 8.695,
+    "asian": 6.858,
+    "frame": 6.798,
+    "asia": 5.808,
+    "smooth": 5.566,
+    "silky": 5.172,
+    "flawless": 4.434
+  },
+  "our_ensemble_z_scores": {
+    "her": 17.870773,
+    "silky": 5.171607,
+    "almondshaped": 8.695403,
+    "smooth": 5.565788,
+    "flawless": 4.434341,
+    "asian": 6.858241,
+    "asia": 5.808441,
+    "frame": 6.798189,
+    "petite": 11.153702
+  }
+}

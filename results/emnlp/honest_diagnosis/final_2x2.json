@@ -1,0 +1,126 @@
+{
+  "hurtlex_source": "MilaNLProc/hurtlex master@10ae72a (2020-01-27; sha256 a734820a63c87994; byte-identical today)",
+  "lex_sizes": {
+    "unfiltered": 2221,
+    "filtered": 2220
+  },
+  "empty_lemma_source": "HurtLex row EN5462: lemma='\ud83d\udc6e' (police officer emoji), pos=n, category=cds \u2014 unidecode('\ud83d\udc6e') = ''",
+  "grid": {
+    "0": {
+      "nozza_unfiltered": {
+        "score": 0.0965432098765432,
+        "hurtful": 391
+      },
+      "nozza_filtered": {
+        "score": 0.03506172839506173,
+        "hurtful": 142
+      },
+      "biasscope_unfiltered": {
+        "score": 0.03506172839506173,
+        "hurtful": 142
+      },
+      "biasscope_filtered": {
+        "score": 0.03506172839506173,
+        "hurtful": 142
+      }
+    },
+    "1": {
+      "nozza_unfiltered": {
+        "score": 0.11259259259259259,
+        "hurtful": 456
+      },
+      "nozza_filtered": {
+        "score": 0.04839506172839506,
+        "hurtful": 196
+      },
+      "biasscope_unfiltered": {
+        "score": 0.04839506172839506,
+        "hurtful": 196
+      },
+      "biasscope_filtered": {
+        "score": 0.04839506172839506,
+        "hurtful": 196
+      }
+    },
+    "2": {
+      "nozza_unfiltered": {
+        "score": 0.09382716049382717,
+        "hurtful": 380
+      },
+      "nozza_filtered": {
+        "score": 0.03728395061728395,
+        "hurtful": 151
+      },
+      "biasscope_unfiltered": {
+        "score": 0.03728395061728395,
+        "hurtful": 151
+      },
+      "biasscope_filtered": {
+        "score": 0.03728395061728395,
+        "hurtful": 151
+      }
+    },
+    "3": {
+      "nozza_unfiltered": {
+        "score": 0.1,
+        "hurtful": 405
+      },
+      "nozza_filtered": {
+        "score": 0.041234567901234566,
+        "hurtful": 167
+      },
+      "biasscope_unfiltered": {
+        "score": 0.041234567901234566,
+        "hurtful": 167
+      },
+      "biasscope_filtered": {
+        "score": 0.041234567901234566,
+        "hurtful": 167
+      }
+    },
+    "42": {
+      "nozza_unfiltered": {
+        "score": 0.09308641975308642,
+        "hurtful": 377
+      },
+      "nozza_filtered": {
+        "score": 0.03950617283950617,
+        "hurtful": 160
+      },
+      "biasscope_unfiltered": {
+        "score": 0.03950617283950617,
+        "hurtful": 160
+      },
+      "biasscope_filtered": {
+        "score": 0.03950617283950617,
+        "hurtful": 160
+      }
+    }
+  },
+  "seed_variance": {
+    "correct_config_biasscope_filtered": {
+      "scores": [
+        0.03506172839506173,
+        0.04839506172839506,
+        0.03728395061728395,
+        0.041234567901234566,
+        0.03950617283950617
+      ],
+      "mean": 0.040296296296296295,
+      "std": 0.005088456981449803,
+      "min": 0.03506172839506173,
+      "max": 0.04839506172839506
+    },
+    "bug_config_biasscope_unfiltered": {
+      "scores": [
+        0.03506172839506173,
+        0.04839506172839506,
+        0.03728395061728395,
+        0.041234567901234566,
+        0.03950617283950617
+      ],
+      "mean": 0.040296296296296295,
+      "std": 0.005088456981449803
+    }
+  }
+}

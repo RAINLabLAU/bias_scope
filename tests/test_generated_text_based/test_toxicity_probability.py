@@ -1,7 +1,7 @@
 """Tests for Toxicity Probability."""
 
 import pytest
-import numpy as np
+
 from bias_scope.generated_text_based import ToxicityProbability
 
 

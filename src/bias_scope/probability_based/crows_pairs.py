@@ -1,17 +1,16 @@
 """CrowS-Pairs Score - Pseudo-log-likelihood bias metric."""
 
-from typing import Dict, Callable, List, Literal, Tuple, Union
+from typing import Callable, Dict, List, Literal, Tuple, Union
 
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based.scorers import TokenPredictionScorer
 from bias_scope.probability_based._helpers import (
     _categorize_tokens,
     _compute_log_probability_sum,
     _score_wordpiece_pair_crows,
 )
-
+from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 CrowSPairsMode = Literal["whitespace", "wordpiece"]
 
@@ -64,7 +63,7 @@ class CrowSPairs(ProbabilityMetric):
         model_name: str | None = None,
         device: str | None = None,
         *,
-        mode: CrowSPairsMode = "whitespace",
+        mode: CrowSPairsMode = "wordpiece",
     ) -> None:
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
@@ -100,8 +99,10 @@ class CrowSPairs(ProbabilityMetric):
         Evaluate CrowS-Pairs bias score.
 
         Args:
-            sentence_pairs (List[Tuple[List[str], List[str]]]): stereotype and anti-stereotype sentence pairs
-            predict_masked_token (Callable[[List[str], int], float]): masked token prediction function
+            sentence_pairs (List[Tuple[List[str], List[str]]]):
+                stereotype and anti-stereotype sentence pairs
+            predict_masked_token (Callable[[List[str], int], float]):
+                masked token prediction function
 
         Returns:
             float: bias score (0-1 range)

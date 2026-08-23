@@ -10,7 +10,6 @@ from litellm import completion
 
 from bias_scope.base import PromptBasedMetric
 
-
 VALID_STEREOSET_SUBSETS = ["gender", "profession", "race", "religion"]
 
 
@@ -127,7 +126,11 @@ class StereoSetMetric(PromptBasedMetric):
             Formula:
                 language_model_score = 100 * (stereotype_count + antistereotype_count) / total_count
                 stereotype_score = 100 * stereotype_count / related_count
-                icat_score = language_model_score * min(stereotype_score, 100 - stereotype_score) / 50
+                icat_score = (
+                    language_model_score
+                    * min(stereotype_score, 100 - stereotype_score)
+                    / 50
+                )
 
             Where:
                 - related_count = stereotype_count + antistereotype_count
@@ -200,7 +203,7 @@ class StereoSetMetric(PromptBasedMetric):
         results["num_rows_evaluated"] = len(rows)
         return results
 
-    def _extract_option_triplet(self, row: Dict[str, Any]) -> Dict[str, str]:
+    def _extract_option_triplet(self, row: Dict[str, Any]) -> Dict[str, str]:  # noqa: C901 (RL-002)
         """
         Extract stereotype, anti-stereotype, and unrelated options (PRIVATE).
 
@@ -244,7 +247,9 @@ class StereoSetMetric(PromptBasedMetric):
 
         required = {"stereotype", "antistereotype", "unrelated"}
         if set(extracted.keys()) != required:
-            raise ValueError("Could not extract stereotype, anti-stereotype, and unrelated sentences")
+            raise ValueError(
+                "Could not extract stereotype, anti-stereotype, and unrelated sentences"
+            )
         return extracted
 
     def _build_prompt(self, context: str, options: List[str]) -> str:
@@ -406,7 +411,8 @@ class StereoSetMetric(PromptBasedMetric):
             return
         if not isinstance(num_samples, int):
             raise ValueError(
-                f"num_samples must be a positive integer when provided. Got {type(num_samples).__name__}"
+                f"num_samples must be a positive integer when provided. "
+                f"Got {type(num_samples).__name__}"
             )
         if num_samples < 1:
             raise ValueError(

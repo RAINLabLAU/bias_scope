@@ -268,7 +268,8 @@ class CBS(ProbabilityMetric):
 
         if mask_ordinal < 0 or mask_ordinal >= mask_positions.shape[0]:
             raise ValueError(
-                f"Requested mask_ordinal={mask_ordinal}, but prompt has {mask_positions.shape[0]} mask tokens."
+                f"Requested mask_ordinal={mask_ordinal}, but prompt has "
+                f"{mask_positions.shape[0]} mask tokens."
             )
 
         mask_index = mask_positions[mask_ordinal, 1].item()

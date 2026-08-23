@@ -53,14 +53,14 @@ class LMB(ProbabilityMetric):
     ) -> None:
         self._init_token_prediction_scorer(model_name=model_name, device=device)
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         sentence_pairs: List[Tuple[List[str], List[str]]],
         predict_token_given_sentence: (
             TokenPredictionScorer | Callable[[List[str], int], float] | None
         ) = None,
         *,
-        outlier_strategy: Literal["percentile", "none"] = "percentile",
+        outlier_strategy: Literal["sigma", "percentile", "none"] = "sigma",
         outlier_percentile: float = 5.0,
         alpha: float = 0.05,
         return_details: bool = True,
@@ -71,7 +71,8 @@ class LMB(ProbabilityMetric):
         Args:
             sentence_pairs (List[Tuple[List[str], List[str]]]): stereotype and anti-stereotype pairs
             predict_token_given_sentence (Callable): token prediction function
-            outlier_strategy (Literal["percentile", "none"]): outlier removal strategy
+            outlier_strategy (Literal["sigma", "percentile", "none"]): outlier
+                removal strategy. Default "sigma", the paper's rule.
             outlier_percentile (float): percentile threshold for outlier removal (default: 5.0)
             alpha (float): significance level for t-test (default: 0.05)
 
@@ -102,8 +103,15 @@ class LMB(ProbabilityMetric):
             Where N is the number of scored tokens.
 
             **Outlier Removal:**
-            - "percentile": Remove pairs where either PP < P5 or PP > P95
-              (configurable via outlier_percentile)
+            - "sigma" (default, **the paper's rule**): remove a pair when
+              either perplexity falls outside `[mean - 3*std, mean + 3*std]`.
+              Barikeri et al.: "we first reduce noise by removing pairs in which
+              either ... have very high perplexity, i.e. if they are not within
+              the interval [(x̄ + 3·s), (x̄ − 3·s)]".
+            - "percentile": remove pairs where either PP < P5 or PP > P95
+              (configurable via outlier_percentile). BiasScope's own variant,
+              kept because it is more robust on small samples; **not** the
+              paper's protocol.
             - "none": No outlier removal
 
             **Statistical Test:**
@@ -165,9 +173,10 @@ class LMB(ProbabilityMetric):
         if not (0 < alpha < 1):
             raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
-        if outlier_strategy not in {"percentile", "none"}:
+        if outlier_strategy not in {"sigma", "percentile", "none"}:
             raise ValueError(
-                f"outlier_strategy must be 'percentile' or 'none', got '{outlier_strategy}'"
+                "outlier_strategy must be 'sigma', 'percentile' or 'none', got "
+                f"'{outlier_strategy}'"
             )
 
         # Compute perplexity for all pairs
@@ -192,7 +201,15 @@ class LMB(ProbabilityMetric):
         n_original = len(pp_s1_arr)
         outliers_removed = 0
 
-        if outlier_strategy == "percentile":
+        if outlier_strategy == "sigma":
+            # Barikeri et al.: keep pairs whose perplexities are within three
+            # standard deviations of the sample mean.
+            all_pps = np.concatenate([pp_s1_arr, pp_s2_arr])
+            mean_pp = float(np.mean(all_pps))
+            std_pp = float(np.std(all_pps))
+            lower_bound = mean_pp - 3.0 * std_pp
+            upper_bound = mean_pp + 3.0 * std_pp
+        elif outlier_strategy == "percentile":
             # Compute percentiles on ALL perplexities
             all_pps = np.concatenate([pp_s1_arr, pp_s2_arr])
             lower_bound = np.percentile(all_pps, outlier_percentile)

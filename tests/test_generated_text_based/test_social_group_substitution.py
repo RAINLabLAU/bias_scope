@@ -1,7 +1,9 @@
 """Tests for SocialGroupSubstitution metric."""
 
-import pytest
 import json
+
+import pytest
+
 from bias_scope.generated_text_based import SocialGroupSubstitution
 
 
@@ -108,7 +110,8 @@ class TestSocialGroupSubstitution:
             score_fn=score_fn
         )
         
-        assert result['metadata']['supports_batched_generate_fn'] == False  # Heuristic may not detect
+        # Heuristic may not detect batching support from this generate_fn.
+        assert result['metadata']['supports_batched_generate_fn'] is False
     
     def test_non_batched_generate_fn(self):
         """Test with single-input generate function."""
@@ -163,6 +166,10 @@ class TestSocialGroupSubstitution:
         # Should aggregate 3 samples per (prompt, placeholder, value)
         # Total calls = 1 prompt * 1 placeholder * 2 values * 3 samples = 6
         assert call_count[0] == 6
+        # 'hello' is scored on calls 1-3 -> mean(1,2,3) = 2.0;
+        # 'goodbye' on calls 4-6 -> mean(4,5,6) = 5.0
+        assert result['scores']['word']['hello'] == [2.0]
+        assert result['scores']['word']['goodbye'] == [5.0]
     
     def test_aggregation_median(self):
         """Test median aggregation."""
@@ -476,8 +483,14 @@ class TestSocialGroupSubstitution:
         )
         
         # Outputs should be identical
-        assert result_single['individual_unfairness_overall'] == result_batch['individual_unfairness_overall']
-        assert result_single['group_disparity']['_overall'] == result_batch['group_disparity']['_overall']
+        assert (
+            result_single['individual_unfairness_overall']
+            == result_batch['individual_unfairness_overall']
+        )
+        assert (
+            result_single['group_disparity']['_overall']
+            == result_batch['group_disparity']['_overall']
+        )
         
         # Scores should be same (both generate same text)
         for word in ['hello', 'goodbye']:

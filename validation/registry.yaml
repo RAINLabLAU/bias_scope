@@ -1,0 +1,200 @@
+# registry.yaml — the validation registry (PLAN.md Section 6.1).
+#
+# One entry per (metric, model, dataset). Tier 1 reproduces a value the paper
+# actually reports; `scripts/validation/run_tier1.py` runs every `pending` entry
+# and `render_validation_table.py` turns the results into
+# results/validation/VALIDATION.md.
+#
+# INTEGRITY RULE (Section 1): never invent, estimate, or "anchor" a published
+# value. `location` must name the table/figure, the row, and the column you read
+# it from. If the number cannot be located, write `published_value: null` and
+# `status: no_published_reference` — never a guess, never the midpoint of a
+# range.
+#
+# - metric: CrowS-Pairs
+#   tier: 1
+#   paper: "Nangia et al. 2020"
+#   location: "Table 3, row bert-base-uncased, column 'metric score'"  # confirm before use
+#   model: bert-base-uncased
+#   dataset: nyu-mll/crows-pairs
+#   dataset_revision: "<sha>"
+#   published_value: 60.5
+#   published_n: 1508
+#   ci_method: wald
+#   protocol: {mode: wordpiece, dtype: fp32, seed: 42}
+#   status: pending          # pending | matched | close | off | no_published_reference
+#   hypothesis: ""           # required when status is `off`
+#
+# Status criteria (6.2): `matched` = 95% CIs overlap; `close` = point estimate
+# within 10% relative but CIs disjoint; `off` = neither, and needs a written
+# hypothesis. Stochastic metrics run 3 seeds; report mean and spread.
+
+entries:
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Terms)', column 'ALBERT Base'
+  model: albert-base-v2
+  dataset: Webster et al. 2020 Appendix templates + DisCo Terms word list
+  dataset_revision: null
+  published_value: 0.4
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Terms)', column 'ALBERT Large'
+  model: albert-large-v2
+  dataset: Webster et al. 2020 Appendix templates + DisCo Terms word list
+  dataset_revision: null
+  published_value: 0.0
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Terms)', column 'BERT Base'
+  model: bert-base-uncased
+  dataset: Webster et al. 2020 Appendix templates + DisCo Terms word list
+  dataset_revision: null
+  published_value: 0.8
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Terms)', column 'BERT Large'
+  model: bert-large-uncased
+  dataset: Webster et al. 2020 Appendix templates + DisCo Terms word list
+  dataset_revision: null
+  published_value: 1.0
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Names)', column 'ALBERT Base'
+  model: albert-base-v2
+  dataset: Webster et al. 2020 Appendix templates + DisCo Names word list
+  dataset_revision: null
+  published_value: 3.7
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Names)', column 'ALBERT Large'
+  model: albert-large-v2
+  dataset: Webster et al. 2020 Appendix templates + DisCo Names word list
+  dataset_revision: null
+  published_value: 3.1
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Names)', column 'BERT Base'
+  model: bert-base-uncased
+  dataset: Webster et al. 2020 Appendix templates + DisCo Names word list
+  dataset_revision: null
+  published_value: 3.7
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.
+- metric: DisCoMetric
+  tier: 1
+  paper: Webster et al. 2020
+  location: Table 2, row 'DisCo (Names)', column 'BERT Large'
+  model: bert-large-uncased
+  dataset: Webster et al. 2020 Appendix templates + DisCo Names word list
+  dataset_revision: null
+  published_value: 3.4
+  published_n: 276
+  ci_method: bootstrap
+  protocol:
+    top_k_fills: 3
+    alpha: 0.05
+    correction: bonferroni
+    dtype: fp32
+    seed: 42
+  status: pending
+  hypothesis: ''
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
+    in Phase 2 - the current class computes a different statistic. published_n is the template count the
+    paper states; confirm it is the denominator of the average.

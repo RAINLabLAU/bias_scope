@@ -1,6 +1,10 @@
 """Utility functions for bias detection metrics."""
 
-from typing import Union
+import hashlib
+import json
+import os
+import random
+from typing import Any, Dict, Union
 
 import numpy as np
 
@@ -90,3 +94,86 @@ def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
         return 0.0
 
     return float(dot_product / (norm1 * norm2))
+
+
+def seed_everything(seed: int = 42) -> int:
+    """
+    Seed every random source the library can reach.
+
+    Sets ``PYTHONHASHSEED``, :mod:`random`, :mod:`numpy`, and — when torch is
+    installed — ``torch.manual_seed`` and ``torch.cuda.manual_seed_all``.
+    Call this once at the start of a run; every result written to ``results/``
+    records the seed used in its ``protocol`` block.
+
+    Parameters
+    ----------
+    seed : int
+        Seed value. Default 42, the library-wide default.
+
+    Returns
+    -------
+    int
+        The seed that was applied, so callers can record it.
+
+    Examples
+    --------
+    >>> seed_everything(0)
+    0
+    >>> import random
+    >>> a = random.random()
+    >>> seed_everything(0)
+    0
+    >>> a == random.random()
+    True
+    """
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError(f"seed must be an int, got {type(seed).__name__}")
+
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+
+    if _TORCH_AVAILABLE:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+    return seed
+
+
+def protocol_hash(protocol: Dict[str, Any]) -> str:
+    """
+    Stable short hash of a protocol dict.
+
+    Formula: first 12 hex characters of the SHA-256 of the protocol serialised
+    as canonical JSON (keys sorted, no insignificant whitespace). Two protocols
+    that differ only in key order hash the same; any difference in a value
+    changes the hash.
+
+    Parameters
+    ----------
+    protocol : dict
+        JSON-serialisable protocol block. Values that are not natively
+        JSON-serialisable are rendered with ``str``.
+
+    Returns
+    -------
+    str
+        12 lowercase hex characters.
+
+    Examples
+    --------
+    >>> protocol_hash({"a": 1, "b": 2}) == protocol_hash({"b": 2, "a": 1})
+    True
+    >>> len(protocol_hash({"a": 1}))
+    12
+    """
+    if not isinstance(protocol, dict):
+        raise ValueError(
+            f"protocol must be a dict, got {type(protocol).__name__}"
+        )
+
+    canonical = json.dumps(
+        protocol, sort_keys=True, separators=(",", ":"), default=str
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]

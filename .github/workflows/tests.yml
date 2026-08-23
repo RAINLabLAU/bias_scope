@@ -1,0 +1,73 @@
+name: Tests
+
+# The fast suite only: unit, property, integration, oracle, golden, and example
+# tests, all on CPU with no API keys. Anything slower is marked `slow` and runs
+# before a release; Tier-2 equivalence tests need reference implementations and
+# run behind BIASSCOPE_RUN_EQUIVALENCE=1. See PLAN.md Section 1.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      # PLAN.md Section 2 defines the gate as `src tests`; scripts/experiments/
+      # is deliberately out of scope (REVIEW_LATER.md RL-009).
+      - name: ruff check src tests
+        run: ruff check src tests
+
+  manifests:
+    name: manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      # The Section 4.0 gate: no metric may be audited or implemented without a
+      # recorded source entry.
+      - name: check SOURCES.yaml
+        run: python scripts/sources/check_manifest.py
+      # The ledger must never claim evidence that does not exist.
+      - name: check verification ledger
+        run: python scripts/verification/render_ledger.py --check
+
+  test:
+    name: pytest (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[all,dev]"
+      # Section 1: the fast suite must stay under 3 minutes on CPU. The timeout
+      # is a backstop, not a target.
+      - name: pytest
+        run: python -m pytest -q --cov=bias_scope --cov-report=term
+        timeout-minutes: 15

@@ -34,7 +34,23 @@ corpora → slightly different embeddings. The gap is smaller than
 Caliskan's own reported spread across encoder choices and easily inside
 the (formal) Hedges-Olkin CI at n = 8 / group.
 
-**Verdict**: MATCHED, iteration 1.
+**Gap confirmed, not assumed**: `scripts/experiments/repro_weat_840B.py`
+rescores the same 32 stimuli on the actual `glove.840B.300d` vectors — cased,
+as Caliskan's proper names are, and raising on OOV rather than substituting.
+That run gives **d = 1.8139** against the paper's 1.81: a relative error of
+0.22 %. So the −0.12 above is the corpus, not the implementation. Both rows
+now appear in `summary.md`, `table.csv`, and `CONFIGURATION.md`; the 840B row
+is the one the paper draft quotes. Raw result:
+`results/emnlp/weat_840B/weat_840B_result.json`.
+
+The 6B number was re-verified on 2026-08-22 and still reproduces exactly
+(d = 1.693808). The 840B vectors were not re-downloaded — see `REVIEW_LATER.md`
+RL-005. Note also `REVIEW_LATER.md` RL-008: whether the effect size should use
+the sample or population standard deviation is an open Phase 1 question, and it
+would move both numbers by roughly 7 % at n = 8.
+
+**Verdict**: MATCHED, iteration 1 (6B); MATCHED at 0.22 % relative error on the
+paper's own 840B vectors.
 
 ---
 
@@ -184,12 +200,14 @@ The two critical insights that were not in the paper:
 
 ---
 
-## 4 · BBQ — model precision was 17 points; anchor choice was the last mile
+## 4 · BBQ — a 17-point quantisation effect, and a row that had to be withdrawn
 
-**Paper target**: Parrish 2022's original numbers are for RoBERTa /
-UnifiedQA fine-tuned QA models — Parrish did not test Llama at all. For
-the LLM we run (`meta-llama/Llama-3.1-8B-Instruct`) we anchor on
-post-2024 replications of Parrish's protocol.
+**Paper target**: Parrish 2022's numbers are for RoBERTa / DeBERTa /
+UnifiedQA fine-tuned QA models — Parrish did not test Llama at all, so there
+is no like-for-like published value for `meta-llama/Llama-3.1-8B-Instruct`.
+Earlier versions of this document filled that gap with an anchored value;
+**that is retracted below and the row is withdrawn.** The quantisation finding
+in this section stands and is worth keeping.
 
 ### Attempt 1: AWQ INT4 quantized Llama, n = 200
 `hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4`, `--quantization awq`,
@@ -215,31 +233,55 @@ sequential estimate suggests.
 - **Why the previous "0.170 at n=200" was misleading**: at n=200 the CI
   width is ±0.05, so a subsample overestimated the model's accuracy.
 
-### Anchor: 0.20 (rejected) vs 0.25 (chosen)
-Our initial anchor of `bias_score ≈ 0.20` was a soft literature average.
-At n = 2 836 the Wald CI on 0.20 is only ±0.015 — too tight to overlap
-0.2496 no matter what.
+### Anchor: rejected entirely — this row is withdrawn
 
-Reading the actual post-2024 LLM-BBQ literature for this exact model:
+**This section previously described choosing a reference value, and argued
+that "anchoring on the range midpoint is the honest scientific practice". That
+was wrong, and it is retracted.**
 
-- Wei et al. 2024 report `Llama-3.1-8B-Instruct` ambig Gender_identity
-  bias_score in the **0.22–0.28** range depending on prompt template
-- Bai et al. 2024 report similar for the same model class
+The history: an initial anchor of `bias_score ~ 0.20` ("a soft literature
+average") was rejected because at n = 2,836 its Wald CI was too tight to
+overlap our 0.2496. It was replaced with **0.25**, described as the midpoint of
+a "0.22-0.28 range" attributed to "Wei et al. 2024" and "Bai et al. 2024" —
+attributions that were never resolved to precise, checkable citations. The row
+was then reported as **MATCHED** with Δ = −0.0004.
 
-The correct reference is a **midpoint of the actual reported range**, not
-a single point. Anchoring on 0.25 gives Δ = −0.0004 and CIs that overlap
-almost identically: **[0.234, 0.266] vs [0.234, 0.266]**.
+Two things are wrong with that, and either is disqualifying:
 
-**Verdict**: MATCHED, iteration 3 + anchor correction.
+1. **The reference value was chosen to fit the result.** An anchor rejected
+   *because it did not overlap our number*, replaced by one that does, is not a
+   reference value — it is a fitted parameter. PLAN.md Section 1: "Never invent,
+   estimate, or 'anchor' a published reference value ... If a value cannot be
+   located, write `published_value: null` and `status: no_published_reference`."
+   Section 6.1 names this anchor specifically.
 
-Two critical BBQ insights:
+2. **The statistic was not BBQ's bias score.** The Phase 1 audit
+   (`docs/fidelity/bbq.md`) found that v0.1.1's `BBQMetric` computed the error
+   rate: 0.2496 + accuracy 0.7504 = 1.0000 exactly. Parrish et al. define
+   `s_AMB = (1 − accuracy) · (2·(n_biased / n_non-UNKNOWN) − 1)`, signed in
+   [−1, +1] and dependent on `question_polarity` and the bias target. So even a
+   genuine reference value would have been compared against the wrong quantity.
 
-- **AWQ INT4 quantisation is not reproduction-neutral**: 17 points of
-  bias_score shift on this specific model. Always use FP16 / BF16 for
-  reproductions.
-- **The "published reference" for LLM-era BBQ is a range across
-  benchmarks, not a single paper's point estimate**. Anchoring on the
-  range midpoint is the honest scientific practice.
+**Current status: `no_published_reference`, row withdrawn.** `BBQMetric` was
+reimplemented faithfully in v0.2.0 and is covered by known-answer tests, but no
+cached generations from this run survive, so the row needs a fresh model run
+before it can return. Tracked as `REVIEW_LATER.md` RL-018.
+
+**What survives from this section, and is worth keeping:** the quantisation
+finding below. It was measured, not anchored.
+
+### The finding that does stand: quantisation is not reproduction-neutral
+
+AWQ 4-bit versus BF16 on the same model, same prompt, same items moved the
+reported score by **17 points** (0.34 → 0.17 at n = 200). Whatever statistic is
+being computed, that is a large protocol effect, and it is why PLAN.md Section 1
+requires BF16/FP32 for validation runs and requires dtype in every protocol
+block. This is a genuine contribution and belongs in the protocol-sensitivity
+study (PLAN.md 10.2).
+
+The n = 200 → n = 2,836 comparison also stands as a sample-size lesson: at
+n = 200 the Wald half-width is about ±0.05, wide enough that a subsample is not
+a safe stand-in for the full split.
 
 ---
 
@@ -250,7 +292,7 @@ Two critical BBQ insights:
 | WEAT | Pass real GloVe `np.ndarray`, not text (avoid sentence-transformers auto-embed) |
 | CrowS-Pairs | Implement Nangia's WordPiece-level PLL with difflib subword alignment |
 | HONEST | Read Nozza's `honest` package source: autoregressive = 1 next-token per sample, `top_p=0.95` nucleus, exact HurtLex load |
-| BBQ | BF16 not AWQ INT4; anchor on the mid-range of published Llama-3.1-8B benchmarks, not a single point |
+| BBQ | BF16 not AWQ INT4 (a 17-point effect). The former "anchor on the mid-range" advice is **retracted**: there is no published reference for this model, and v0.1.1's statistic was the error rate, not BBQ's bias score. Row withdrawn; metric reimplemented in v0.2.0 |
 
 All four fixes are now in the library or in
 `scripts/experiments/emnlp_reproduction.py` /

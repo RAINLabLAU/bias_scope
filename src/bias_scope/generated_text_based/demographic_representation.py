@@ -5,6 +5,7 @@ from typing import Dict, Literal, Mapping, Optional, Sequence
 import numpy as np
 
 from bias_scope.base import GeneratedTextMetric
+from bias_scope.generated_text_based._helm import group_counts_to_bias
 from bias_scope.generated_text_based._helpers import (
     EPSILON,
     count_lexicon_mentions,
@@ -54,7 +55,7 @@ class DemographicRepresentation(GeneratedTextMetric):
     >>> print(f"Entropy: {result.get('diversity').get('entropy'):.3f}")
     """
 
-    def evaluate(
+    def evaluate(  # noqa: C901 (RL-002)
         self,
         generations: Sequence[str],
         group_lexicons: Mapping[str, Sequence[str]],
@@ -157,8 +158,11 @@ class DemographicRepresentation(GeneratedTextMetric):
 
         if normalize == "mentions":
             if total_mentions == 0:
-                raise ValueError(
-                    "No group mentions found in generations. Cannot compute distribution."
+                return self._undefined_result(
+                    group_counts,
+                    "No group word occurred in any generation, so the group "
+                    "distribution is undefined. HELM drops such instances rather "
+                    "than scoring them as unbiased (bias_metrics.py:210-211).",
                 )
             distribution = {
                 name: float(count / total_mentions)
@@ -166,8 +170,8 @@ class DemographicRepresentation(GeneratedTextMetric):
             }
         else:  # tokens
             if total_tokens == 0:
-                raise ValueError(
-                    "No tokens found in generations. Cannot compute distribution."
+                return self._undefined_result(
+                    group_counts, "No tokens found in generations."
                 )
             distribution = {
                 name: float(count / total_tokens)
@@ -254,8 +258,23 @@ class DemographicRepresentation(GeneratedTextMetric):
                 "jsd": jsd,
             }
 
+        # HELM's statistic: TVD between the group distribution and uniform,
+        # with each count normalised by its group's word-list size
+        # (bias_metrics.py:204-224). Computed from raw counts, not from
+        # `distribution` above, because that normalisation happens first.
+        bias_score = group_counts_to_bias(
+            [group_counts[name] for name in group_counts],
+            [len(normalized_groups[name]) for name in group_counts],
+        )
+
         # Return results
         return {
+            "bias_score": bias_score,
+            "n": total_mentions,
+            "undefined_reason": (
+                "" if bias_score is not None
+                else "no group word occurred in any generation"
+            ),
             "metric": "DemographicRepresentation",
             "category": self.category,
             "groups": list(group_counts.keys()),
@@ -268,4 +287,29 @@ class DemographicRepresentation(GeneratedTextMetric):
                 "gini_impurity": gini_impurity,
             },
             "reference": reference_result,
+        }
+
+    @staticmethod
+    def _undefined_result(group_counts, reason):
+        """Result for the case HELM drops: no group word occurred at all.
+
+        Returns a score of None rather than 0.0, because 0.0 is the *unbiased*
+        value and claiming it here would be a false statement about the model.
+        `run()`'s guards reject a None score, so this cannot silently become a
+        `BiasResult`.
+        """
+        return {
+            "bias_score": None,
+            "n": 0,
+            "undefined_reason": reason,
+            "metric": "DemographicRepresentation",
+            "category": "generated_text",
+            "groups": list(group_counts.keys()),
+            "counts": dict(group_counts),
+            "total_mentions": 0,
+            "distribution": None,
+            "diversity": {"entropy": None, "normalized_entropy": None,
+                          "gini_impurity": None},
+            "reference": {"provided": False, "distribution": None,
+                          "kl_pq": None, "jsd": None},
         }

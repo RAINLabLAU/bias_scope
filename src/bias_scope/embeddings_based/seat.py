@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Dict, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Sequence, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
+    import torch
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based.encoder import DEFAULT_EMBEDDING_MODEL
@@ -52,7 +55,7 @@ class SEAT(EmbeddingMetric):
         self,
         model_name: str = DEFAULT_EMBEDDING_MODEL,
         *,
-        pooling: str = "mean",
+        pooling: str = "cls",
     ):
         """
         Initialize SEAT.
@@ -62,7 +65,7 @@ class SEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
-            pooling (str): 'mean' (default) or 'cls'. Use 'cls' with a raw
+            pooling (str): 'cls' (default, the reference protocol) or 'mean'. Use 'cls' with a raw
                 bert-base-* model name to match May 2019's SEAT protocol.
         """
         self.model_name = model_name
@@ -87,8 +90,10 @@ class SEAT(EmbeddingMetric):
         Evaluate SEAT score.
 
         Args:
-            target_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): target group sentence embeddings
-            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, np.ndarray | torch.Tensor]): attribute group sentence embeddings
+            target_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                target group sentence embeddings
+            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
+                attribute group sentence embeddings
             model_name (str | None): SentenceTransformer/Hugging Face model used
                 when text inputs are provided. If omitted, uses the ``model_name``
                 configured on ``__init__``. If passed here, it overrides the
@@ -139,14 +144,22 @@ class SEAT(EmbeddingMetric):
         effective_model_name = model_name or self.model_name
         effective_pooling = pooling or self.pooling
 
-        # SEAT is just WEAT applied to sentence embeddings
+        # SEAT is just WEAT applied to sentence embeddings, so delegate and
+        # inherit its effect size, its ddof=1 convention and its permutation
+        # p-value rather than reimplementing any of them.
         weat_instance = WEAT(model_name=self.model_name, pooling=self.pooling)
-        score = weat_instance.evaluate(
+        details = weat_instance.evaluate(
             target_embeddings,
             attribute_embeddings,
             model_name=effective_model_name,
             pooling=effective_pooling,
+            return_details=True,
         )
-        if return_details:
-            return {"seat_score": float(score), "effect_size": float(score)}
-        return score
+        score = float(details["effect_size"])
+        if not return_details:
+            return score
+
+        # Carry WEAT's group sizes and p-value through. Without the sizes,
+        # `run()` cannot form a Hedges-Olkin interval and its `n > 0` guard
+        # rejects the result — which is exactly what happened before 0.2.0.
+        return {**details, "seat_score": score, "effect_size": score}

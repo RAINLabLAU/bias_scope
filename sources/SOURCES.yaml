@@ -1,0 +1,1602 @@
+metrics:
+- metric: AUL
+  family: probability
+  status: read
+  paper:
+    title: Unmasking the Mask -- Evaluating Social Biases in Masked Language Models
+    venue: AAAI 2022
+    year: 2022
+    arxiv: '2104.07496'
+    url: https://arxiv.org/abs/2104.07496
+    local_pdf: sources/papers/aul.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'All Unmasked Likelihood (AUL)' eq. 4
+  - Sec. 'AUL with Attention weights (AULA)' eq. 5 and the definition of alpha_i
+  - eq. 6 (bias score = percentage of pairs preferring the stereotype)
+  code:
+    url: https://github.com/kanekomasahiro/evaluate_bias_in_mlm
+    sha: 6b10239974a78f423a1230abbf329c51db192677
+    license: MIT
+    local_path: third_party/code/evaluate_bias_in_mlm
+    files_read:
+    - evaluate.py:86-107 (calculate_aul; [1:-1] strips CLS/SEP; attention averaged
+      over all layers and heads; plain mean, no renormalisation)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/aul_aula.md. AUL faithful. AULA fixed in 0.2.0: v0.1.1
+    renormalised attention weights (sum(a*logP)/sum(a)) instead of the paper''s (1/|S|)sum(a*logP);
+    the difference varies per sentence and can flip the pairwise indicator. PLAN.md
+    4.2''s open question resolved: alpha is averaged over ALL layers and heads.'
+  fidelity_note: docs/fidelity/aul_aula.md
+- metric: AULA
+  family: probability
+  status: read
+  paper:
+    title: Unmasking the Mask -- Evaluating Social Biases in Masked Language Models
+    venue: AAAI 2022
+    year: 2022
+    arxiv: '2104.07496'
+    url: https://arxiv.org/abs/2104.07496
+    local_pdf: sources/papers/aula.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'All Unmasked Likelihood (AUL)' eq. 4
+  - Sec. 'AUL with Attention weights (AULA)' eq. 5 and the definition of alpha_i
+  - eq. 6 (bias score = percentage of pairs preferring the stereotype)
+  code:
+    url: https://github.com/kanekomasahiro/evaluate_bias_in_mlm
+    sha: 6b10239974a78f423a1230abbf329c51db192677
+    license: MIT
+    local_path: third_party/code/evaluate_bias_in_mlm
+    files_read:
+    - evaluate.py:86-107 (calculate_aul; [1:-1] strips CLS/SEP; attention averaged
+      over all layers and heads; plain mean, no renormalisation)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/aul_aula.md. AUL faithful. AULA fixed in 0.2.0: v0.1.1
+    renormalised attention weights (sum(a*logP)/sum(a)) instead of the paper''s (1/|S|)sum(a*logP);
+    the difference varies per sentence and can flip the pairwise indicator. PLAN.md
+    4.2''s open question resolved: alpha is averaged over ALL layers and heads.'
+  fidelity_note: docs/fidelity/aul_aula.md
+- metric: AnalogicalReasoningBias
+  family: prompt
+  status: read
+  paper:
+    title: Persistent Anti-Muslim Bias in Large Language Models
+    venue: AIES 2021
+    year: 2021
+    arxiv: '2101.05783'
+    url: https://arxiv.org/abs/2101.05783
+    local_pdf: sources/papers/analogicalreasoningbias.pdf
+    version_read: v1
+  sections_read:
+  - Confirmed no cited metric is being claimed; inspiration sources checked for a
+    reusable score and none defined (see docs/fidelity/originals.md)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: ORIGINAL. See docs/fidelity/originals.md.
+  fidelity_note: docs/fidelity/originals.md
+- metric: BBQMetric
+  family: prompt
+  status: read
+  paper:
+    title: 'BBQ: A Hand-Built Bias Benchmark for Question Answering'
+    venue: Findings of ACL 2022
+    year: 2022
+    arxiv: '2110.08193'
+    url: https://arxiv.org/abs/2110.08193
+    local_pdf: sources/papers/bbqmetric.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Bias Score' (s_DIS and s_AMB, what counts as a biased answer, the sign convention,
+    non-UNKNOWN denominator)
+  - Sec. 'Accuracy'
+  - Sec. 6 Results
+  code:
+    url: https://github.com/nyu-mll/BBQ
+    sha: bea11bd97d79217245b5871acd247b9d6eb24598
+    license: CC-BY-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/BBQ
+    files_read:
+    - src/bias_scope/prompts_based/bbq.py:150-210 (compared against the paper; reference
+      analysis scripts not yet run)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: MISMATCH. Ours computes the error rate (is_biased = not is_correct), identical
+    to 1-accuracy; BBQ's bias score is 2*(n_biased/n_non_UNKNOWN)-1 scaled by (1-accuracy),
+    signed in [-1,1], using question_polarity and the bias target. Opposite conclusions
+    on anti-stereotypical models. Affects the paper's headline BBQ row - see RL-018.
+  fidelity_note: docs/fidelity/bbq.md
+- metric: BOLD
+  family: prompt
+  status: read
+  paper:
+    title: 'BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language
+      Generation'
+    venue: FAccT 2021
+    year: 2021
+    arxiv: '2101.11718'
+    url: https://arxiv.org/abs/2101.11718
+    local_pdf: sources/papers/bold.pdf
+    version_read: v1
+  sections_read:
+  - 'Sec. ''Bias metrics'' (the five metrics: sentiment/VADER, toxicity, regard, psycholinguistic
+    norms, gender polarity)'
+  - Sec. on sentiment (VADER, +/-0.5 thresholds)
+  code:
+    url: https://github.com/amazon-science/bold
+    sha: 3ad652c773f5d1e30d5f6f61657ed934d768ecad
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/bold
+    files_read:
+    - repo dataset and analysis layout (amazon-science/bold)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'MISMATCH confirmed (docs/fidelity/bold.md): BOLD is a dataset + five metrics,
+    not a single ''lexical bias heuristic''. Rebuild as a benchmark runner; drop the
+    heuristic. Dataset is CC-BY-SA-4.0 - see RL-014.'
+  fidelity_note: docs/fidelity/bold.md
+- metric: CAT
+  family: probability
+  status: read
+  paper:
+    title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
+    venue: ACL 2021
+    year: 2021
+    arxiv: '2004.09456'
+    url: https://arxiv.org/abs/2004.09456
+    local_pdf: sources/papers/cat.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Language Modeling Score (lms)' (percentage preferring meaningful; dataset
+    lms = average lms of target terms)
+  - Sec. 'Stereotype Score (ss)'
+  - Sec. 'Idealized CAT Score (icat)' (three axioms; icat = lms*min(ss,100-ss)/50)
+  code:
+    url: https://github.com/moinnadeem/StereoSet
+    sha: ead7d086a64a192a1eca88e0dd2fd163de375218
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
+    files_read:
+    - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
+    - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
+      macro_icat)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  fidelity_note: docs/fidelity/stereoset_family.md
+- metric: CBS
+  family: probability
+  status: read
+  paper:
+    title: Mitigating Language-Dependent Ethnic Bias in BERT
+    venue: EMNLP 2021
+    year: 2021
+    arxiv: '2109.05704'
+    url: https://arxiv.org/abs/2109.05704
+    local_pdf: sources/papers/cbs.pdf
+    version_read: v1
+  sections_read:
+  - 'CBS: Sec. 3 ''Measuring Ethnic Bias'' and Sec. 3.1 ''Normalized probability''
+    (P'' = p_tgt/p_prior; variance across targets; Figure 2b). LMB: Sec. on the perplexity
+    measure (3-sigma outlier removal; t-value of Student''s two-tailed test; negative
+    t = stereotypical bias)'
+  code:
+    url: https://github.com/jaimeenahn/ethnic_bias
+    sha: a115eb7c3af7daf95309f3b4c1c7a564eb556190
+    license: MIT
+    local_path: third_party/code/ethnic_bias
+    files_read:
+    - jaimeenahn/ethnic_bias and umanlp/RedditBias repo layouts (both MIT)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/cbs_lmb.md. CBS faithful (but only 20% test coverage -
+    RL-017). LMB adaptation: 3-sigma outlier rule added as the default in 0.2.0; headline
+    statistic is still mean_diff rather than the paper''s t-value (RL-026).'
+  fidelity_note: docs/fidelity/cbs_lmb.md
+- metric: CEAT
+  family: embedding
+  status: read
+  paper:
+    title: 'Detecting Emergent Intersectional Biases: Contextualized Word Embeddings
+      Contain a Distribution of Human-like Biases'
+    venue: AIES 2021
+    year: 2021
+    arxiv: '2006.03955'
+    url: https://arxiv.org/abs/2006.03955
+    local_pdf: sources/papers/ceat.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'combined effect size (CES)' (weighted mean, inverse-variance weights)
+  - Sec. 'Random-Effects Model' (Hedges & Vevea 1998; DerSimonian & Laird)
+  - Sec. on sampling N contexts (N=1,000 and N=10,000)
+  code:
+    url: https://github.com/weiguowilliam/CEAT
+    sha: 497e2958a152ad70004ef6f3b613b98efdd26389
+    license: none-stated
+    local_path: third_party/code/CEAT
+    files_read:
+    - weiguowilliam/CEAT repo layout (no license file; see third_party/LICENSES.md)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'FAITHFUL. The random-effects weighting is a real DerSimonian-Laird estimator
+    matching CES = sum(v_i ES_i)/sum(v_i). Fixed a stale docstring that described
+    a simpler estimator than the code. Open: default n_samples=100 vs the paper''s
+    1,000/10,000 - RL-021.'
+  fidelity_note: docs/fidelity/ceat.md
+- metric: CoOccurrenceBiasScore
+  family: generated_text
+  status: read
+  paper:
+    title: Identifying and Reducing Gender Bias in Word-Level Language Models
+    venue: NAACL SRW 2019
+    year: 2019
+    arxiv: '1904.03035'
+    url: https://arxiv.org/abs/1904.03035
+    local_pdf: sources/papers/cooccurrencebiasscore.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 3.3.1 'Bias Score Definition' (P(w|g) and bias_train(w) = log P(w|f)/P(w|m))
+  - Sec. 'Fixed Context' (window sizes 5-15, k words each side)
+  code:
+    url: https://github.com/BordiaS/language-model-bias
+    sha: 59f6584e8a85c0c2527091abb572b8d964b5328a
+    license: none-stated
+    local_path: third_party/code/language-model-bias
+    files_read:
+    - BordiaS/language-model-bias repo layout (no license file; see third_party/LICENSES.md)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ADAPTATION. Omits the paper''s sum_i c(w_i,g) normalisation, a constant
+    additive offset: rankings and word-to-word comparisons are unaffected, but absolute
+    values are shifted so an equally-co-occurring word does not score 0. See RL-023.'
+  fidelity_note: docs/fidelity/cooccurrence_bias_score.md
+- metric: CounterfactualSentimentBias
+  family: generated_text
+  status: read
+  paper:
+    title: Reducing Sentiment Bias in Language Models via Counterfactual Evaluation
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '1911.03064'
+    url: https://arxiv.org/abs/1911.03064
+    local_pdf: sources/papers/counterfactualsentimentbias.pdf
+    version_read: v1
+  sections_read:
+  - Sec. on the Wasserstein-1 formulation (eq. 1) and eq. 2 (counterfactual fairness
+    condition)
+  - Sec. 'Individual Fairness Metric' (Average I.F. over templates)
+  - Sec. 'Group Fairness Metric' (Average G.F., subgroup vs the entire evaluation
+    set)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/huang_metrics.md. CounterfactualSentimentBias was a MISMATCH
+    (signed mean of paired differences, where opposing biases cancel); fixed in 0.2.0
+    to the paper''s Wasserstein-1, validated against scipy to 1e-9. SocialGroupSubstitution
+    is an ADAPTATION: right structure (I.F./G.F.) but range-based rather than W1,
+    and G.F. compares subgroups to each other rather than to the whole set (RL-027).'
+  fidelity_note: docs/fidelity/huang_metrics.md
+- metric: CrowSPairs
+  family: probability
+  status: read
+  paper:
+    title: 'CrowS-Pairs: A Challenge Dataset for Measuring Social Biases in Masked
+      Language Models'
+    venue: EMNLP 2020
+    year: 2020
+    arxiv: '2010.00133'
+    url: https://arxiv.org/abs/2010.00133
+    local_pdf: sources/papers/crowspairs.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'For a sentence S, let U...' (eq. 1, pseudo-log-likelihood over unmodified
+    tokens; p(U|M) vs StereoSet's p(M|U))
+  - 'Aggregation: percentage of examples preferring the stereotyping sentence; ideal
+    50%'
+  - Table 2 (BERT 60.5 / RoBERTa 64.1 / ALBERT 67.0, n=1508, plus splits)
+  code:
+    url: https://github.com/nyu-mll/crows-pairs
+    sha: 8aaac11c485473159ec9328a65253a5be9a479dc
+    license: none-stated
+    local_path: third_party/code/crows-pairs
+    files_read:
+    - metric.py:76-95 (get_span, difflib equal opcodes)
+    - metric.py:98-150 (mask_unigram, range(1, N-1))
+    - metric.py:57-74 (get_log_prob_unigram)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'FAITHFUL in mode=''wordpiece'' (default). One deliberate difference: autojunk=False
+    in SequenceMatcher, immaterial at CrowS-Pairs sentence lengths. Reproduces 58.62
+    vs published 60.5 with overlapping CIs.'
+  fidelity_note: docs/fidelity/crows_pairs.md
+- metric: DemographicRepresentation
+  family: generated_text
+  status: read
+  paper:
+    title: Holistic Evaluation of Language Models
+    venue: TMLR 2023
+    year: 2022
+    arxiv: '2211.09110'
+    url: https://arxiv.org/abs/2211.09110
+    local_pdf: sources/papers/demographicrepresentation.pdf
+    version_read: v1
+  sections_read:
+  - HELM bias metric definition (demographic representation)
+  code:
+    url: https://github.com/stanford-crfm/helm
+    sha: 63754d05db6f874e41a395880fb573890a13e791
+    license: Apache-2.0
+    local_path: third_party/code/helm
+    files_read:
+    - src/helm/benchmark/metrics/bias_metrics.py:119-142 (evaluate_demographic_representation)
+    - src/helm/benchmark/metrics/bias_metrics.py:187-224 (group_counts_to_bias, TVD)
+    - src/helm/benchmark/metrics/bias_word_lists.py (GENDER_TO_WORD_LISTS, RACE_TO_NAME_LISTS)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'MISMATCH confirmed (docs/fidelity/demographic_representation.md): HELM is
+    TVD-from-uniform with per-group word-list-size normalisation; ours reports entropy/Gini.'
+  fidelity_note: docs/fidelity/demographic_representation.md
+- metric: DisCoMetric
+  family: probability
+  status: read
+  paper:
+    title: Measuring and Reducing Gendered Correlations in Pre-trained Models
+    venue: arXiv preprint
+    year: 2020
+    arxiv: '2010.06032'
+    url: https://arxiv.org/abs/2010.06032
+    local_pdf: sources/papers/discometric.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Discovery of Correlations (DisCo)' (templates, top-3 fills, chi-square,
+    Bonferroni, aggregation)
+  - Table 2 (DisCo Terms/Names for ALBERT and BERT)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'MISMATCH confirmed (docs/fidelity/disco.md). No reference code exists. Correction
+    question in PLAN.md 4.2 resolved: the paper applies a Bonferroni correction to
+    p=0.05. Table 2 gives four Tier-1 targets.'
+  fidelity_note: docs/fidelity/disco.md
+- metric: DiscrimEval
+  family: prompt
+  status: read
+  paper:
+    title: Evaluating and Mitigating Discrimination in Language Model Decisions
+    venue: arXiv preprint
+    year: 2023
+    arxiv: '2312.03689'
+    url: https://arxiv.org/abs/2312.03689
+    local_pdf: sources/papers/discrimeval.pdf
+    version_read: v1
+  sections_read:
+  - Sec. on prompt construction (a 'yes' is always the positive outcome for the subject)
+  - Sec. 3.1 'Mixed Effects Model' (p_norm(yes) = p(yes)/(p(yes)+p(no)); logit; fixed
+    effects age/gender/race; random effects question type and interactions; baseline
+    = white 60-year-old male)
+  code:
+    url: https://huggingface.co/datasets/Anthropic/discrim-eval
+    sha: dataset-card
+    license: CC-BY-4.0 (verify on the dataset card)
+    local_path: ''
+    files_read:
+    - dataset card and schema (not cloned)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/discrim_eval.md
+  notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). Marginal logit differences rather
+    than the paper's mixed-effects coefficients; see the deviation note.
+- metric: EMT
+  family: generated_text
+  status: read
+  paper:
+    title: 'RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language
+      Models'
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '2009.11462'
+    url: https://arxiv.org/abs/2009.11462
+    local_pdf: sources/papers/emt.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 3.2 'we characterize toxic generations with two metrics' (expected maximum
+    toxicity over k=25; empirical probability of TOXICITY>=0.5 at least once)
+  - Sec. on the 0.5 toxicity threshold
+  - Table 1 and Figure 2 (reported values)
+  code:
+    url: https://github.com/allenai/real-toxicity-prompts
+    sha: dd44ab77ed8bb36d6a62f8205768fda8382eb7ba
+    license: Apache-2.0
+    local_path: third_party/code/real-toxicity-prompts
+    files_read:
+    - allenai/real-toxicity-prompts repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
+  fidelity_note: docs/fidelity/toxicity_family.md
+- metric: FGB
+  family: generated_text
+  status: read
+  paper:
+    title: '"I''m sorry to hear that": Finding New Biases in Language Models with
+      a Holistic Descriptor Dataset'
+    venue: EMNLP 2022
+    year: 2022
+    arxiv: '2205.09209'
+    url: https://arxiv.org/abs/2205.09209
+    local_pdf: sources/papers/fgb.pdf
+    version_read: v1
+  sections_read:
+  - Sec. A.7 Generation bias metrics (FGB, PGB, SCGB definitions and style clusters)
+  - Table 4 (reported values, x1000)
+  code:
+    url: https://github.com/facebookresearch/ResponsibleNLP
+    sha: 0ec714eb084217f44cd9ac466d9e988c795302f9
+    license: MIT
+    local_path: third_party/code/ResponsibleNLP
+    files_read:
+    - holistic_bias/src/bias_measurements.py:45-140 (perplexity analysis; FGB is NOT
+      implemented in this repo)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: MISMATCH confirmed (docs/fidelity/fgb.md). Repo does not implement FGB and
+    ships no 217-class style classifier - blocked, RL-013. PLAN.md 4.2's FGB formula
+    described SCGB; corrected.
+  fidelity_note: docs/fidelity/fgb.md
+- metric: GenderPolarity
+  family: generated_text
+  status: read
+  paper:
+    title: 'BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language
+      Generation'
+    venue: FAccT 2021
+    year: 2021
+    arxiv: '2101.11718'
+    url: https://arxiv.org/abs/2101.11718
+    local_pdf: sources/papers/genderpolarity.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 4.5 'Gender polarity' (unigram matching three-way labelling; Bolukbasi projection
+    b_i; Gender-Wavg; Gender-Max; +/-0.25 thresholds; hard-debiased Word2Vec)
+  - Sec. 4.4 (VAD and BE5 norms; rescaling VAD to [-1,1] with 0 neutral)
+  code:
+    url: https://github.com/amazon-science/bold
+    sha: 3ad652c773f5d1e30d5f6f61657ed934d768ecad
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/bold
+    files_read:
+    - amazon-science/bold repo layout (CC-BY-SA-4.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: ADAPTATION. See docs/fidelity/bold_metrics.md (one note, two metrics, one
+    paper).
+  fidelity_note: docs/fidelity/bold_metrics.md
+- metric: HONEST
+  family: generated_text
+  status: read
+  paper:
+    title: 'HONEST: Measuring Hurtful Sentence Completion in Language Models'
+    venue: NAACL 2021
+    year: 2021
+    url: https://aclanthology.org/2021.naacl-main.191/
+    local_pdf: sources/papers/honest.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'HONEST Finally, we define a global score' (the formula and top-K definition)
+  - Table 4 (per-category percentages, K=20)
+  - Table 5 (HONEST scores per model)
+  code:
+    url: https://github.com/MilaNLProc/honest
+    sha: 6efc7817cbeb36e61bba51a34bbce13ecc8af69f
+    license: MIT
+    local_path: third_party/code/honest
+    files_read:
+    - honest/honest.py:81-100 (honest_dataframe; score = sum/(topK*len))
+    - honest/honest.py:34-38 (honest_score_inner, word vs sentence branch)
+    - honest/honest.py:40-80 (both inner scorers, strip_accent)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ADAPTATION. Formula is faithful; two deviations move the number: causal-LM
+    generation instead of top-K mask fills, and HurtLex version drift (Nozza 1,072
+    terms vs 1,722 today). Both documented and bracketed in results/emnlp/.'
+  fidelity_note: docs/fidelity/honest.md
+- metric: ICAT
+  family: probability
+  status: read
+  paper:
+    title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
+    venue: ACL 2021
+    year: 2021
+    arxiv: '2004.09456'
+    url: https://arxiv.org/abs/2004.09456
+    local_pdf: sources/papers/icat.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Language Modeling Score (lms)' (percentage preferring meaningful; dataset
+    lms = average lms of target terms)
+  - Sec. 'Stereotype Score (ss)'
+  - Sec. 'Idealized CAT Score (icat)' (three axioms; icat = lms*min(ss,100-ss)/50)
+  code:
+    url: https://github.com/moinnadeem/StereoSet
+    sha: ead7d086a64a192a1eca88e0dd2fd163de375218
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
+    files_read:
+    - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
+    - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
+      macro_icat)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  fidelity_note: docs/fidelity/stereoset_family.md
+- metric: IdentitySwapConsistency
+  family: prompt
+  status: read
+  paper:
+    title: Counterfactual Fairness
+    venue: NeurIPS 2017
+    year: 2017
+    arxiv: '1703.06856'
+    url: https://arxiv.org/abs/1703.06856
+    local_pdf: sources/papers/counterfactualfairness.pdf
+    version_read: v1
+  sections_read:
+  - Confirmed no cited metric is being claimed; inspiration sources checked for a
+    reusable score and none defined (see docs/fidelity/originals.md)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ORIGINAL. Renamed from CounterfactualFairness in v0.2.0: that was the exact
+    title of Kusner et al. 2017, which defines a causal criterion on a predictor,
+    not this embedding-similarity score. See docs/fidelity/originals.md.'
+  fidelity_note: docs/fidelity/originals.md
+- metric: LMB
+  family: probability
+  status: read
+  paper:
+    title: 'RedditBias: A Real-World Resource for Bias Evaluation and Debiasing of
+      Conversational Language Models'
+    venue: ACL 2021
+    year: 2021
+    arxiv: '2106.03521'
+    url: https://arxiv.org/abs/2106.03521
+    local_pdf: sources/papers/lmb.pdf
+    version_read: v1
+  sections_read:
+  - 'CBS: Sec. 3 ''Measuring Ethnic Bias'' and Sec. 3.1 ''Normalized probability''
+    (P'' = p_tgt/p_prior; variance across targets; Figure 2b). LMB: Sec. on the perplexity
+    measure (3-sigma outlier removal; t-value of Student''s two-tailed test; negative
+    t = stereotypical bias)'
+  code:
+    url: https://github.com/umanlp/RedditBias
+    sha: 61f9ae9458e26a64ae1113425192280503f8fb92
+    license: MIT
+    local_path: third_party/code/RedditBias
+    files_read:
+    - jaimeenahn/ethnic_bias and umanlp/RedditBias repo layouts (both MIT)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/cbs_lmb.md. CBS faithful (but only 20% test coverage -
+    RL-017). LMB adaptation: 3-sigma outlier rule added as the default in 0.2.0; headline
+    statistic is still mean_diff rather than the paper''s t-value (RL-026).'
+  fidelity_note: docs/fidelity/cbs_lmb.md
+- metric: LPBS
+  family: probability
+  status: read
+  paper:
+    title: Measuring Bias in Contextualized Word Representations
+    venue: GeBNLP 2019
+    year: 2019
+    arxiv: '1906.07337'
+    url: https://arxiv.org/abs/1906.07337
+    local_pdf: sources/papers/lpbs.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 2, four-step procedure (p_tgt, p_prior)
+  - Sec. 2, definition of increased log probability score and log probability bias
+    score
+  - Table 2 (reported scores, for the Tier-1 registry entry)
+  code:
+    url: https://github.com/keitakurita/contextual_embedding_bias_measure
+    sha: 18044f87e2ff640fab43941120f14dcf482df6ca
+    license: none-stated
+    local_path: third_party/code/contextual_embedding_bias_measure
+    files_read:
+    - lib/bias_calculator.py:32-74 (BiasScorer.bias_score)
+    - lib/bias_calculator.py:22-30 (get_mask_fill_logits)
+    - lib/bert_utils.py:51-55 (tokenize)
+    - lib/bert_utils.py:72-90 (get_index)
+    - notebooks/construct_bias_score.py:106-140 (driver)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: MISMATCH confirmed (docs/fidelity/lpbs.md). Paper and code additionally disagree
+    on which mask position the prior is read at, and get_index's last branch omits
+    the [CLS] offset - see RL-012.
+  fidelity_note: docs/fidelity/lpbs.md
+- metric: MarkedPersons
+  family: generated_text
+  status: read
+  paper:
+    title: 'Marked Personas: Using Natural Language Prompts to Measure Stereotypes
+      in Language Models'
+    venue: ACL 2023
+    year: 2023
+    arxiv: '2305.18189'
+    url: https://arxiv.org/abs/2305.18189
+    local_pdf: sources/papers/markedpersons.pdf
+    version_read: v1
+  sections_read:
+  - Sec. on the Fightin' Words method with informative Dirichlet prior (weighted log-odds
+    ratios, z-scores)
+  - The z > 1.96 significance criterion
+  - Per-group word tables (used as the reproduction target)
+  code:
+    url: https://github.com/myracheng/markedpersonas
+    sha: 9b3ae82ad2621030b67f693d743f99f104365702
+    license: none-stated
+    local_path: third_party/code/markedpersonas
+    files_read:
+    - myracheng/markedpersonas repo layout (no license file; see third_party/LICENSES.md)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'FAITHFUL, with the strongest reproduction evidence in the library: results/emnlp/marked_persons/
+    matches Cheng''s published z-scores at 0.0007% relative error with a Pearson correlation
+    of 1.0000. PLAN.md 4.2''s question answered: there is no single reported scalar,
+    and that is correct - the paper reports ranked word lists.'
+  fidelity_note: docs/fidelity/marked_persons.md
+- metric: MeanScoreGap
+  family: generated_text
+  status: read
+  paper:
+    title: Nuanced Metrics for Measuring Unintended Bias with Real Data for Text Classification
+    venue: WWW 2019 companion
+    year: 2019
+    arxiv: '1903.04561'
+    url: https://arxiv.org/abs/1903.04561
+    local_pdf: sources/papers/scoreparity.pdf
+    version_read: ''
+  sections_read:
+  - Sec. 3 Definition 1 (Subgroup AUC, BPSN AUC, BNSP AUC; eqs. 1-3)
+  - Sec. 3 Definition 2 (Positive/Negative Average Equality Gap; eq. 4)
+  - Sec. 3.2.1 (relationship to Mann-Whitney U)
+  code:
+    url: https://github.com/conversationai/unintended-ml-bias-analysis
+    sha: 1244018d92bed14bd0a2b0197292add67dbac97f
+    license: Apache-2.0
+    local_path: third_party/code/unintended-ml-bias-analysis
+    files_read:
+    - conversationai/unintended-ml-bias-analysis repo layout (AUC/AEG notebooks; not
+      run)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ORIGINAL. Renamed from ScoreParity in v0.2.0: Borkan et al.''s five metrics
+    are all threshold-agnostic and label-based (AUC trio + two AEGs); a mean-score
+    gap is none of them. The AUC trio remains unimplemented - a Phase 4 addition,
+    not a fix. See docs/fidelity/score_parity.md.'
+  fidelity_note: docs/fidelity/score_parity.md
+- metric: OccupationPronounSkew
+  family: prompt
+  status: read
+  paper:
+    title: 'Gender Bias in Coreference Resolution: Evaluation and Debiasing Methods'
+    venue: NAACL 2018
+    year: 2018
+    arxiv: '1804.06876'
+    url: https://arxiv.org/abs/1804.06876
+    local_pdf: sources/papers/demographicrepresentationbias.pdf
+    version_read: v1
+  sections_read:
+  - Abstract and Sec. 1 (pro- vs anti-stereotypical F1 gap, 21.1 average)
+  - Sec. defining pro-/anti-stereotypical conditions
+  code:
+    url: https://github.com/uclanlp/corefBias
+    sha: 0bce984dd081bbc10b0622f326727a024c607895
+    license: MIT
+    local_path: third_party/code/corefBias
+    files_read:
+    - WinoBias/wino/ layout (anonymize.py, word_swapper.py, data/)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ORIGINAL. Renamed from DemographicRepresentationBias in v0.2.0: it counts
+    pronouns, while the cited WinoBias is a coreference F1 gap (docs/fidelity/demographic_representation_bias.md).
+    The Zhao et al. entry is retained as inspiration; a faithful WinoBias is a Phase
+    4 item.'
+  fidelity_note: docs/fidelity/demographic_representation_bias.md
+- metric: OpinionConsistencyAcrossPersonas
+  family: prompt
+  status: read
+  paper:
+    title: ''
+    venue: ''
+    year: null
+    url: ''
+    local_pdf: ''
+    version_read: v1
+    paper_status: no_cited_source
+  sections_read:
+  - Confirmed no cited metric is being claimed; inspiration sources checked for a
+    reusable score and none defined (see docs/fidelity/originals.md)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: ORIGINAL. See docs/fidelity/originals.md.
+  fidelity_note: docs/fidelity/originals.md
+- metric: PGB
+  family: generated_text
+  status: read
+  paper:
+    title: '"I''m sorry to hear that": Finding New Biases in Language Models with
+      a Holistic Descriptor Dataset'
+    venue: EMNLP 2022
+    year: 2022
+    arxiv: '2205.09209'
+    url: https://arxiv.org/abs/2205.09209
+    local_pdf: sources/papers/pgb.pdf
+    version_read: v1
+  sections_read:
+  - Sec. A.7 Generation bias metrics (PGB and SCGB)
+  - Table 4
+  code:
+    url: https://github.com/facebookresearch/ResponsibleNLP
+    sha: 0ec714eb084217f44cd9ac466d9e988c795302f9
+    license: MIT
+    local_path: third_party/code/ResponsibleNLP
+    files_read:
+    - holistic_bias/src/bias_measurements.py:45-140 (PGB is NOT implemented in this
+      repo)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: MISMATCH confirmed (docs/fidelity/pgb.md). PLAN.md 4.2 wrongly said PGB is
+    uncited; it is defined in Sec. A.7. Blocked on the style classifier, RL-013.
+  fidelity_note: docs/fidelity/pgb.md
+- metric: PairwiseLikelihoodPreference
+  family: probability
+  status: read
+  paper:
+    title: ''
+    venue: ''
+    year: null
+    url: ''
+    local_pdf: ''
+    version_read: ''
+    paper_status: no_cited_source
+  sections_read:
+  - 'N/A - BiasScope original. Recorded `read` because its provenance is established:
+    it is the statistic that shipped as LPBS through v0.1.1, audited in docs/fidelity/lpbs.md
+    against Kurita et al. and found to implement a different metric.'
+  code_status: none_found
+  search_log:
+  - N/A - originates in this repository, not in any paper's code.
+  resources: []
+  retrieved_on: '2026-08-22'
+  fidelity_note: docs/fidelity/lpbs.md
+  notes: ORIGINAL. Preserved under this name by PLAN.md Section 12 when LPBS was reimplemented
+    to Kurita et al.'s formula in v0.2.0.
+- metric: PoliticalEvenHandedness
+  family: prompt
+  status: read
+  paper:
+    title: Measuring political bias in Claude
+    venue: Anthropic
+    year: 2025
+    url: https://www.anthropic.com/news/political-even-handedness
+    local_pdf: ''
+    version_read: repo README @ c5ed67908b56
+  sections_read:
+  - README 'Even-Handedness' (three options; option C = even-handed; take the token
+    probability of C)
+  - README 'Refusals' and 'Opposing Perspectives' (1-5 scales; sum token probabilities
+    of 4 and 5; averaged across the response pair)
+  - README on grading (Claude Sonnet 4.5 grader and its token probabilities; binarize
+    at 0.5 and report percentages)
+  - README on the eval set (150 topics, each a pair of opposing-stance prompts)
+  code:
+    url: https://github.com/anthropics/political-neutrality-eval
+    sha: c5ed67908b56edc0781f47821241ca44114bd4ff
+    license: Creative Commons (see third_party/LICENSES.md)
+    local_path: third_party/code/political-neutrality-eval
+    files_read:
+    - README.md (the full method)
+    - prompts.py:37-39 (the A/B/C options)
+    - prompts.py:90,117 (the 1-5 rating guidelines)
+    - eval_set.csv header (paired prompt_a/prompt_b schema)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/political_even_handedness.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). All three dimensions reported; the
+    grader is part of the protocol and the released method notes results vary by grader.
+- metric: PsycholinguisticNorms
+  family: generated_text
+  status: read
+  paper:
+    title: 'BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language
+      Generation'
+    venue: FAccT 2021
+    year: 2021
+    arxiv: '2101.11718'
+    url: https://arxiv.org/abs/2101.11718
+    local_pdf: sources/papers/psycholinguisticnorms.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 4.5 'Gender polarity' (unigram matching three-way labelling; Bolukbasi projection
+    b_i; Gender-Wavg; Gender-Max; +/-0.25 thresholds; hard-debiased Word2Vec)
+  - Sec. 4.4 (VAD and BE5 norms; rescaling VAD to [-1,1] with 0 neutral)
+  code:
+    url: https://github.com/amazon-science/bold
+    sha: 3ad652c773f5d1e30d5f6f61657ed934d768ecad
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/bold
+    files_read:
+    - amazon-science/bold repo layout (CC-BY-SA-4.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: ADAPTATION. See docs/fidelity/bold_metrics.md (one note, two metrics, one
+    paper).
+  fidelity_note: docs/fidelity/bold_metrics.md
+- metric: RealToxicityPrompts
+  family: prompt
+  status: read
+  paper:
+    title: 'RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language
+      Models'
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '2009.11462'
+    url: https://arxiv.org/abs/2009.11462
+    local_pdf: sources/papers/realtoxicityprompts.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 3.2 'we characterize toxic generations with two metrics' (expected maximum
+    toxicity over k=25; empirical probability of TOXICITY>=0.5 at least once)
+  - Sec. on the 0.5 toxicity threshold
+  - Table 1 and Figure 2 (reported values)
+  code:
+    url: https://github.com/allenai/real-toxicity-prompts
+    sha: dd44ab77ed8bb36d6a62f8205768fda8382eb7ba
+    license: Apache-2.0
+    local_path: third_party/code/real-toxicity-prompts
+    files_read:
+    - allenai/real-toxicity-prompts repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
+  fidelity_note: docs/fidelity/toxicity_family.md
+- metric: RegardScore
+  family: generated_text
+  status: read
+  paper:
+    title: 'The Woman Worked as a Babysitter: On Biases in Language Generation'
+    venue: EMNLP 2019
+    year: 2019
+    arxiv: '1909.01326'
+    url: https://arxiv.org/abs/1909.01326
+    local_pdf: sources/papers/regardscore.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 1 (regard introduced as distinct from sentiment; 'the appropriateness of
+    sentiment scores as a proxy')
+  - Table 2 (counterexamples where sentiment and regard labels have opposite signs)
+  - Sec. on building the regard classifier from annotations
+  code:
+    url: https://github.com/ewsheng/nlg-bias
+    sha: 7f8d08ea4f33bf3368c5cb0d0ac5f9c515625546
+    license: none-stated
+    local_path: third_party/code/nlg-bias
+    files_read:
+    - 'ewsheng/nlg-bias repo layout: scripts/ensemble.py (regard1 = 3-BERT majority
+      vote); no license file'
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'Was a MISMATCH: v0.1.1 defaulted to a SENTIMENT classifier and described
+    itself as measuring sentiment, which is exactly the conflation Sheng et al. wrote
+    the paper to refute (Table 2 gives opposite-sign counterexamples). Fixed in 0.2.0
+    to default to sasha/regardv3 with the four regard buckets and ''other'' kept distinct
+    from ''neutral''. ADAPTATION because regardv3 is not Sheng''s own 3-BERT regard1
+    ensemble.'
+  fidelity_note: docs/fidelity/regard_score.md
+- metric: SEAT
+  family: embedding
+  status: read
+  paper:
+    title: On Measuring Social Biases in Sentence Encoders
+    venue: NAACL 2019
+    year: 2019
+    arxiv: '1903.10561'
+    url: https://arxiv.org/abs/1903.10561
+    local_pdf: sources/papers/seat.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'The Sentence Encoder Association Test' (SEAT = WEAT on sentence vectors;
+    pooling; bleached templates)
+  - Per-test result tables
+  code:
+    url: https://github.com/W4ngatang/sent-bias
+    sha: e3559fb669ca4832743b42fee715994c15c7f1af
+    license: CC-BY-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/sent-bias
+    files_read:
+    - sentbias/weat.py:178-192 (shared effect size)
+    - sentbias/encoders/bert.py:15-27 (encode; enc[:, 0, :] position-0 pooling, no
+      [CLS] added)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'FAITHFUL. Statistic is WEAT''s. Default pooling changed to ''cls'' in 0.2.0
+    to match the reference''s position-0 protocol. Tier-2 caveat: the reference''s
+    position 0 is the first content wordpiece, not [CLS], because it never adds special
+    tokens.'
+  fidelity_note: docs/fidelity/seat.md
+- metric: SentenceBiasScore
+  family: embedding
+  status: pending
+  paper:
+    title: Sentence-level bias score (Dolci, Azzalini & Tanelli)
+    venue: Data Science and Engineering 8(2)
+    year: 2023
+    url: ''
+    local_pdf: ''
+    version_read: ''
+    paper_status: not_located
+  sections_read: []
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: ''
+  notes: Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2). Springer,
+    paywalled; no arXiv preprint located.
+- metric: SocialGroupSubstitution
+  family: generated_text
+  status: read
+  paper:
+    title: Reducing Sentiment Bias in Language Models via Counterfactual Evaluation
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '1911.03064'
+    url: https://arxiv.org/abs/1911.03064
+    local_pdf: sources/papers/socialgroupsubstitution.pdf
+    version_read: v1
+  sections_read:
+  - Sec. on the Wasserstein-1 formulation (eq. 1) and eq. 2 (counterfactual fairness
+    condition)
+  - Sec. 'Individual Fairness Metric' (Average I.F. over templates)
+  - Sec. 'Group Fairness Metric' (Average G.F., subgroup vs the entire evaluation
+    set)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'See docs/fidelity/huang_metrics.md. CounterfactualSentimentBias was a MISMATCH
+    (signed mean of paired differences, where opposing biases cancel); fixed in 0.2.0
+    to the paper''s Wasserstein-1, validated against scipy to 1e-9. SocialGroupSubstitution
+    is an ADAPTATION: right structure (I.F./G.F.) but range-based rather than W1,
+    and G.F. compares subgroups to each other rather than to the whole set (RL-027).'
+  fidelity_note: docs/fidelity/huang_metrics.md
+- metric: StereoSetMetric
+  family: prompt
+  status: read
+  paper:
+    title: 'StereoSet: Measuring stereotypical bias in pretrained language models'
+    venue: ACL 2021
+    year: 2021
+    arxiv: '2004.09456'
+    url: https://arxiv.org/abs/2004.09456
+    local_pdf: sources/papers/stereosetmetric.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Language Modeling Score (lms)' (percentage preferring meaningful; dataset
+    lms = average lms of target terms)
+  - Sec. 'Stereotype Score (ss)'
+  - Sec. 'Idealized CAT Score (icat)' (three axioms; icat = lms*min(ss,100-ss)/50)
+  code:
+    url: https://github.com/moinnadeem/StereoSet
+    sha: ead7d086a64a192a1eca88e0dd2fd163de375218
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
+    files_read:
+    - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
+    - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
+      macro_icat)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  fidelity_note: docs/fidelity/stereoset_family.md
+- metric: StereotypeRuleHitRate
+  family: generated_text
+  status: read
+  paper:
+    title: ''
+    venue: ''
+    year: null
+    url: ''
+    local_pdf: ''
+    version_read: ''
+    paper_status: no_cited_source
+  sections_read:
+  - 'N/A - BiasScope original. Provenance established: it is the statistic that shipped
+    as StereotypicalAssociations through v0.1.1, audited against HELM in docs/fidelity/stereotypical_associations.md.'
+  code_status: none_found
+  search_log:
+  - N/A - originates in this repository.
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/stereotypical_associations.md
+  notes: ORIGINAL. Preserved under this name by PLAN.md Section 12 when StereotypicalAssociations
+    was reimplemented to HELM's formula in v0.2.0.
+- metric: StereotypicalAssociations
+  family: generated_text
+  status: read
+  paper:
+    title: Holistic Evaluation of Language Models
+    venue: TMLR 2023
+    year: 2022
+    arxiv: '2211.09110'
+    url: https://arxiv.org/abs/2211.09110
+    local_pdf: sources/papers/stereotypicalassociations.pdf
+    version_read: v1
+  sections_read:
+  - HELM bias metric definition (stereotypical associations)
+  code:
+    url: https://github.com/stanford-crfm/helm
+    sha: 63754d05db6f874e41a395880fb573890a13e791
+    license: Apache-2.0
+    local_path: third_party/code/helm
+    files_read:
+    - src/helm/benchmark/metrics/bias_metrics.py:144-185 (evaluate_stereotypical_associations)
+    - src/helm/benchmark/metrics/bias_metrics.py:187-224 (group_counts_to_bias, TVD)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'MISMATCH confirmed (docs/fidelity/stereotypical_associations.md): HELM is
+    mean-over-target-words of TVD; co-occurrence is a whole-text product of counts,
+    not a window. Ours is rule/window hit-rate matching.'
+  fidelity_note: docs/fidelity/stereotypical_associations.md
+- metric: TofNof
+  family: prompt
+  status: read
+  paper:
+    title: Measuring Sycophancy of Language Models in Multi-turn Dialogues
+    venue: arXiv preprint
+    year: 2025
+    arxiv: '2505.23840'
+    url: https://arxiv.org/abs/2505.23840
+    local_pdf: sources/papers/tofnof.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 'Evaluation Metric' (eq. 1 Turn-of-Flip, eq. 2 Number-of-Flip, binary alignment
+    labels)
+  - Figure 1 (debate scenario; GPT-4o judge assigns the labels)
+  code_status: none_found
+  search_log:
+  - paper footnotes and code-availability statement
+  - ACL Anthology 'Code' link
+  - Papers with Code
+  - GitHub search for the exact paper title
+  - GitHub search for the metric name
+  - first author's GitHub profile
+  - Hugging Face datasets and spaces
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ADAPTATION. Formulas match eqs. 1-2. The deviation is the judge: the paper''s
+    labels come from GPT-4o, and the label IS the measurement, so judge model and
+    prompt are part of the metric. Refactor onto the Judge abstraction (PLAN.md 7.1,
+    which names TofNof).'
+  fidelity_note: docs/fidelity/tofnof.md
+- metric: TopKFillDivergence
+  family: probability
+  status: read
+  paper:
+    title: ''
+    venue: ''
+    year: null
+    url: ''
+    local_pdf: ''
+    version_read: ''
+    paper_status: no_cited_source
+  sections_read:
+  - 'N/A - BiasScope original. Provenance established: the statistic that shipped
+    as DisCoMetric through v0.1.1, audited against Webster et al. in docs/fidelity/disco.md.'
+  code_status: none_found
+  search_log:
+  - N/A - originates in this repository.
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/disco.md
+  notes: ORIGINAL. Preserved under this name by PLAN.md Section 12 when DisCoMetric
+    was reimplemented to Webster et al.'s definition in v0.2.0.
+- metric: ToxicityFraction
+  family: generated_text
+  status: read
+  paper:
+    title: 'RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language
+      Models'
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '2009.11462'
+    url: https://arxiv.org/abs/2009.11462
+    local_pdf: sources/papers/toxicityfraction.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 3.2 'we characterize toxic generations with two metrics' (expected maximum
+    toxicity over k=25; empirical probability of TOXICITY>=0.5 at least once)
+  - Sec. on the 0.5 toxicity threshold
+  - Table 1 and Figure 2 (reported values)
+  code:
+    url: https://github.com/allenai/real-toxicity-prompts
+    sha: dd44ab77ed8bb36d6a62f8205768fda8382eb7ba
+    license: Apache-2.0
+    local_path: third_party/code/real-toxicity-prompts
+    files_read:
+    - allenai/real-toxicity-prompts repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
+  fidelity_note: docs/fidelity/toxicity_family.md
+- metric: ToxicityProbability
+  family: generated_text
+  status: read
+  paper:
+    title: 'RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language
+      Models'
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '2009.11462'
+    url: https://arxiv.org/abs/2009.11462
+    local_pdf: sources/papers/toxicityprobability.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 3.2 'we characterize toxic generations with two metrics' (expected maximum
+    toxicity over k=25; empirical probability of TOXICITY>=0.5 at least once)
+  - Sec. on the 0.5 toxicity threshold
+  - Table 1 and Figure 2 (reported values)
+  code:
+    url: https://github.com/allenai/real-toxicity-prompts
+    sha: dd44ab77ed8bb36d6a62f8205768fda8382eb7ba
+    license: Apache-2.0
+    local_path: third_party/code/real-toxicity-prompts
+    files_read:
+    - allenai/real-toxicity-prompts repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
+  fidelity_note: docs/fidelity/toxicity_family.md
+- metric: TruthfulQA
+  family: prompt
+  status: read
+  paper:
+    title: 'TruthfulQA: Measuring How Models Mimic Human Falsehoods'
+    venue: ACL 2022
+    year: 2022
+    arxiv: '2109.07958'
+    url: https://arxiv.org/abs/2109.07958
+    local_pdf: sources/papers/truthfulqa.pdf
+    version_read: v1
+  sections_read:
+  - 'Sec. ''Additional task: multiple-choice'' (independent per-answer likelihoods;
+    MC2 = total normalized likelihood of true answers; MC1 = top-likelihood answer
+    is true)'
+  - Sec. on the generation task and its judge/BLEURT evaluation
+  code:
+    url: https://github.com/sylinrl/TruthfulQA
+    sha: d71c110897f5d31c5d7f309e7bc316c152f6f031
+    license: Apache-2.0
+    local_path: third_party/code/TruthfulQA
+    files_read:
+    - sylinrl/TruthfulQA repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ADAPTATION: embedding similarity between the free-text answer and the reference
+    sets. Neither MC1 nor MC2 (no likelihoods) nor the paper''s judge-based generation
+    metric. MC1/MC2 and the TruthfulQASimilarity rename remain outstanding - RL-028.'
+  fidelity_note: docs/fidelity/truthfulqa.md
+- metric: UnQoverMetric
+  family: prompt
+  status: read
+  paper:
+    title: UnQovering Stereotyping Biases via Underspecified Questions
+    venue: Findings of EMNLP 2020
+    year: 2020
+    arxiv: '2010.02428'
+    url: https://arxiv.org/abs/2010.02428
+    local_pdf: sources/papers/unqovermetric.pdf
+    version_read: v1
+  sections_read:
+  - Sec. 4.1.1 (positional dependence, eq. 2 delta)
+  - Sec. 4.1.2 (attribute/negation independence, eqs. 3-4 epsilon)
+  - Sec. 4.2 and 'Subject-Attribute Bias' (eq. 7 gamma), 'Model Bias Intensity' (eq.
+    8 mu), 'Count-based Metric' (eq. 9 eta)
+  code:
+    url: https://github.com/allenai/unqover
+    sha: 3e47969b78acc0de436f9d17c9ab1b2f6a108ff0
+    license: Apache-2.0
+    local_path: third_party/code/unqover
+    files_read:
+    - allenai/unqover repo layout (Apache-2.0)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'ADAPTATION. The four-variant design and the gamma/mu/eta aggregations are
+    faithful. Deviation is access mode: the paper scores QA answer spans and masked-LM
+    fills; this reads chat-model token logprobs for the A/B option letters, which
+    is a different quantity and is prompt-format sensitive.'
+  fidelity_note: docs/fidelity/unqover.md
+- metric: WEAT
+  family: embedding
+  status: read
+  paper:
+    title: Semantics derived automatically from language corpora contain human-like
+      biases
+    venue: Science 356(6334)
+    year: 2017
+    arxiv: '1608.07187'
+    url: https://arxiv.org/abs/1608.07187
+    local_pdf: sources/papers/weat.pdf
+    version_read: v1
+  sections_read:
+  - 'Definition block: test statistic s(X,Y,A,B), one-sided permutation p-value, effect
+    size'
+  - Table 1 (reported effect sizes and p-values)
+  code:
+    url: https://github.com/W4ngatang/sent-bias
+    sha: e3559fb669ca4832743b42fee715994c15c7f1af
+    license: CC-BY-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/sent-bias
+    files_read:
+    - sentbias/weat.py:174-176 (stdev_s_wAB, ddof=1)
+    - sentbias/weat.py:178-192 (effect_size)
+    - sentbias/weat.py:82-152 (p_val_permutation_test, exact vs sampled)
+  resources: []
+  retrieved_on: '2026-08-23'
+  notes: 'FAITHFUL. RL-008 resolved: ddof=1, confirmed by the reference code and by
+    0.22% vs 3.50% agreement with the paper''s 840B number. v0.1.1 omitted the permutation
+    p-value; added in 0.2.0.'
+  fidelity_note: docs/fidelity/weat.md
+- metric: WinoBias
+  family: prompt
+  status: read
+  paper:
+    title: 'Gender Bias in Coreference Resolution: Evaluation and Debiasing Methods'
+    venue: NAACL 2018
+    year: 2018
+    arxiv: '1804.06876'
+    url: https://arxiv.org/abs/1804.06876
+    local_pdf: sources/papers/demographicrepresentationbias.pdf
+    version_read: v1
+  sections_read:
+  - Abstract and Sec. 1 (pro- vs anti-stereotypical F1 gap; 21.1 average)
+  - Sec. defining the pro-/anti-stereotypical conditions and the two sentence types
+  code:
+    url: https://github.com/uclanlp/corefBias
+    sha: 0bce984dd081bbc10b0622f326727a024c607895
+    license: MIT
+    local_path: third_party/code/corefBias
+    files_read:
+    - WinoBias/wino/data/*.txt.dev and .test (the bracketed-span format)
+    - WinoBias/wino/ layout
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/winobias.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The pro/anti coreference accuracy
+    gap. Distinct from OccupationPronounSkew, which used to cite this paper while
+    counting pronouns.
+- metric: FirstPersonFairness
+  family: prompt
+  status: read
+  paper:
+    title: 'First-Person Fairness in Chatbots'
+    venue: OpenAI
+    year: 2024
+    arxiv: '2410.19803'
+    url: https://arxiv.org/abs/2410.19803
+    local_pdf: sources/papers/firstpersonfairness.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. 3.1 (name-substitution response generation over 9 domains and 66 tasks)'
+  - 'Sec. 3.3 (equations 1-3; the net score h_F - h_R; H(A,B) as the expectation over
+    prompts; the identical-response rule; the twice-with-responses-swapped protocol)'
+  - 'Figure 3 (the LMRA template, marked in the paper as "slightly abbreviated")'
+  - 'Sec. 3.3 "Addressing LMRA over-sensitivity" (naming the groups made the judge rate
+    a pair and its swap both harmful; hiding the assignment fixed it)'
+  - 'Sec. 4.3 (LMRA-human agreement: strong for gender, weaker for race and features)'
+  code_status: none_found
+  search_log:
+  - 'grep of the paper text for github / https / "we release" / "available at": only
+    OpenAI blog URLs and reference-list links, no artefact link'
+  - 'GitHub code search, repositories matching "first-person-fairness" in name or description:
+    19 hits, none related'
+  - 'GitHub search for fairness repositories under org:openai: 0 hits'
+  - 'Conclusion: the prompts and grader were not released. Figure 3 is the only published
+    template and the paper marks it abbreviated, so the metric is an adaptation.'
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/first_person_fairness.md
+  notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). The estimator H = E[h_F - h_R] is exact, including
+    the swapped second pass and the identical-response rule; the judge template cannot be mirrored verbatim
+    because no unabbreviated version was published.
+- metric: DecodingTrustStereotype
+  family: prompt
+  status: read
+  paper:
+    title: 'DecodingTrust: A Comprehensive Assessment of Trustworthiness in GPT Models'
+    venue: NeurIPS 2023 Datasets and Benchmarks
+    year: 2023
+    arxiv: '2306.11698'
+    url: https://arxiv.org/abs/2306.11698
+    local_pdf: sources/papers/decodingtrust.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. 5 (stereotype bias: 24 demographic groups, 16 stereotype topics, 3 templates,
+    and the benign/untargeted/targeted system prompts)'
+  - 'Sec. 8 (fairness: the model as a tabular classifier on Adult and crime, scored
+    with demographic parity and equalized odds)' 
+  code:
+    url: https://github.com/AI-secure/DecodingTrust
+    sha: 161ae8321ced62f45fcd9ceb412e05b47c603cd4
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/DecodingTrust
+    files_read:
+    - src/dt/perspectives/stereotype/agreement_func.py (classify_response and its disclaimer tie-break;
+      AGREE/DISAGREE/NO_RESPONSE phrase lists; calculate_agreeability's (agree_matrix/3)/n_generations;
+      create_json's 1 - round(mean, 2) and the parallel rejection matrix)
+    - src/dt/perspectives/fairness/score_calculation_script.py (answer parsing per dataset, the unseeded
+      coin flip for ambiguous answers, the fairlearn DPD/EOd calls, rejection rate, and both leaderboard
+      formulas)
+    - src/dt/perspectives/fairness/fairness_evaluation.py (Adult 'Male'->1 and the inverted crime label
+      convention)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/decodingtrust.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Direction inverted to the library's 0-is-neutral convention;
+    the leaderboard numbers are kept in details. The ambiguous-answer coin flip is deliberately not reproduced.
+- metric: LLMDecisionBias
+  family: prompt
+  status: read
+  paper:
+    title: 'Explicitly unbiased large language models still form biased associations'
+    venue: PNAS 2025
+    year: 2025
+    arxiv: '2402.04105'
+    url: https://arxiv.org/abs/2402.04105
+    local_pdf: sources/papers/implicitassociationtest.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - Sec. 2.2 (the paired decision task; 1 = assigning sa to xa; range 0 to 1 with 0.5 unbiased)
+  code:
+    url: https://github.com/baixuechunzi/llm-implicit-bias
+    sha: 0d2772e8eb21186b6db1fab7551633ffda16c06f
+    license: MIT
+    local_path: third_party/code/llm-implicit-bias
+    files_read:
+    - data/result_decision.csv (the scoring rule, derived: label yes/no -> 1.0/0.0, blank on refusal)
+    - analysis/analysis_decision.ipynb (popmean=0.5; the per-model rejection rate)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/implicit_association.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Judge-bound. The repo ships results, not a scorer, so
+    the rule was derived from the released columns and checked against 21,798 scored rows.
+- metric: DecodingTrustFairness
+  family: prompt
+  status: read
+  paper:
+    title: 'DecodingTrust: A Comprehensive Assessment of Trustworthiness in GPT Models'
+    venue: NeurIPS 2023 Datasets and Benchmarks
+    year: 2023
+    arxiv: '2306.11698'
+    url: https://arxiv.org/abs/2306.11698
+    local_pdf: sources/papers/decodingtrust.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. 8 (fairness: demographic parity difference and equalized odds difference
+    over Adult and crime classification prompts)' 
+  code:
+    url: https://github.com/AI-secure/DecodingTrust
+    sha: 161ae8321ced62f45fcd9ceb412e05b47c603cd4
+    license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/DecodingTrust
+    files_read:
+    - src/dt/perspectives/fairness/score_calculation_script.py (aggregate_current_scores in full)
+    - src/dt/perspectives/fairness/fairness_evaluation.py (the label and sensitive-attribute conventions)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/decodingtrust.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Tier 2 equivalent - exact to 1e-12 against fairlearn
+    0.14.0 (the package score_calculation_script.py itself calls) on 2000 seeded random cases; fairlearn
+    is a dev-only oracle in tests/oracles/, not a runtime dependency.
+- metric: TrustLLMStereotypeRecognition
+  family: prompt
+  status: read
+  paper:
+    title: 'TrustLLM: Trustworthiness in Large Language Models'
+    venue: ICML 2024
+    year: 2024
+    arxiv: '2401.05561'
+    url: https://arxiv.org/abs/2401.05561
+    local_pdf: sources/papers/trustllm.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. on fairness / stereotype recognition (three-way classification of a
+    sentence as stereotype, anti-stereotype or unrelated; accuracy over the parseable
+    answers)'
+  code:
+    url: https://github.com/HowieHwong/TrustLLM
+    sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
+    license: MIT
+    local_path: third_party/code/TrustLLM
+    files_read:
+    - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
+      keywords_flag_stereotype, stereotype_recognition_number_flag)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/trustllm.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). neutral_value is 1.0, not 0.0 - the metric is an accuracy.
+- metric: TrustLLMStereotypeAgreement
+  family: prompt
+  status: read
+  paper:
+    title: 'TrustLLM: Trustworthiness in Large Language Models'
+    venue: ICML 2024
+    year: 2024
+    arxiv: '2401.05561'
+    url: https://arxiv.org/abs/2401.05561
+    local_pdf: sources/papers/trustllm.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. on fairness / stereotype agreement (does the model say yes to a stereotype
+    statement; the denominator is every response)'
+  code:
+    url: https://github.com/HowieHwong/TrustLLM
+    sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
+    license: MIT
+    local_path: third_party/code/TrustLLM
+    files_read:
+    - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
+      keywords_flag_stereotype, stereotype_recognition_number_flag)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/trustllm.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The only one of the four where higher means more biased.
+- metric: TrustLLMDisparagement
+  family: prompt
+  status: read
+  paper:
+    title: 'TrustLLM: Trustworthiness in Large Language Models'
+    venue: ICML 2024
+    year: 2024
+    arxiv: '2401.05561'
+    url: https://arxiv.org/abs/2401.05561
+    local_pdf: sources/papers/trustllm.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. on fairness / disparagement (chi-square test of independence between the
+    demographic attribute and the predicted salary bracket; reported as a p-value)'
+  code:
+    url: https://github.com/HowieHwong/TrustLLM
+    sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
+    license: MIT
+    local_path: third_party/code/TrustLLM
+    files_read:
+    - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
+      keywords_flag_stereotype, stereotype_recognition_number_flag)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/trustllm.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Reports the smallest p-value across attributes; a p-value
+    is not an effect size, so the contingency table is returned beside it.
+- metric: TrustLLMPreference
+  family: prompt
+  status: read
+  paper:
+    title: 'TrustLLM: Trustworthiness in Large Language Models'
+    venue: ICML 2024
+    year: 2024
+    arxiv: '2401.05561'
+    url: https://arxiv.org/abs/2401.05561
+    local_pdf: sources/papers/trustllm.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - 'Sec. on fairness / preference (plain and forced-choice prompts; the score is the
+    refuse-to-answer rate, so declining to pick a side is the rewarded behaviour)'
+  code:
+    url: https://github.com/HowieHwong/TrustLLM
+    sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
+    license: MIT
+    local_path: third_party/code/TrustLLM
+    files_read:
+    - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
+      keywords_flag_stereotype, stereotype_recognition_number_flag)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/trustllm.md
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Classifier-bound; the refusal classifier is caller-supplied
+    so its version enters the protocol.
+- metric: ImplicitAssociationTest
+  family: prompt
+  status: read
+  paper:
+    title: Explicitly unbiased large language models still form biased associations
+    venue: PNAS 2025
+    year: 2025
+    arxiv: '2402.04105'
+    url: https://arxiv.org/abs/2402.04105
+    local_pdf: sources/papers/implicitassociationtest.pdf
+    version_read: arXiv PDF
+  sections_read:
+  - Sec. 2.1 (the bias formula N(sa,Xa)/[N(sa,Xa)+N(sa,Xb)] + N(sb,Xb)/[N(sb,Xa)+N(sb,Xb)] - 1, range
+    -1 to 1, and both worked examples 7/7+7/7-1=1 and 3/7+6/7-1=.29)
+  - Sec. 2.2 (the paired decision task; mean of binary outcomes; range 0 to 1 with 0.5 the unbiased baseline)
+  - Sec. 3 (8 models, 4 social categories, 21 stereotypes, 33,600 prompts)
+  code:
+    url: https://github.com/baixuechunzi/llm-implicit-bias
+    sha: 0d2772e8eb21186b6db1fab7551633ffda16c06f
+    license: MIT
+    local_path: third_party/code/llm-implicit-bias
+    files_read:
+    - analysis/clean.ipynb (`d_score` with the 0.01 denominators; `keep_english_and_hyphen`; every branch
+      of `formatting()`; the drop-the-whole-response error filter)
+    - analysis/analysis_implicit.ipynb (ttest_1samp against popmean=0)
+    - analysis/analysis_decision.ipynb (ttest_1samp against popmean=0.5; the rejection-rate figure)
+    - stimuli/iat_stimuli.csv (A = reference pool, B = stigmatized pool, C = attributes positive-then-negative)
+    - data/result_implicit.csv (33,600 responses with the authors' own iat_bias per response)
+    - data/result_decision.csv (label -> decision_bias; blank when the model refused)
+  resources: []
+  retrieved_on: '2026-08-23'
+  fidelity_note: docs/fidelity/implicit_association.md
+  notes: FAITHFUL (both ImplicitAssociationTest and LLMDecisionBias). Added in v0.2.0 (PLAN.md 7.2). Tier
+    2 equivalent - 18,885/18,885 released responses exact to 1e-9.

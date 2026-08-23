@@ -1,8 +1,10 @@
 """Tests for MarkedPersons metric."""
 
-import pytest
 import json
+
 import numpy as np
+import pytest
+
 from bias_scope.generated_text_based import MarkedPersons
 
 
@@ -399,8 +401,133 @@ class TestMarkedPersons:
         # Should return <= vocab size
         assert len(result['top_marked_terms']) <= 3
         assert len(result['top_unmarked_terms']) <= 3
-        
+
         # Should not crash
         assert 'terms' in result
+
+    def test_background_generations_kwarg(self):
+        """External background_generations must give the same z as the
+        formula computed by hand with that background."""
+        import math
+
+        # marked has 'a' twice, unmarked has 'b' twice, background has 'a', 'b', 'c' evenly
+        marked = ["a a"]
+        unmarked = ["b b"]
+        background = ["a b c a b c"]
+
+        mp = MarkedPersons()
+        result = mp.evaluate(
+            marked_generations=marked,
+            unmarked_generations=unmarked,
+            background_generations=background,
+            prior_alpha=1.0,
+            min_count=1,
+            tokenizer=lambda s: s.split(),
+        )
+        terms = result["terms"]
+
+        # Manual calculation using Cheng 2023 / Fightin' Words formula
+        # For word 'a': c_m=2, c_u=0, prior=2 (from bg), n_m=2, n_u=2, n_prior=6
+        # a_w = 2, a_total = 6, a_notw = 4
+        # log_odds_m = log((2+2) / (2 - 2 + 4)) = log(4/4) = log(1) = 0
+        # log_odds_u = log((0+2) / (2 - 0 + 4)) = log(2/6) = log(0.3333)
+        # delta = 0 - log(1/3) = log(3)
+        # var = 1/(2+2) + 1/(0+2) = 0.25 + 0.5 = 0.75
+        # z = log(3) / sqrt(0.75)
+        expected_z_a = math.log(3) / math.sqrt(0.75)
+        assert abs(terms["a"]["z"] - expected_z_a) < 1e-6, (
+            f"z-score for 'a' = {terms['a']['z']}, expected {expected_z_a}"
+        )
+
+    def test_backward_compat_no_background_kwarg(self):
+        """Passing no background_generations must reproduce the pre-fix behavior
+        (background = marked ∪ unmarked)."""
+        mp = MarkedPersons()
+        marked = ["caring caring nurturing"]
+        unmarked = ["logical logical analytical"]
+
+        old_result = mp.evaluate(
+            marked_generations=marked,
+            unmarked_generations=unmarked,
+            min_count=1,
+        )
+        new_result_none = mp.evaluate(
+            marked_generations=marked,
+            unmarked_generations=unmarked,
+            background_generations=None,
+            min_count=1,
+        )
+        # Should be bit-identical
+        for term in old_result["terms"]:
+            assert (
+                abs(old_result["terms"][term]["z"] - new_result_none["terms"][term]["z"])
+                < 1e-12
+            )
+
+    def test_reproduces_cheng_2023_paper_table(self):
+        """Cheng et al. 2023 marked_words.py, when invoked with
+            --target_val 'an Asian' F --target_col race gender \\
+            --unmarked_val 'a White' M
+        on `chatgpt_main_generations.csv`, ensembles two comparisons and
+        sums z-scores. The paper reports specific z-scores in the docstring.
+        bias_scope's MarkedPersons + external background + tokenizer that
+        matches Cheng's must reproduce these numbers exactly (float noise).
+
+        This test is skipped unless the data file is present locally under
+        results/emnlp/marked_persons/ (see scripts/experiments/repro_marked_persons.py).
+        """
+        import os
+        import re
+        from collections import Counter
+
+        DATA = "/home/chadi/Desktop/bias_scope/results/emnlp/marked_persons/chatgpt_main.csv"
+        if not os.path.exists(DATA):
+            pytest.skip(f"reproduction data file not present: {DATA}")
+
+        import pandas as pd
+
+        df = pd.read_csv(DATA)
+        marked_df = df.loc[(df["race"] == "an Asian") & (df["gender"] == "W")]
+
+        def cheng_tokenize(text):
+            return [re.sub(r"[^a-zA-Z]", "", w) for w in text.lower().split() if w]
+
+        mp = MarkedPersons()
+        grams = []
+        for col, val in [("race", "a White"), ("gender", "M")]:
+            unm = df.loc[df[col] == val, "text"].tolist()
+            r = mp.evaluate(
+                marked_generations=marked_df["text"].tolist(),
+                unmarked_generations=unm,
+                background_generations=df["text"].tolist(),
+                prior_alpha=1.0,
+                min_count=1,
+                return_top_k=10000,
+                tokenizer=cheng_tokenize,
+            )
+            grams.append({t: info["z"] for t, info in r["terms"].items() if info["z"] > 1.96})
+
+        wc = Counter()
+        for g in grams:
+            for w in g:
+                wc[w] += 1
+        marked_target = {
+            w: sum(g[w] for g in grams if w in g) for w, cnt in wc.items()
+            if cnt >= len(grams)
+        }
+
+        # Paper-reported z-scores (from marked_words.py docstring header)
+        CHENG_PAPER = {
+            "her": 17.871, "petite": 11.154, "almondshaped": 8.695,
+            "asian": 6.858, "frame": 6.798, "asia": 5.808,
+            "smooth": 5.566, "silky": 5.172, "flawless": 4.434,
+        }
+        for w, expected_z in CHENG_PAPER.items():
+            assert w in marked_target, f"word '{w}' not present in our output"
+            rel_err = abs(marked_target[w] - expected_z) / abs(expected_z)
+            assert rel_err < 0.001, (
+                f"z-score for '{w}': ours={marked_target[w]:.4f} "
+                f"vs Cheng={expected_z:.4f}, rel_err={rel_err:.4%} > 0.1%"
+            )
 
 

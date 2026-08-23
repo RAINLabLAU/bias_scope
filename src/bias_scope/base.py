@@ -4,11 +4,16 @@ Abstract base classes for bias detection metrics.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import inspect
-from typing import Any, Callable, Dict, List, Sequence
+import math
+from abc import ABC, abstractmethod
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+
+class BiasScopeError(RuntimeError):
+    """A runtime guard in `run()` failed. Never silence this (PLAN.md Sec. 1)."""
 
 
 class BiasMetric(ABC):
@@ -86,6 +91,258 @@ class BiasMetric(ABC):
         """
         raise NotImplementedError
 
+    #: Metadata (PLAN.md 5.1). Every concrete metric sets this; the base class
+    #: leaves it None so `tests/test_metadata.py` can name the ones that do not.
+    info: ClassVar[Optional["MetricInfo"]] = None
+
+    # ── The framework entry point (PLAN.md 5.3) ────────────────────────────
+    # `evaluate()` above is unchanged and stays the metric-specific API.
+    # `run()` wraps it, attaches an interval, a protocol block, and metadata,
+    # and enforces the runtime guards. It lives here once rather than in each
+    # metric.
+
+    def run(
+        self,
+        *args,
+        seed: int = 42,
+        ci: str = "bootstrap",
+        protocol_kwargs: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> "BiasResult":
+        """
+        Evaluate and return a `BiasResult`.
+
+        Calls ``evaluate(..., return_details=True)``, reads item-level scores
+        from ``details["per_item"]`` when the metric provides them, computes a
+        confidence interval, and attaches the protocol block and metadata.
+
+        Parameters
+        ----------
+        *args, **kwargs
+            Passed straight through to `evaluate`.
+        seed : int
+            Applied via `seed_everything` before evaluating, and recorded in
+            the protocol.
+        ci : str
+            "bootstrap" (default), "wald", or "none". Metrics that define
+            their own interval override `_interval`.
+        protocol_kwargs : dict, optional
+            Extra fields for `make_protocol` — `model_id`, `dtype`, `dataset`,
+            `decoding`, `resources`, and so on.
+
+        Returns
+        -------
+        BiasResult
+
+        Raises
+        ------
+        BiasScopeError
+            If a runtime guard fails: score outside `info.value_range`, `n` not
+            positive, a non-finite score, or a CI that does not bracket it.
+        """
+        from bias_scope.result import BiasResult, make_protocol
+        from bias_scope.utils import seed_everything
+
+        seed_everything(seed)
+
+        raw = self._call_evaluate(*args, **kwargs)
+        score, details = self._split_result(raw)
+        per_item = self._extract_per_item(details)
+        n = self._count_items(details, per_item)
+
+        interval, method, p_value = self._interval(score, per_item, n, ci, seed)
+        # A metric that computes its own significance test reports it under a
+        # fixed key, the same way per-item scores are reported.
+        if p_value is None and isinstance(details.get("p_value"), (int, float)):
+            p_value = float(details["p_value"])
+
+        info = self._resolve_info()
+        protocol = make_protocol(
+            metric=type(self).__name__, seed=seed, **(protocol_kwargs or {})
+        )
+
+        result = BiasResult(
+            metric=type(self).__name__,
+            score=score,
+            n=n,
+            ci=interval,
+            ci_method=method,
+            per_item=per_item,
+            breakdown=self._extract_breakdown(details),
+            details=details,
+            protocol=protocol,
+            info=info,
+            p_value=p_value,
+        )
+        self._check_guards(result)
+        return result
+
+    def _call_evaluate(self, *args, **kwargs):
+        """Call `evaluate` asking for details where the signature allows it."""
+        if "return_details" in inspect.signature(self.evaluate).parameters:
+            kwargs.setdefault("return_details", True)
+        return self.evaluate(*args, **kwargs)
+
+    @staticmethod
+    def _split_result(raw: Any) -> Tuple[float, Dict[str, Any]]:
+        """Pull the headline score and the details dict out of what came back."""
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            return float(raw), {}
+        if not isinstance(raw, dict):
+            raise BiasScopeError(
+                f"evaluate() returned {type(raw).__name__}; run() needs a float "
+                "or a dict"
+            )
+
+        # Metrics use different names for their headline number. Try the
+        # documented ones in order rather than guessing from the dict.
+        for key in ("bias_score", "score", "value", "effect_size"):
+            if key in raw and isinstance(raw[key], (int, float)):
+                return float(raw[key]), raw
+
+        numeric = [k for k, v in raw.items() if isinstance(v, (int, float))]
+        raise BiasScopeError(
+            f"cannot find a headline score in evaluate()'s result; expected one "
+            f"of 'bias_score', 'score', 'value', 'effect_size', found numeric "
+            f"keys {numeric}"
+        )
+
+    @staticmethod
+    def _extract_per_item(details: Dict[str, Any]) -> Optional[List[float]]:
+        """Item-level scores live under a fixed key (PLAN.md 5.3)."""
+        values = details.get("per_item")
+        if values is None:
+            return None
+        try:
+            return [float(v) for v in values]
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+        """`n` is the number of items actually scored."""
+        if per_item is not None:
+            return len(per_item)
+        for key in ("n", "num_items", "num_pairs", "num_rows_evaluated",
+                    "num_prompts", "num_generations"):
+            value = details.get(key)
+            if isinstance(value, int) and value > 0:
+                return value
+        return 0
+
+    @staticmethod
+    def _extract_breakdown(details: Dict[str, Any]) -> Dict[str, float]:
+        """Per-group scores, when the metric exposes a flat numeric mapping."""
+        breakdown = details.get("breakdown") or details.get("per_category") or {}
+        if not isinstance(breakdown, dict):
+            return {}
+        return {
+            str(k): float(v)
+            for k, v in breakdown.items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        }
+
+    def _interval(
+        self,
+        score: float,
+        per_item: Optional[List[float]],
+        n: int,
+        ci: str,
+        seed: int,
+    ) -> Tuple[Optional[Tuple[float, float]], str, Optional[float]]:
+        """
+        Compute a confidence interval. Override for a paper-defined one.
+
+        Metrics without item-level scores (WEAT, SEAT, CEAT, CBS) get
+        ``(None, "none", None)`` unless they override this — PLAN.md 5.3.
+        """
+        from bias_scope.stats import bootstrap_ci, wald_ci
+
+        if ci == "none" or per_item is None or not per_item:
+            return None, "none", None
+        if ci == "wald":
+            return wald_ci(score, n), "wald", None
+        if ci == "bootstrap":
+            return bootstrap_ci(per_item, seed=seed), "bootstrap", None
+        raise ValueError(f"ci must be 'bootstrap', 'wald', or 'none', got {ci!r}")
+
+    def _resolve_info(self) -> "MetricInfo":
+        """The metric's metadata, or a placeholder naming what is missing."""
+        from bias_scope.metadata import MetricInfo
+
+        if self.info is not None:
+            return self.info
+        return MetricInfo(
+            name=type(self).__name__,
+            family=_CATEGORY_TO_FAMILY.get(self.category, "prompt"),
+            access=("completions",),
+            neutral_value=0.0,
+            direction="signed",
+            value_range=(float("-inf"), float("inf")),
+            fidelity="unaudited",
+            reference="not yet recorded",
+            deviation_note=(
+                f"{type(self).__name__} has no MetricInfo yet; its fidelity has "
+                "not been established. See docs/fidelity/INDEX.md."
+            ),
+        )
+
+    @staticmethod
+    def _check_guards(result: "BiasResult") -> None:
+        """
+        Runtime guards (PLAN.md Section 1). A failure is never silenced.
+
+        Checks the score is finite and inside `value_range`, `n` is positive,
+        and the CI brackets the score.
+        """
+        name = result.metric
+
+        if not math.isfinite(result.score):
+            raise BiasScopeError(f"{name}: score is not finite ({result.score})")
+
+        low, high = result.info.value_range
+        if not low <= result.score <= high:
+            raise BiasScopeError(
+                f"{name}: score {result.score} is outside the declared "
+                f"value_range {result.info.value_range}"
+            )
+
+        if result.n <= 0:
+            raise BiasScopeError(
+                f"{name}: n must be positive, got {result.n}. The metric scored "
+                "no items, or does not report how many it scored."
+            )
+
+        if result.ci is not None:
+            ci_low, ci_high = result.ci
+            # A metric whose per-item values are all equal gives a degenerate
+            # interval [v, v], and the score can miss it by an ULP or two purely
+            # from summation order. Allow that much slack, scaled to the
+            # magnitudes involved, so a perfectly consistent model is not
+            # rejected; anything larger is a real bracketing failure.
+            slack = _CI_BRACKET_SLACK * max(
+                1.0, abs(result.score), abs(ci_low), abs(ci_high)
+            )
+            if not ci_low - slack <= result.score <= ci_high + slack:
+                raise BiasScopeError(
+                    f"{name}: the {result.ci_method} interval "
+                    f"[{ci_low}, {ci_high}] does not bracket the score "
+                    f"{result.score}"
+                )
+
+
+#: Relative tolerance for the "the interval brackets the score" guard. Sized
+#: for accumulated float error over a few thousand items, not for a real gap.
+_CI_BRACKET_SLACK = 1e-9
+
+#: `category` predates `MetricInfo.family` and uses one different spelling.
+_CATEGORY_TO_FAMILY = {
+    "embedding": "embedding",
+    "probability": "probability",
+    "generated_text": "generated_text",
+    "prompt_based": "prompt",
+}
+
 
 class EmbeddingMetric(BiasMetric):
     """
@@ -98,6 +355,67 @@ class EmbeddingMetric(BiasMetric):
     def category(self) -> str:
         """Category is automatically set to 'embedding'."""
         return "embedding"
+
+    # ── Effect-size metrics have no item-level scores (PLAN.md 5.3) ────────
+    # WEAT, SEAT and CEAT report a standardised mean difference, so bootstrapping
+    # a mean of per-item values is not the right interval. They use the
+    # Hedges-Olkin interval the effect-size literature defines, plus the
+    # permutation p-value Caliskan's and May's papers report.
+
+    @staticmethod
+    def _group_sizes(details: Dict[str, Any]) -> Optional[Tuple[int, int]]:
+        """The two target-group sizes, when the metric reports them."""
+        first = details.get("n_target_group_1")
+        second = details.get("n_target_group_2")
+        if isinstance(first, (int, float)) and isinstance(second, (int, float)):
+            if first > 0 and second > 0:
+                return int(first), int(second)
+        return None
+
+    @staticmethod
+    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+        """For an effect size, `n` is the number of target stimuli scored."""
+        if per_item is not None:
+            return len(per_item)
+        sizes = EmbeddingMetric._group_sizes(details)
+        if sizes is not None:
+            return sizes[0] + sizes[1]
+        return BiasMetric._count_items(details, per_item)
+
+    def _interval(
+        self,
+        score: float,
+        per_item: Optional[List[float]],
+        n: int,
+        ci: str,
+        seed: int,
+    ) -> Tuple[Optional[Tuple[float, float]], str, Optional[float]]:
+        """Hedges-Olkin interval on the effect size, when group sizes are known.
+
+        Falls back to the base behaviour when they are not, rather than
+        inventing an `n`.
+        """
+        from bias_scope.stats import hedges_olkin_ci
+
+        if ci == "none":
+            return None, "none", None
+
+        sizes = getattr(self, "_last_group_sizes", None)
+        if sizes is None:
+            return super()._interval(score, per_item, n, ci, seed)
+        return hedges_olkin_ci(score, sizes[0], sizes[1]), "hedges_olkin", None
+
+    def run(self, *args, **kwargs):
+        """Stash the group sizes so `_interval` can use them, then run."""
+        self._last_group_sizes = None
+        return super().run(*args, **kwargs)
+
+    def _call_evaluate(self, *args, **kwargs):
+        raw = super()._call_evaluate(*args, **kwargs)
+        if isinstance(raw, dict):
+            self._last_group_sizes = self._group_sizes(raw)
+        return raw
+
 
     def _validate_embeddings(
         self, embeddings: np.ndarray, name: str
@@ -447,7 +765,8 @@ class GeneratedTextMetric(BiasMetric):
         """
         if len(group_a_completions) != len(group_b_completions):
             raise ValueError(
-                "group_a_completions and group_b_completions must have the same number of templates. "
+                "group_a_completions and group_b_completions must have the same "
+                "number of templates. "
                 f"Got {len(group_a_completions)} and {len(group_b_completions)}."
             )
         for i, (a_template, b_template) in enumerate(
@@ -562,3 +881,9 @@ class PromptBasedMetric(BiasMetric):
         if not isinstance(value, int) or value <= 0:
             raise ValueError(f"{name} must be a positive integer. Got {value}")
         return value
+
+
+# Imported for the annotations above; placed at the end to avoid a cycle with
+# result.py, which imports metadata.py, which does not import base.py.
+from bias_scope.metadata import MetricInfo  # noqa: E402, F401
+from bias_scope.result import BiasResult  # noqa: E402, F401
