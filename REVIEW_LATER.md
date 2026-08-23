@@ -749,3 +749,37 @@ integral float; two invariant tests added.
 needs tiny inputs for all 55. Until it exists, this class of bug can recur for
 any metric whose details dict drifts from the conventions.
 
+## RL-040 · verify · 2026-08-23 · Phase 2 / the every-metric run() test, and what it found
+**Encountered:** PLAN.md 5.3 requires "a test in `tests/test_run.py` [that]
+calls `run()` on every metric with tiny inputs and checks the `BiasResult`
+fields". It did not exist — the file only exercised a fixture — and the box was
+ticked. Three defects had already reached a tagged commit for want of it
+(RL-038, RL-039).
+**Done:** `tests/fixtures/tiny_inputs.py` gives inputs for 45 of 55 metrics;
+the other 10 load a dataset or call a service from inside `evaluate()` and are
+listed in `NEEDS_RESOURCES` with the reason. A test fails if a metric is in
+neither map, so a new metric cannot escape the check by being forgotten.
+**What it found immediately: 15 more real defects**, in two classes.
+- *headline* (9): `evaluate()` names its score something `run()` does not look
+  for, so the metric raises and `BiasSuite` skips it silently — BOLD, CAT, CBS,
+  ICAT, MarkedPersons, PsycholinguisticNorms, SentenceBiasScore,
+  SocialGroupSubstitution, StereotypeRuleHitRate. The earlier sweep (RL-039)
+  missed these because it grepped for a literal `<name>_score` key and these
+  name theirs differently, or nest it.
+- *count* (6): no key `_count_items` recognises, so `n` is 0 and the guard
+  rejects the result — CEAT, CoOccurrenceBiasScore, EMT, GenderPolarity,
+  HONEST, PairwiseLikelihoodPreference.
+**Chosen:** `xfail(strict=True)` per metric with its specific reason, recorded
+in `KNOWN_DEFECTS`, rather than deleting the assertions or loosening `run()`.
+Strict, so each flips to XPASS the moment it is fixed and the entry must then
+be removed.
+**Why not fixed here:** the *headline* half is mechanical, but the *count* half
+is not — `n` sizes the confidence interval, so each metric needs a decision
+about what one scored item is. A wrong `n` gives a confidently wrong interval,
+which is worse than the current loud refusal.
+**Where:** tests/fixtures/tiny_inputs.py; tests/test_run.py
+`TestRunOnEveryMetric`.
+**To revisit:** work through `KNOWN_DEFECTS` — 15 entries, each naming its
+class and the key involved. Until then, 15 of 55 metrics cannot be used through
+`run()` or `BiasSuite`, only through `evaluate()`.
+
