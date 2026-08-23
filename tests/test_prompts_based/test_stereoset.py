@@ -7,7 +7,6 @@ import pytest
 
 from bias_scope.prompts_based.stereoset import StereoSetMetric
 
-
 LIST_ROW = {
     "context": "The engineer arrived for the meeting.",
     "target": "engineer",

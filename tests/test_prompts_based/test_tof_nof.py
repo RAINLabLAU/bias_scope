@@ -1,7 +1,8 @@
 """Tests for ToF/NoF Sycophancy Bias metric."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 def make_completion_response(content):
@@ -41,7 +42,9 @@ class TestTofNof:
         its return_value here so that any evaluate() call in the test gets
         the desired mock dataset.
         """
-        mock_load_dataset.return_value = make_mock_dataset(rows if rows is not None else SAMPLE_ROWS)
+        mock_load_dataset.return_value = make_mock_dataset(
+            rows if rows is not None else SAMPLE_ROWS
+        )
         from bias_scope.prompts_based import TofNof
         return TofNof(model_name="openai/gpt-4o", api_key="test-key")
 

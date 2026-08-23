@@ -1,7 +1,8 @@
 """Tests for Analogical Reasoning Bias metric."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 def make_completion_response(content):
