@@ -138,4 +138,14 @@ cache/
 *.tar
 pytorch_model.bin
 optimizer.pt
+# Training state, not needed to run a checkpoint for inference. The tokenizer
+# and config files beside them are kept: `scripts/experiments/
+# repro_regard_fig2_rescore.py` reads them, and they are what identifies the
+# classifier. The weights themselves are not redistributed.
+scheduler.pt
+training_args.bin
+
+# macOS metadata
+.DS_Store
+._*
 glove.*.txt

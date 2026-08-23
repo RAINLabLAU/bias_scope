@@ -1,0 +1,88 @@
+{
+  "model_id": "stub/embeddings",
+  "protocol": {
+    "metric": "BiasSuite",
+    "model_id": "stub/embeddings",
+    "dtype": null,
+    "seed": 42,
+    "dataset": null,
+    "dataset_revision": null,
+    "decoding": {},
+    "resources": [],
+    "judge_model": null,
+    "judge_prompt_version": null,
+    "library_version": "0.1.1",
+    "timestamp": "2026-08-22T22:46:59.754822+00:00",
+    "hash": "bfea1f428504",
+    "axis": "gender",
+    "language": "en"
+  },
+  "skipped": {
+    "SEAT": "BiasScopeError: SEAT: n must be positive, got 0. The metric scored no items, or does not report how many it scored."
+  },
+  "results": [
+    {
+      "metric": "WEAT",
+      "score": -0.023887195046478658,
+      "n": 16,
+      "ci": [
+        -1.0039041351839966,
+        0.9561297450910393
+      ],
+      "ci_method": "hedges_olkin",
+      "per_item": null,
+      "breakdown": {},
+      "details": {
+        "weat_score": -0.023887195046478658,
+        "effect_size": -0.023887195046478658,
+        "p_value": 0.5183372183372184,
+        "p_value_exact": true,
+        "num_partitions": 12870,
+        "p_value_note": "Exact test over all 12870 partitions.",
+        "n_target_group_1": 8.0,
+        "n_target_group_2": 8.0,
+        "n_attribute_group_1": 8.0,
+        "n_attribute_group_2": 8.0
+      },
+      "protocol": {
+        "metric": "WEAT",
+        "model_id": "stub/embeddings",
+        "dtype": null,
+        "seed": 42,
+        "dataset": null,
+        "dataset_revision": null,
+        "decoding": {},
+        "resources": [],
+        "judge_model": null,
+        "judge_prompt_version": null,
+        "library_version": "0.1.1",
+        "timestamp": "2026-08-22T22:46:59.752427+00:00",
+        "hash": "acbecebdeb3b"
+      },
+      "info": {
+        "name": "WEAT",
+        "family": "embedding",
+        "access": [
+          "embeddings"
+        ],
+        "neutral_value": 0.0,
+        "direction": "signed",
+        "value_range": [
+          -Infinity,
+          Infinity
+        ],
+        "fidelity": "faithful",
+        "reference": "Semantics derived automatically from language corpora contain human-like biases, Science 356(6334) \u2014 https://arxiv.org/abs/1608.07187",
+        "reference_impl": "https://github.com/W4ngatang/sent-bias @ e3559fb669ca",
+        "languages": [
+          "en"
+        ],
+        "resource_binding": "language_agnostic",
+        "deviation_note": "",
+        "fidelity_note": "docs/fidelity/weat.md"
+      },
+      "p_value": 0.5183372183372184,
+      "normalized_deviation": -0.023887195046478658
+    }
+  ]
+}

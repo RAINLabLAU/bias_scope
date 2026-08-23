@@ -1,0 +1,81 @@
+{
+  "hurtlex_source": "MilaNLProc/hurtlex master@10ae72a (byte-identical to today, sha256 a734820a63c87994)",
+  "lex_sizes": {
+    "nozza_all_pos": 2221,
+    "biasscope_noun": 1600,
+    "paper_stated_1072": 667
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    42
+  ],
+  "per_seed_scores": {
+    "0": {
+      "nozzaWord_x_nozzaLex": 0.03506172839506173,
+      "nozzaWord_x_biasScopeNounLex": 0.02197530864197531,
+      "biasScopeRegex_x_nozzaLex": 0.03506172839506173,
+      "biasScopeRegex_x_biasScopeNounLex": 0.02148148148148148,
+      "nozzaSentence_x_nozzaLex": 0.1288888888888889,
+      "nozzaWord_x_paperStatedLex": 0.0049382716049382715
+    },
+    "1": {
+      "nozzaWord_x_nozzaLex": 0.04962962962962963,
+      "nozzaWord_x_biasScopeNounLex": 0.030864197530864196,
+      "biasScopeRegex_x_nozzaLex": 0.04839506172839506,
+      "biasScopeRegex_x_biasScopeNounLex": 0.02962962962962963,
+      "nozzaSentence_x_nozzaLex": 0.13753086419753086,
+      "nozzaWord_x_paperStatedLex": 0.007654320987654321
+    },
+    "2": {
+      "nozzaWord_x_nozzaLex": 0.036049382716049384,
+      "nozzaWord_x_biasScopeNounLex": 0.02,
+      "biasScopeRegex_x_nozzaLex": 0.03728395061728395,
+      "biasScopeRegex_x_biasScopeNounLex": 0.020987654320987655,
+      "nozzaSentence_x_nozzaLex": 0.12666666666666668,
+      "nozzaWord_x_paperStatedLex": 0.003703703703703704
+    },
+    "3": {
+      "nozzaWord_x_nozzaLex": 0.04098765432098765,
+      "nozzaWord_x_biasScopeNounLex": 0.024691358024691357,
+      "biasScopeRegex_x_nozzaLex": 0.041234567901234566,
+      "biasScopeRegex_x_biasScopeNounLex": 0.024691358024691357,
+      "nozzaSentence_x_nozzaLex": 0.13135802469135802,
+      "nozzaWord_x_paperStatedLex": 0.005925925925925926
+    },
+    "42": {
+      "nozzaWord_x_nozzaLex": 0.03925925925925926,
+      "nozzaWord_x_biasScopeNounLex": 0.02197530864197531,
+      "biasScopeRegex_x_nozzaLex": 0.03950617283950617,
+      "biasScopeRegex_x_biasScopeNounLex": 0.021728395061728394,
+      "nozzaSentence_x_nozzaLex": 0.13160493827160494,
+      "nozzaWord_x_paperStatedLex": 0.003950617283950617
+    }
+  },
+  "disagreement_seed42": {
+    "n": 4050,
+    "both": 156,
+    "only_nozza": 3,
+    "only_biasscope": 4,
+    "neither": 3887,
+    "nozza_score": 0.03925925925925926,
+    "biasscope_score": 0.03950617283950617,
+    "disagreement_rate": 0.0017283950617283952
+  },
+  "primary_config_seed_variance": {
+    "config": "nozzaWord_x_nozzaLex",
+    "scores": [
+      0.03506172839506173,
+      0.04962962962962963,
+      0.036049382716049384,
+      0.04098765432098765,
+      0.03925925925925926
+    ],
+    "mean": 0.04019753086419753,
+    "std": 0.005789057260544143,
+    "min": 0.03506172839506173,
+    "max": 0.04962962962962963
+  }
+}

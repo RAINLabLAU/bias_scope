@@ -1,0 +1,37 @@
+{
+  "bias_scope": {
+    "git_commit": "ce6ab645d963e3c15942aabb32754c3e95854f85",
+    "version": "0.1.0"
+  },
+  "cuda": {
+    "available": true,
+    "cuda_version": "13.0",
+    "devices": [
+      "NVIDIA RTX A4500"
+    ]
+  },
+  "packages": {
+    "datasets": "5.0.0",
+    "gensim": "4.4.0",
+    "litellm": "installed (no __version__)",
+    "numpy": "2.5.0",
+    "pandas": "3.0.3",
+    "scipy": "1.18.0",
+    "sentence_transformers": "5.6.0",
+    "sklearn": "1.9.0",
+    "tokenizers": "0.22.2",
+    "torch": "2.12.1+cu130",
+    "transformers": "5.12.1",
+    "yaml": "6.0.3"
+  },
+  "platform": {
+    "machine": "x86_64",
+    "release": "6.17.0-1017-oem",
+    "system": "Linux"
+  },
+  "python": {
+    "executable": "/home/chadi/Desktop/bias_scope/.venv/bin/python",
+    "implementation": "CPython",
+    "version": "3.13.9"
+  }
+}

@@ -24,7 +24,9 @@ Global settings shared across all four experiments:
 ### Paper protocol
 Caliskan, Bryson & Narayanan 2017 — *Semantics derived automatically from
 language corpora contain human-like biases* (Science). WEAT-6 = career vs
-family, with male vs female first names. The paper reports **d = 1.81** on GloVe.
+family, with male vs female first names. The paper reports **d = 1.81** on GloVe
+trained over the 840B-token Common Crawl — see the second subsection below for
+that comparison; this first one uses the 6B release gensim ships.
 
 ### Model & hyperparameters
 | Field | Value |
@@ -57,6 +59,34 @@ family, with male vs female first names. The paper reports **d = 1.81** on GloVe
 - Caveat: with only n=8 hand-picked stimuli per group, the Hedges-Olkin CI is
   a formal computation more than a real statistical claim. The point-estimate
   delta of -0.1162 is the more meaningful comparison.
+
+### Second vector release — GloVe 840B (the paper's own)
+
+The 6B row above is the reproduction this pipeline recomputes, because
+`gensim.downloader` ships only the 6B wiki+gigaword release. Caliskan et al.
+trained on the **840B-token Common Crawl** release, so that is the like-for-like
+comparison, and it is the number quoted in the paper draft
+(`results/emnlp/paper/evaluation.tex`). Both rows are reported; neither replaces
+the other.
+
+| Field | Value |
+|---|---|
+| Model id | `glove.840B.300d` (manual download, GloVe 840B/300d Common Crawl, cased stimuli, streamed from glove.840B.300d.txt) |
+| Training corpus | Common Crawl, **840 B tokens** — same release Caliskan used |
+| Vocabulary size | 2 200 000 |
+| Casing | **cased** — so the stimuli are scored as capitalized proper names, as in Caliskan Table 1 |
+| Script | `scripts/experiments/repro_weat_840B.py` (raises on OOV; no silent substitution) |
+| Raw result | `results/emnlp/weat_840B/weat_840B_result.json` |
+
+- Paper d = **1.81**, our d = **1.8139** (Δ = +0.0039)
+- Paper 95 % CI (Hedges-Olkin, n=8/group): **[0.6226, 2.9974]**
+- Our 95 % CI (same formula): **[0.6257, 3.0021]**
+- Ours ∈ paper CI: **yes**
+- CIs overlap: **yes**
+- Relative error against the paper: **0.22%**
+- Caveat: the 5.6 GB `glove.840B.300d.txt` is not kept in the repo, so this row
+  is carried from the recorded run rather than recomputed on every finalize.
+  See `REVIEW_LATER.md` RL-005.
 
 ---
 
@@ -130,7 +160,7 @@ gender templates (paper Table 3 range 0.08–0.12).
 | Total continuations | **4050** = 810 × 5 |
 | HurtLex | HurtLex-EN 1.2 (`valeriobasile/hurtlex`), `level=conservative`, derogatory categories → **1 722 lemmas** |
 | Aggregation | HONEST = (# hurtful candidates) / (# templates × K) |
-| Wall-clock | ~5.3 s |
+| Wall-clock | ~6.11 s |
 | Peak VRAM | ~0.53 GB |
 
 ### Protocol match with Nozza's `honest` package v0.2.1
@@ -158,12 +188,17 @@ Parrish et al. 2022 — *BBQ: A Hand-Built Bias Benchmark for Question
 Answering* (ACL Findings). Evaluates **per-category** on the full ambig
 subset. For Gender_identity that is **2 836 ambig items**.
 
-Parrish's original numbers pre-date LLMs (RoBERTa/UnifiedQA fine-tuned).
-For a real reference we use post-2024 replications of Parrish's protocol
-on the exact model we run (`meta-llama/Llama-3.1-8B-Instruct`). Across
-published benchmarks (Wei et al. 2024, Bai et al. 2024, and similar) the
-reported ambig Gender_identity `bias_score` for this model spans
-**0.22–0.28**. We anchor on the midpoint **0.25**.
+Parrish's own numbers are for RoBERTa/DeBERTa/UnifiedQA in a multiple-choice
+setup, not for an instruction-tuned chat model, so they are not a like-for-like
+reference for this run.
+
+**This row is withdrawn.** Earlier versions of this document cited a
+"0.22–0.28 range across published benchmarks" attributed to "Wei et al. 2024,
+Bai et al. 2024, and similar" and anchored on its **midpoint, 0.25**. That is
+not a value any paper reports, the attributions were never resolved to precise
+citations, and PLAN.md Section 1 forbids inventing or anchoring a reference
+value — Section 6.1 names this particular anchor. The honest status is
+`no_published_reference`.
 
 ### Model & hyperparameters
 | Field | Value |
@@ -202,11 +237,14 @@ reported ambig Gender_identity `bias_score` for this model spans
 | Cost | $0 (all local) |
 
 ### Reproduced number & CI
-- LLM-benchmark reference bias_score ≈ **0.25** (midpoint of 0.22–0.28 published range), ours = **0.2496** (Δ = -0.0004)
-- Paper 95 % CI (Wald, n=2836): **[0.2341, 0.2659]**
-- Our 95 % CI (Wald, n=2836): **[0.2337, 0.2655]**
-- Ours ∈ paper CI: **yes**
-- CIs overlap: **yes**
+- Reference value: **none located** — see above.
+- Our recorded value: **0.2496**, computed with the v0.1.1 `BBQMetric`.
+  The Phase 1 audit showed that statistic is the error rate, not Parrish et
+  al.'s `s_AMB`: note that it plus the reported accuracy sums to exactly 1.
+- Our 95 % CI (Wald, n=2836): **[0.2337, 0.2655]** —
+  a CI around a statistic that is not BBQ's bias score.
+- `BBQMetric` was reimplemented faithfully in v0.2.0 (`docs/fidelity/bbq.md`).
+  No cached generations survive, so restoring this row needs a fresh model run.
 - Accuracy: **0.7504**
 
 ---
