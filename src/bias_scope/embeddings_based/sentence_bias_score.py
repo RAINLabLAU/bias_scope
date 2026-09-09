@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Dict, Tuple
 
 import numpy as np
 
@@ -10,10 +11,6 @@ if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
     import torch
 
 from bias_scope.base import EmbeddingMetric
-from bias_scope.embeddings_based.encoder import (
-    DEFAULT_EMBEDDING_MODEL,
-    _resolve_embeddings,
-)
 from bias_scope.utils import cosine_similarity, to_numpy
 
 
@@ -59,25 +56,23 @@ class SentenceBiasScore(EmbeddingMetric):
     >>> print(f"Male bias: {male_bias:.4f}")
     """
 
-    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL):
+    def __init__(self, model_name: str | None = None):
         """
         Initialize SentenceBiasScore.
 
         Args:
-            model_name (str): Default SentenceTransformer/Hugging Face model used
-                when raw text inputs need to be embedded automatically. This
-                default is used unless ``evaluate(..., model_name=...)`` overrides
-                it for a single call.
+            model_name (str | None): Deprecated compatibility parameter. The
+                canonical metric requires caller-provided token/word embeddings
+                from the sentence; raw text is not embedded inside this class.
         """
         self.model_name = model_name
 
     def evaluate(
         self,
-        word_embeddings: np.ndarray | torch.Tensor | Sequence[str],
+        word_embeddings: np.ndarray | torch.Tensor,
         gender_direction: np.ndarray | torch.Tensor,
         word_importance: np.ndarray | torch.Tensor,
-        gender_words_mask: Optional[np.ndarray | torch.Tensor] = None,
-        model_name: str | None = None,
+        gender_words_mask: np.ndarray | torch.Tensor,
         return_details: bool = False,
     ) -> Tuple[float, float] | Dict[str, float]:
         """
@@ -88,14 +83,14 @@ class SentenceBiasScore(EmbeddingMetric):
         excluding explicitly gendered words.
 
         Args:
-            word_embeddings (np.ndarray | torch.Tensor): word embedding vectors
+            word_embeddings (np.ndarray | torch.Tensor): rank-2 token/word
+                embedding matrix from the sentence, shape ``(n_tokens, dim)``.
             gender_direction (np.ndarray | torch.Tensor): gender direction vector
-            word_importance (np.ndarray | torch.Tensor): word importance weights
-            gender_words_mask (np.ndarray | torch.Tensor, optional): gendered words mask
-            model_name (str | None): SentenceTransformer/Hugging Face model used
-                when ``word_embeddings`` is text. If omitted, uses the
-                ``model_name`` configured on ``__init__``. If passed here, it
-                overrides the instance default for this call only.
+                with positive=female and negative=male convention.
+            word_importance (np.ndarray | torch.Tensor): rank-1 semantic
+                importance vector, shape ``(n_tokens,)``.
+            gender_words_mask (np.ndarray | torch.Tensor): rank-1 boolean mask,
+                shape ``(n_tokens,)``. ``True`` excludes explicit gender terms.
 
         Returns:
             Tuple[float, float]: female and male bias scores
@@ -107,13 +102,16 @@ class SentenceBiasScore(EmbeddingMetric):
         Notes:
             **Input Structure:**
             - word_embeddings: Shape (num_words, embedding_dim)
+              - Precomputed token/word representations from the sentence.
+              - Raw strings are not accepted because independently embedding
+                words does not reproduce contextual sentence token vectors.
             - gender_direction: Shape (embedding_dim,)
               - Convention: positive = feminine, negative = masculine
               - Derived from PCA of gendered word pairs
             - word_importance: Shape (num_words,)
               - Typically from sentence encoder's max-pooling layer
               - Higher values = word contributes more to meaning
-            - gender_words_mask: Shape (num_words,), boolean
+            - gender_words_mask: Shape (num_words,), boolean, required
               - True = exclude word (e.g., "she", "he", "mother")
               - False = include in bias calculation
 
@@ -145,25 +143,26 @@ class SentenceBiasScore(EmbeddingMetric):
             >>> sbs = SentenceBiasScore()
             >>>
             >>> # Example: "She likes beautiful dresses"
-            >>> # 4 words (excluding "she")
-            >>> words = np.random.randn(4, 300)  # "likes", "beautiful", "dresses"
+            >>> words = np.random.randn(4, 300)
             >>> gender_dir = np.array([1.0] + [0.0]*299)  # Simplified
             >>> importance = np.array([0.2, 0.3, 0.3, 0.2])
+            >>> mask = np.array([True, False, False, False])
             >>>
-            >>> # No mask (or mask out "she" separately)
-            >>> female, male = sbs.evaluate(words, gender_dir, importance)
+            >>> female, male = sbs.evaluate(words, gender_dir, importance, mask)
             >>>
             >>> if female > abs(male):
             ...     print("Sentence has feminine associations")
             ... else:
             ...     print("Sentence has masculine associations")
         """
-        effective_model_name = model_name or self.model_name
+        if _is_text_sequence(word_embeddings):
+            raise TypeError(
+                "word_embeddings must be a rank-2 token/word embedding matrix. "
+                "Raw text inputs are noncanonical for SentenceBiasScore; embed "
+                "tokens in sentence context and pass the resulting vectors."
+            )
 
         # Convert to numpy
-        word_embeddings = _resolve_embeddings(
-            word_embeddings, model_name=effective_model_name
-        )
         word_embeddings = to_numpy(word_embeddings)
         gender_direction = to_numpy(gender_direction)
         word_importance = to_numpy(word_importance)
@@ -179,11 +178,9 @@ class SentenceBiasScore(EmbeddingMetric):
         # Compute cosine similarity for each word
         word_biases = self._compute_word_biases(word_embeddings, gender_direction)
 
-        # Apply mask if provided
-        if gender_words_mask is not None:
-            word_biases = self._apply_mask(
-                word_biases, gender_words_mask, len(word_embeddings)
-            )
+        word_biases = self._apply_mask(
+            word_biases, gender_words_mask, len(word_embeddings)
+        )
 
         # Weight by importance and separate into female/male components
         female_bias, male_bias = self._compute_bias_scores(
@@ -211,6 +208,12 @@ class SentenceBiasScore(EmbeddingMetric):
         Raises:
             ValueError: If validation fails
         """
+        if gender_direction.ndim != 1:
+            raise ValueError(
+                "gender_direction must be a rank-1 vector with shape "
+                f"(embedding_dim,). Got shape {gender_direction.shape}."
+            )
+
         if np.isnan(gender_direction).any():
             raise ValueError("gender_direction contains NaN values")
 
@@ -234,6 +237,12 @@ class SentenceBiasScore(EmbeddingMetric):
         Raises:
             ValueError: If validation fails
         """
+        if importance.ndim != 1:
+            raise ValueError(
+                "word_importance must be a rank-1 vector with shape "
+                f"(num_words,). Got shape {importance.shape}."
+            )
+
         if np.isnan(importance).any():
             raise ValueError("word_importance contains NaN values")
 
@@ -316,6 +325,12 @@ class SentenceBiasScore(EmbeddingMetric):
         """
         mask = to_numpy(mask)
 
+        if mask.ndim != 1:
+            raise ValueError(
+                "gender_words_mask must be a rank-1 boolean vector with shape "
+                f"(num_words,). Got shape {mask.shape}."
+            )
+
         # Validate mask length
         if mask.shape[0] != expected_len:
             raise ValueError(
@@ -359,3 +374,11 @@ class SentenceBiasScore(EmbeddingMetric):
         male_bias = float(np.sum(weighted_biases[weighted_biases < 0]))
 
         return female_bias, male_bias
+
+
+def _is_text_sequence(value: object) -> bool:
+    return (
+        isinstance(value, Sequence)
+        and not isinstance(value, (str, bytes, np.ndarray))
+        and all(isinstance(item, str) for item in value)
+    )

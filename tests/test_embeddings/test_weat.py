@@ -176,8 +176,8 @@ class TestWEAT:
         score = weat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
 
-    def test_different_group_sizes(self):
-        """Test WEAT with unbalanced groups."""
+    def test_different_group_sizes_are_rejected(self):
+        """Canonical WEAT requires equally sized target groups."""
         weat = WEAT()
 
         target1 = np.random.randn(3, 10)
@@ -185,5 +185,21 @@ class TestWEAT:
         attr1 = np.random.randn(5, 10)
         attr2 = np.random.randn(2, 10)
 
-        score = weat.evaluate((target1, target2), (attr1, attr2))
-        assert isinstance(score, float)
+        with pytest.raises(ValueError, match="equal sizes"):
+            weat.evaluate((target1, target2), (attr1, attr2))
+
+    def test_weat_rejects_rank_one_embeddings(self):
+        """Malformed vectors must fail validation before dimension access."""
+        with pytest.raises(ValueError, match="rank-2"):
+            WEAT().evaluate(
+                (np.array([1.0, 0.0]), np.array([[0.0, 1.0]])),
+                (np.array([[1.0, 0.0]]), np.array([[0.0, 1.0]])),
+            )
+
+    def test_weat_rejects_zero_norm_embeddings(self):
+        """Cosine similarity is undefined for a zero vector."""
+        with pytest.raises(ValueError, match="zero-norm"):
+            WEAT().evaluate(
+                (np.array([[0.0, 0.0], [1.0, 0.0]]), np.array([[0.0, 1.0], [1.0, 1.0]])),
+                (np.array([[1.0, 0.0]]), np.array([[0.0, 1.0]])),
+            )

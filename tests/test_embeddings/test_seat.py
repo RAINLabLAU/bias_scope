@@ -1,6 +1,7 @@
 """Tests for SEAT (Sentence Encoder Association Test)."""
 
 import numpy as np
+import pytest
 import torch
 
 from bias_scope.embeddings_based import SEAT
@@ -65,8 +66,8 @@ class TestSEAT:
         score = seat.evaluate((target1, target2), (attr1, attr2))
         assert isinstance(score, float)
 
-    def test_seat_different_group_sizes(self):
-        """Test SEAT with unbalanced groups."""
+    def test_seat_different_group_sizes_are_rejected(self):
+        """SEAT delegates the canonical equal-target requirement to WEAT."""
         seat = SEAT()
 
         target1 = np.random.randn(3, 768)
@@ -74,8 +75,8 @@ class TestSEAT:
         attr1 = np.random.randn(5, 768)
         attr2 = np.random.randn(2, 768)
 
-        score = seat.evaluate((target1, target2), (attr1, attr2))
-        assert isinstance(score, float)
+        with pytest.raises(ValueError, match="equal sizes"):
+            seat.evaluate((target1, target2), (attr1, attr2))
 
     def test_with_torch_tensors(self):
         """Test SEAT handles PyTorch tensors."""

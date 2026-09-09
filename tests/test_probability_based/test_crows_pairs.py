@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from bias_scope.probability_based import CrowSPairs
+from scripts.experiments.emnlp_reproduction import _crows_pair_from_row
 
 
 class TestCrowSPairs:
@@ -26,9 +27,9 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, biased_predict)
 
-        # Should prefer stereotypes (>= 0.5 allows for ties)
-        assert 0.0 <= score <= 1.0
-        assert score >= 0.5
+        # Should prefer stereotypes (>= 50 allows for ties)
+        assert 0.0 <= score <= 100.0
+        assert score >= 50.0
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
@@ -48,8 +49,8 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, unbiased_predict)
 
-        # Should be approximately 0.5 (no preference)
-        assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
+        # Should be approximately 50 (no preference)
+        assert abs(score - 50.0) <= 60.0  # Allow variance due to randomness
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
@@ -148,7 +149,7 @@ class TestCrowSPairs:
         score = crows.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_all_tokens_modified_raises_error(self):
         """Test completely different sentences raise error."""
@@ -173,8 +174,8 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, mock_predict)
 
-        # Single pair: score is either 0 or 1
-        assert score in [0.0, 1.0]
+        # Single pair: score is either 0 or 100
+        assert score in [0.0, 100.0]
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
@@ -188,7 +189,7 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, mock_predict)
 
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_deterministic_with_same_function(self):
         """Test same function produces same results."""
@@ -204,6 +205,7 @@ class TestCrowSPairs:
         score2 = crows.evaluate(pairs, deterministic_predict)
 
         assert score1 == score2
+        assert score1 == 100.0
 
     def test_long_sentences(self):
         """Test with longer sentences."""
@@ -252,3 +254,70 @@ class TestCrowSPairs:
 
         # Check that [MASK] appears in tracked sentences
         assert any("[MASK]" in sent for sent in masked_sentences)
+
+    def test_score_scale_is_percentage(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        pairs = [(["Women", "work"], ["Men", "work"])]
+
+        assert crows.evaluate(pairs, predict) == 100.0
+
+    def test_return_details_includes_bias_score_for_run(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        result = crows.evaluate(
+            [(["Women", "work"], ["Men", "work"])],
+            predict,
+            return_details=True,
+        )
+
+        assert result["bias_score"] == 100.0
+        assert result["crows_pairs_score"] == 100.0
+
+    def test_run_succeeds_and_exposes_score(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        result = crows.run(
+            [(["Women", "work"], ["Men", "work"])],
+            predict,
+            ci="none",
+        )
+
+        assert result.score == 100.0
+        assert result.details["bias_score"] == 100.0
+
+    def test_neutral_fixture_is_50(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        score = crows.evaluate(
+            [
+                (["Women", "work"], ["Men", "work"]),
+                (["Girls", "work"], ["Boys", "work"]),
+            ],
+            lambda sentence, pos: predict(sentence, pos)
+            if "Women" in sentence or "Men" in sentence
+            else (0.4 if "Girls" in sentence else 0.8),
+        )
+
+        assert score == 50.0
+
+    def test_antistereo_row_keeps_sent_more_first(self):
+        row = {
+            "sent_more": "The doctor said that he was late.",
+            "sent_less": "The doctor said that she was late.",
+            "stereo_antistereo": "antistereo",
+        }
+
+        assert _crows_pair_from_row(row) == (row["sent_more"], row["sent_less"])

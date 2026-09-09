@@ -256,7 +256,7 @@ class TestDocsMatchTheRegistry:
         from bias_scope._metric_info import METRIC_INFO
 
         unaudited = [n for n, i in METRIC_INFO.items() if i.fidelity == "unaudited"]
-        assert unaudited == ["SentenceBiasScore"], unaudited
+        assert unaudited == [], unaudited
 
     def test_every_fidelity_named_in_the_inclusion_page_is_a_real_status(self):
         from pathlib import Path

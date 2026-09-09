@@ -247,11 +247,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
         resource_binding="dataset",
         deviation_note=(
             'Faithful in the default `mode="wordpiece"`, which is the pseudo-log-likelihood '
-            "over WordPiece tokens that the authors' `metric.py` computes. `mode=\"whitespace\"` "
-            'scores whole whitespace words instead; it is kept for continuity with v0.1.x but is '
-            'NOT the published protocol and must not be reported as CrowS-Pairs. Reproduction on '
-            'bert-base-uncased over all 1,508 pairs: 58.62 vs the published 60.5, Wald intervals '
-            'overlapping (results/emnlp/crows_pairs.json).'
+            "over shared non-special WordPiece tokens that the authors' `metric.py` computes. "
+            "`mode=\"whitespace\"` scores whole whitespace words instead; it is kept for "
+            "continuity with v0.1.x but is NOT the published protocol and must not be reported "
+            "as CrowS-Pairs."
         ),
         fidelity_note='docs/fidelity/crows_pairs.md',
     ),
@@ -593,8 +592,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'Faithful to the paper. One documented judgement: the authors\' code '
             'appears to read p_prior at the attribute mask rather than the target '
             'mask, and its get_index last branch omits the [CLS] offset; this '
-            'implementation follows the paper\'s Sec. 2 step 3 instead. See '
-            'docs/fidelity/lpbs.md and REVIEW_LATER RL-012.'
+            'implementation follows the paper\'s Sec. 2 step 3 instead. Multi-target '
+            'sets use the reference-code sum-before-log behavior; BiasScope averages '
+            'over (template, attribute) items. See docs/fidelity/lpbs.md and '
+            'REVIEW_LATER RL-012.'
         ),
         fidelity_note='docs/fidelity/lpbs.md',
     ),
@@ -816,20 +817,20 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=0.0,
         direction="signed",
         value_range=(float("-inf"), float("inf")),
-        fidelity="unaudited",
+        fidelity="faithful",
         reference=(
-            'Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2), Springer — '
-            'paper NOT LOCATED'
+            'Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2), '
+            'Springer'
         ),
         reference_impl='',
         resource_binding="lexicon",
         deviation_note=(
-            'Fidelity cannot be established: the source paper is paywalled and no preprint '
-            'was found after the Section 4.0 search, so it has not been read. PLAN.md Section '
-            '4.0 forbids assigning a status without reading the paper, and this is the one '
-            'metric in the library where that was impossible. Do NOT cite this implementation '
-            'as faithful to Dolci et al. See docs/fidelity/sentence_bias_score.md and '
-            'REVIEW_LATER RL-029.'
+            "Faithful low-level implementation of Dolci et al.'s "
+            'SentenceBiasScore equations: cosine projection onto the gender direction, '
+            'semantic-importance weighting, explicit gender-word exclusion, and separate '
+            'positive/female and negative/male sums. Callers must supply token/word '
+            'representations, the gender direction, semantic importance, and the exclusion '
+            'mask; BiasScope does not derive those upstream artifacts.'
         ),
         fidelity_note='docs/fidelity/sentence_bias_score.md',
     ),
@@ -1199,11 +1200,14 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'https://arxiv.org/abs/1608.07187'
         ),
         reference_impl=(
-            'https://github.com/W4ngatang/sent-bias '
-            '@ e3559fb669ca'
+            'Primary: https://doi.org/10.7910/DVN/DX4VWP; secondary: '
+            'https://github.com/W4ngatang/sent-bias @ e3559fb669ca'
         ),
         resource_binding="language_agnostic",
-        deviation_note='',
+        deviation_note=(
+            'Canonical static-embedding WEAT uses the paper definition. Raw-text '
+            'encoding and tie_policy="conservative" are explicit BiasScope extensions.'
+        ),
         fidelity_note='docs/fidelity/weat.md',
     ),
 }

@@ -54,17 +54,20 @@ spurious disagreement.
 `src/bias_scope/embeddings_based/seat.py` delegates to `WEAT` with the same
 effect size, so it inherits WEAT's `ddof=1` and its permutation test.
 
-**Changed in 0.2.0:** the default is now `pooling="cls"`, matching the
-reference's position-0 protocol. It was `"mean"`, which is not what May et al.
-did. PLAN.md 4.2 asks for exactly this.
+**Changed in 0.2.0:** the default is `pooling="cls"` rather than `"mean"`.
+This is a practical BiasScope convenience for raw Hugging Face encoders, but
+it is not an exact reproduction of the reference extraction: the reference's
+position 0 is its first content wordpiece, while BiasScope's is special-token
+`[CLS]`. Exact reproductions should provide precomputed sentence embeddings
+from the intended encoder protocol.
 
 ## Verdict
 
-**faithful.**
+**faithful for the scoring statistic; encoder-dependent for reproductions.**
 
-The statistic is WEAT's and matches. The pooling default now matches the
-reference's protocol, and the `[CLS]`-vs-first-token subtlety is documented
-rather than silently absorbed.
+The statistic is WEAT's and matches. BiasScope documents its raw-string
+encoding as a convenience rather than silently treating it as the reference
+encoder protocol.
 
 ## Required action
 

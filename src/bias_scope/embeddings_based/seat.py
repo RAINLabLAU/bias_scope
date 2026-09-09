@@ -22,8 +22,9 @@ class SEAT(EmbeddingMetric):
     effect size calculation as WEAT, but operates on sentence-level
     representations instead of static word embeddings.
 
-    SEAT generates sentence embeddings using templates and measures
-    bias through the same differential association test as WEAT.
+    Canonical input is precomputed sentence embeddings, or fully formed SEAT
+    sentence stimuli that callers construct themselves. BiasScope does not
+    generate May et al.'s semantically bleached templates automatically.
 
     Reference
     ---------
@@ -65,8 +66,10 @@ class SEAT(EmbeddingMetric):
                 when raw text inputs need to be embedded automatically. This
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
-            pooling (str): 'cls' (default, the reference protocol) or 'mean'. Use 'cls' with a raw
-                bert-base-* model name to match May 2019's SEAT protocol.
+            pooling (str): 'cls' (default) uses Hugging Face CLS pooling for
+                raw strings; 'mean' uses sentence-transformer pooling. Both
+                are BiasScope convenience paths, not an exact reproduction of
+                May et al.'s original encoder extraction setup.
         """
         self.model_name = model_name
         self.pooling = pooling
@@ -114,15 +117,26 @@ class SEAT(EmbeddingMetric):
             **Input Structure:**
             - target_embeddings: (target_group1, target_group2)
               - Each array shape: (n_sentences, embedding_dim)
-              - Example: Sentences with male vs female terms
+              - Example: precomputed representations of caller-supplied
+                sentences with male vs female terms
             - attribute_embeddings: (attribute_group1, attribute_group2)
               - Each array shape: (n_sentences, embedding_dim)
               - Example: Sentences with career vs family words
 
             **Typical Workflow:**
-            1. Create sentences using templates (e.g., "This is [WORD]")
-            2. Encode with sentence encoder (BERT, RoBERTa, etc.)
-            3. Pass sentence embeddings to SEAT
+            1. Construct appropriate semantically bleached sentence stimuli.
+            2. Encode them with the chosen sentence encoder.
+            3. Pass the precomputed sentence embeddings to SEAT.
+
+            Raw string sequences are also accepted as a BiasScope convenience.
+            They are encoded directly; BiasScope does not construct templates
+            around individual words. For exact experimental reproduction,
+            supply precomputed sentence embeddings from the intended protocol.
+
+            evaluate() returns the effect size by default. With
+            return_details=True, it also returns WEAT's one-sided p-value and
+            permutation metadata; run() exposes that p-value through
+            BiasResult.p_value.
 
         Examples:
             >>> import numpy as np

@@ -54,10 +54,16 @@ Two details the prose leaves implicit:
 
 ## Verdicts
 
-### AUL — **faithful**
+### AUL — **faithful**, as of v0.2.0
 
-Mean log-probability over unmasked tokens, with the indicator-based bias score
-of eq. 6. Matches.
+Mean log-probability over unmasked content tokens, with the percentage-based
+indicator aggregation of eq. 6. The canonical built-in implementation is
+`mode="wordpiece"`.
+
+`mode="whitespace"` is available only with a custom callback. The callback must
+score each token from the complete unmasked sentence; BiasScope cannot verify
+that contract. Combining whitespace mode with `model_name` is rejected because
+the generic scorer masks the scored token and would compute PLL instead of AUL.
 
 ### AULA — **faithful**, as of v0.2.0
 
@@ -74,15 +80,22 @@ change the reported percentage. Fixed to match eq. 5 and the reference; the
 three affected tests were rewritten to assert the paper's arithmetic, with the
 old expectation recorded in each so the change is auditable.
 
+The canonical built-in AULA path is `mode="wordpiece"`. It reports the paper's
+`0-100` bias scale and exposes `bias_score` for `run()`. Whitespace mode is
+retained only for custom callbacks that provide probabilities and already
+aggregated per-token attention from the complete unmasked sentence; combining
+it with `model_name` is rejected because the generic scorer masks the target.
+
 ## Required action
 
-None outstanding for the formula. Two follow-ups:
+The implementation uses tokenizer special-token metadata to exclude all special
+tokens while retaining them in the model input, and raises when no content token
+remains. One limitation remains:
 
 - The `predict_with_attention` callable takes per-token attention from the
   caller, so *this* library cannot guarantee the layer/head averaging matches
   the reference. Document the requirement in the class docstring: `αᵢ` must be
   averaged over all layers and all heads.
-- Confirm the `[1:-1]` special-token handling in the wordpiece path.
 
 ## Validation possible
 

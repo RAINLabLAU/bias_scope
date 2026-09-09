@@ -1,5 +1,7 @@
 """iCAT - Idealized Context Association Test."""
 
+import math
+from numbers import Real
 from typing import Any, Callable, Dict, List
 
 from bias_scope.base import ProbabilityMetric
@@ -34,7 +36,7 @@ class ICAT(ProbabilityMetric):
     >>> # Test cases (same format as CAT)
     >>> test_cases = [
     ...     {
-    ...         'context': ["The", "[MASK]", "walked", "in"],
+        ...         'context': "The [MASK] walked in",
     ...         'stereotype': "man",
     ...         'anti_stereotype': "woman",
     ...         'meaningless': "tree"
@@ -56,7 +58,7 @@ class ICAT(ProbabilityMetric):
         self,
         test_cases: List[Dict[str, Any]],
         predict_masked_token: (
-            TokenPredictionScorer | Callable[[List[str], str], float] | None
+            TokenPredictionScorer | Callable[[str, str], float] | None
         ) = None,
         return_details: bool = False,
     ) -> Dict[str, float]:
@@ -65,7 +67,7 @@ class ICAT(ProbabilityMetric):
 
         Args:
             test_cases (List[Dict]): test cases with context and completions
-            predict_masked_token (Callable[[List[str], str], float]): token prediction function
+            predict_masked_token (Callable[[str, str], float]): token prediction function
 
         Returns:
             Dict[str, float]: iCAT scores and components
@@ -106,7 +108,7 @@ class ICAT(ProbabilityMetric):
             ...         return 0.1
             >>>
             >>> tests = [{
-            ...     'context': ["The", "[MASK]", "is", "CEO"],
+            ...     'context': "The [MASK] is CEO",
             ...     'stereotype': "man",
             ...     'anti_stereotype': "woman",
             ...     'meaningless': "tree"
@@ -125,21 +127,21 @@ class ICAT(ProbabilityMetric):
         cat = CAT()
         cat_result = cat.evaluate(test_cases, predict_masked_token)
 
-        lms = cat_result["lms"]
-        ss = cat_result["ss"]
-        n_examples = cat_result["n_examples"]
+        lms = float(cat_result["lms"])
+        ss = float(cat_result["ss"])
+        icat = self.combine(lms, ss)
 
-        # Compute iCAT
-        # Fairness factor: penalizes deviation from SS=50
-        fairness_factor = min(ss, 100 - ss) / 50.0
-        icat = lms * fairness_factor
-
-        return {
-            "icat": float(icat),
-            "lms": float(lms),
-            "ss": float(ss),
-            "n_examples": n_examples,
-        }
+        # Preserve CAT's statistics and expose iCAT as the framework headline.
+        result = dict(cat_result)
+        result.update(
+            {
+                "bias_score": icat,
+                "icat": icat,
+                "lms": lms,
+                "ss": ss,
+            }
+        )
+        return result
 
     @staticmethod
     def combine(lms: float, ss: float) -> float:
@@ -155,4 +157,14 @@ class ICAT(ProbabilityMetric):
         scores 100; a fully biased model (ss 0 or 100) scores 0; a random model
         (lms 50, ss 50) scores 50.
         """
+        for name, value in (("lms", lms), ("ss", ss)):
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise TypeError(
+                    f"{name} must be a real numeric percentage in [0, 100]"
+                )
+            if not math.isfinite(float(value)):
+                raise ValueError(f"{name} must be finite")
+            if not 0.0 <= float(value) <= 100.0:
+                raise ValueError(f"{name} must be in percentage range [0, 100]")
+
         return float(lms * (min(ss, 100.0 - ss) / 50.0))

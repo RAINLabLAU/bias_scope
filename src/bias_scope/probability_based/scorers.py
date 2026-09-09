@@ -111,6 +111,8 @@ class BertPLLScorer:
         return {"prob": prob, "attention": attention}
 
     def masked_token_probability(self, context: List[str], candidate: str) -> float:
+        if isinstance(context, str):
+            context = context.split()
         prob, _ = self._masked_probability_and_attention(context, candidate)
         return prob
 
@@ -207,7 +209,7 @@ class BertPLLScorer:
         # Multi-piece chain-rule: reveal one candidate subword at a time and
         # accumulate log P(subword_i | context, revealed subwords). Reference:
         # Salazar et al. 2019 (pseudo-log-likelihood scoring).
-        log_prob_total = 0.0
+        subtoken_probs = []
         working_ids = list(input_ids)
         last_outputs = None
         last_mask_idx = mask_positions[0]
@@ -224,13 +226,14 @@ class BertPLLScorer:
             log_probs = self._torch.log_softmax(
                 outputs.logits[0, mask_idx, :], dim=-1
             )
-            log_prob_total += float(log_probs[candidate_ids[step]].item())
+            subtoken_probs.append(float(self._torch.exp(log_probs[candidate_ids[step]]).item()))
             working_ids[mask_idx] = candidate_ids[step]
             last_outputs = outputs
             last_mask_idx = mask_idx
 
-        prob = float(np.exp(log_prob_total))
-        prob = max(min(prob, 1.0), 1e-30)
+        # StereoSet likelihood scoring ranks multi-subword candidates by the
+        # arithmetic mean of their iterative left-to-right probabilities.
+        prob = float(np.mean(subtoken_probs))
         attention = self._token_attention(
             last_outputs, word_ids, last_mask_idx, len(context)
         )
@@ -370,9 +373,7 @@ class WordPieceBertScorer:
         AULA: same as AUL, weighted by attention received at each interior
               position, aggregated over all layers × heads × from-positions.
         """
-        T = len(input_ids)
-        if T < 3:
-            return 0.0, 0.0
+        content_positions = self._content_positions(input_ids)
         with self._torch.no_grad():
             out = self.model(
                 input_ids=self._torch.tensor([input_ids], device=self.device),
@@ -380,20 +381,51 @@ class WordPieceBertScorer:
             )
         log_probs = self._torch.log_softmax(out.logits[0], dim=-1)
 
-        interior = range(1, T - 1)
+        if not getattr(out, "attentions", None):
+            raise ValueError(
+                "AULA requires model attention outputs; the loaded masked "
+                "language model did not return attentions."
+            )
+
         token_lp = self._torch.stack(
-            [log_probs[i, input_ids[i]] for i in interior]
+            [log_probs[i, input_ids[i]] for i in content_positions]
         )
 
         # Mean over all layers × heads → (T, T) attention[from, to].
         stacked = self._torch.cat([layer[0] for layer in out.attentions], dim=0)
         attn_mean = stacked.mean(dim=0)
         # Attention RECEIVED by each token = mean over from-positions.
-        attn_received = attn_mean.mean(dim=0)[1:-1]
+        attn_received = attn_mean.mean(dim=0)[content_positions]
 
         aul = float(token_lp.mean().item())
         aula = float((token_lp * attn_received).mean().item())
         return aul, aula
+
+    def _content_positions(self, input_ids: List[int]) -> List[int]:
+        """Return tokenizer-defined non-special token positions."""
+        get_mask = getattr(self.tokenizer, "get_special_tokens_mask", None)
+        if callable(get_mask):
+            special_mask = get_mask(input_ids, already_has_special_tokens=True)
+            positions = [
+                i for i, is_special in enumerate(special_mask) if not is_special
+            ]
+        else:
+            special_ids = getattr(self.tokenizer, "all_special_ids", None)
+            if special_ids is None:
+                raise ValueError(
+                    "AUL requires tokenizer special-token metadata to identify "
+                    "content tokens."
+                )
+            special_id_set = set(special_ids)
+            positions = [
+                i for i, token_id in enumerate(input_ids)
+                if token_id not in special_id_set
+            ]
+        if not positions:
+            raise ValueError(
+                "AUL cannot score an input with no non-special content tokens."
+            )
+        return positions
 
     # --- TokenPredictionScorer protocol compatibility ---
 

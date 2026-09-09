@@ -51,9 +51,10 @@ makes clear it is `U`. Typographical, not substantive.)
 ## Current BiasScope implementation
 
 `src/bias_scope/probability_based/scorers.py::WordPieceBertScorer` and
-`crows_pairs.py`. Matches on every point above, including the `range(1, T - 1)`
-interior (`scorers.py:383`) and the `equal`-opcode alignment
-(`scorers.py:331-335`).
+`crows_pairs.py`. Matches on every point above: `tokenizer.encode` keeps
+special tokens in the model input, `SequenceMatcher` keeps the `equal`-opcode
+alignment (`scorers.py:331-339`), and the CrowS-Pairs helper filters tokenizer
+special-token positions before scoring (`_helpers.py:91-100`).
 
 **One deliberate difference:** we pass `autojunk=False` to `SequenceMatcher`
 where the reference takes the default (`True`). difflib's autojunk heuristic
@@ -72,18 +73,15 @@ documented as such.
 Through v0.1.x the default was `mode='whitespace'` — a whole-word
 pseudo-log-likelihood that is not the published protocol. See RL-037.
 
-Reproduction on `bert-base-uncased` over the full 1,508 pairs gives **58.62**
-against the published **60.5** — a 1.88-point gap, with the two 95% Wald
-intervals overlapping ([56.13, 61.11] vs [58.03, 62.97]), so the estimates are
-not statistically distinguishable. Recorded in `results/emnlp/crows_pairs.json`.
+The implementation reports the canonical percentage-scale score:
+`100 * stereotype_wins / N`, with **50** as the neutral value.
 
 ## Required action
 
-None outstanding. The residual 1.88 points is worth a hypothesis before
-submission: candidate causes are tokenizer version drift and the
-`sent_more`/`sent_less` direction convention for the 218 antistereo pairs. The
-paper's own stereo/antistereo split (61.1 / 56.9 for BERT) is the natural
-diagnostic and is a cheap addition to the reproduction.
+None outstanding. The reproduction loader passes `sent_more` first and
+`sent_less` second for every row, including rows marked `antistereo`, because
+BiasScope's public API scores `(more_stereotypical, less_stereotypical)` pairs
+directly.
 
 ## Validation possible
 

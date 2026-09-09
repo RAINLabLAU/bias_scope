@@ -39,21 +39,21 @@ class TestLanguageModelingScore:
 
         v0.1.1 scored this 100%, because max(pro, anti) = pro > unrelated.
         """
-        cases = [{"context": ["The", "[MASK]"], "stereotype": "a",
+        cases = [{"context": "The [MASK]", "stereotype": "a",
                   "anti_stereotype": "b", "meaningless": "u"}]
         result = CAT().evaluate(cases, probs({"a": 0.6, "b": 0.1, "u": 0.3}),
                                 return_details=True)
         assert result["lms"] == pytest.approx(50.0)
 
     def test_both_beating_unrelated_gives_one_hundred(self):
-        cases = [{"context": ["The", "[MASK]"], "stereotype": "a",
+        cases = [{"context": "The [MASK]", "stereotype": "a",
                   "anti_stereotype": "b", "meaningless": "u"}]
         result = CAT().evaluate(cases, probs({"a": 0.6, "b": 0.5, "u": 0.1}),
                                 return_details=True)
         assert result["lms"] == pytest.approx(100.0)
 
     def test_neither_beating_unrelated_gives_zero(self):
-        cases = [{"context": ["The", "[MASK]"], "stereotype": "a",
+        cases = [{"context": "The [MASK]", "stereotype": "a",
                   "anti_stereotype": "b", "meaningless": "u"}]
         result = CAT().evaluate(cases, probs({"a": 0.1, "b": 0.2, "u": 0.9}),
                                 return_details=True)
@@ -62,14 +62,14 @@ class TestLanguageModelingScore:
 
 class TestStereotypeScore:
     def test_always_preferring_the_stereotype_gives_one_hundred(self):
-        cases = [{"context": ["The", "[MASK]"], "stereotype": "a",
+        cases = [{"context": "The [MASK]", "stereotype": "a",
                   "anti_stereotype": "b", "meaningless": "u"}]
         result = CAT().evaluate(cases, probs({"a": 0.6, "b": 0.1, "u": 0.05}),
                                 return_details=True)
         assert result["ss"] == pytest.approx(100.0)
 
     def test_always_preferring_the_anti_stereotype_gives_zero(self):
-        cases = [{"context": ["The", "[MASK]"], "stereotype": "a",
+        cases = [{"context": "The [MASK]", "stereotype": "a",
                   "anti_stereotype": "b", "meaningless": "u"}]
         result = CAT().evaluate(cases, probs({"a": 0.1, "b": 0.6, "u": 0.05}),
                                 return_details=True)
@@ -88,10 +88,10 @@ class TestPerTargetTermAggregation:
         """
         cases = []
         for _ in range(3):
-            cases.append({"context": ["The", "[MASK]"], "target": "doctor",
+            cases.append({"context": "The [MASK]", "target": "doctor",
                           "stereotype": "a", "anti_stereotype": "b",
                           "meaningless": "u"})
-        cases.append({"context": ["The", "[MASK]"], "target": "nurse",
+        cases.append({"context": "The [MASK]", "target": "nurse",
                       "stereotype": "b", "anti_stereotype": "a",
                       "meaningless": "u"})
         return cases
@@ -117,9 +117,9 @@ class TestPerTargetTermAggregation:
 
     def test_equal_counts_make_the_two_aggregations_agree(self):
         cases = [
-            {"context": ["The", "[MASK]"], "target": "doctor", "stereotype": "a",
+            {"context": "The [MASK]", "target": "doctor", "stereotype": "a",
              "anti_stereotype": "b", "meaningless": "u"},
-            {"context": ["The", "[MASK]"], "target": "nurse", "stereotype": "b",
+            {"context": "The [MASK]", "target": "nurse", "stereotype": "b",
              "anti_stereotype": "a", "meaningless": "u"},
         ]
         scorer = probs({"a": 0.6, "b": 0.2, "u": 0.05})

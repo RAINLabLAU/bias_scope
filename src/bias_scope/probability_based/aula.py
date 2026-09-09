@@ -16,8 +16,8 @@ class AULA(ProbabilityMetric):
     All Unmasked Likelihood with Attention (AULA).
 
     Extends AUL by weighting token contributions by attention-derived importance.
-    Uses attention weights from transformer models to emphasize informative tokens
-    when computing sentence pseudo-log-likelihood.
+    The canonical built-in implementation is WordPiece mode; whitespace mode
+    accepts only a custom callback with an unmasked-scoring contract.
 
     Reference
     ---------
@@ -45,7 +45,7 @@ class AULA(ProbabilityMetric):
     ... ]
     >>>
     >>> score = aula.evaluate(pairs, predict_fn)
-    >>> print(f"Bias score: {score:.2%}")
+    >>> print(f"Bias score: {score:.2f}")
     """
 
     def __init__(
@@ -58,6 +58,13 @@ class AULA(ProbabilityMetric):
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
                 f"mode must be 'whitespace' or 'wordpiece', got {mode!r}"
+            )
+        if mode == "whitespace" and model_name is not None:
+            raise ValueError(
+                "AULA mode='whitespace' cannot be combined with model_name: "
+                "the built-in whitespace scorer masks the scored token and "
+                "computes PLL, not AULA. Use mode='wordpiece' or provide a "
+                "custom callback that scores from the complete unmasked sentence."
             )
         self.mode = mode
         if mode == "wordpiece":
@@ -94,7 +101,7 @@ class AULA(ProbabilityMetric):
             predict_with_attention (Callable): prediction function returning probs and attentions
 
         Returns:
-            float: bias score (0-1 range)
+            float: bias score in the canonical 0-100 percentage scale
 
         Raises:
             ValueError: If inputs are invalid
@@ -113,9 +120,9 @@ class AULA(ProbabilityMetric):
               - Attention shape: (n_tokens,) after aggregation over heads/layers
 
             **Return Value:**
-            - 0.5 = No bias (equal preference)
-            - > 0.5 = Prefers stereotypes
-            - < 0.5 = Prefers anti-stereotypes
+            - 50 = No bias (equal preference)
+            - > 50 = Prefers stereotypes
+            - < 50 = Prefers anti-stereotypes
 
             **Algorithm:**
             1. For each token in sentence, get prob and attention weights
@@ -123,7 +130,7 @@ class AULA(ProbabilityMetric):
             3. Compute weighted average log-likelihood:
                AULA(S) = Σ_i w_i * log P(s_i | S)
             4. Compare scores: bias = I(aula_stereo > aula_anti)
-            5. Average over all pairs
+            5. Multiply the fraction of wins by 100
 
             **Attention Aggregation:**
             - Attention weights should be pre-aggregated (e.g., averaged over
@@ -148,10 +155,10 @@ class AULA(ProbabilityMetric):
             >>>
             >>> pairs = [(["Women", "work"], ["Men", "work"])]
             >>> score = aula.evaluate(pairs, mock_predict)
-            >>> print(score)  # > 0.5 (prefers stereotypes)
+            >>> print(score)  # > 50 (prefers stereotypes)
         """
         # Validate input
-        if len(sentence_pairs) == 0:
+        if not isinstance(sentence_pairs, list) or len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
         if self.mode == "wordpiece":
@@ -168,6 +175,16 @@ class AULA(ProbabilityMetric):
         bias_indicators = []
 
         for stereotype, anti_stereotype in sentence_pairs:
+            if not (
+                isinstance(stereotype, list)
+                and isinstance(anti_stereotype, list)
+                and all(isinstance(token, str) for token in stereotype)
+                and all(isinstance(token, str) for token in anti_stereotype)
+            ):
+                raise ValueError(
+                    "In whitespace mode, sentence pairs must contain token lists "
+                    "of strings. Use raw string pairs with mode='wordpiece'."
+                )
             # Validate pair
             self._validate_sentence_pair(stereotype, anti_stereotype)
 
@@ -179,11 +196,12 @@ class AULA(ProbabilityMetric):
             bias_indicators.append(1 if aula_stereo > aula_anti else 0)
 
         # Return average bias score
-        score = float(np.mean(bias_indicators))
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
             return {
+                "bias_score": score,
                 "aula_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
             }
         return score
 
@@ -376,11 +394,12 @@ class AULA(ProbabilityMetric):
             aula_s, aula_a = _score_wordpiece_pair_aula(scorer, s_more, s_less)
             bias_indicators.append(1 if aula_s > aula_a else 0)
 
-        score = float(np.mean(bias_indicators))
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
             return {
+                "bias_score": score,
                 "aula_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
                 "mode": "wordpiece",
             }
         return score

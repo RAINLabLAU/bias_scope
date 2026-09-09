@@ -644,9 +644,11 @@ metrics:
     - notebooks/construct_bias_score.py:106-140 (driver)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: MISMATCH confirmed (docs/fidelity/lpbs.md). Paper and code additionally disagree
-    on which mask position the prior is read at, and get_index's last branch omits
-    the [CLS] offset - see RL-012.
+  notes: Current LPBS is faithful to Kurita et al.'s paper-level formula. The
+    sentence-pair preference statistic that shipped under this name through v0.1.1
+    was a mismatch and now lives under PairwiseLikelihoodPreference. Paper and
+    reference code additionally disagree on which mask position the prior is read
+    at, and get_index's last branch omits the [CLS] offset - see RL-012.
   fidelity_note: docs/fidelity/lpbs.md
 - metric: MarkedPersons
   family: generated_text
@@ -970,16 +972,20 @@ metrics:
   fidelity_note: docs/fidelity/seat.md
 - metric: SentenceBiasScore
   family: embedding
-  status: pending
+  status: read
   paper:
     title: Sentence-level bias score (Dolci, Azzalini & Tanelli)
     venue: Data Science and Engineering 8(2)
     year: 2023
-    url: ''
+    url: https://link.springer.com/article/10.1007/s41019-023-00211-0
     local_pdf: ''
-    version_read: ''
-    paper_status: not_located
-  sections_read: []
+    version_read: Springer open-access article
+    paper_status: read
+  sections_read:
+  - Section 2.3 Bias Estimation
+  - Section 2.3.1 Gender Direction
+  - Section 2.3.2 Token Importance
+  - Section 2.3.3 SentenceBiasScore
   code_status: none_found
   search_log:
   - paper footnotes and code-availability statement
@@ -990,9 +996,12 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: ''
-  notes: Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2). Springer,
-    paywalled; no arXiv preprint located.
+  retrieved_on: '2026-09-06'
+  notes: Faithful low-level implementation of the SentenceBiasScore equations. BiasScope
+    requires caller-provided token/word representations, gender direction, semantic
+    importance, and explicit gender-word exclusion mask; it does not derive those upstream
+    artifacts.
+  fidelity_note: docs/fidelity/sentence_bias_score.md
 - metric: SocialGroupSubstitution
   family: generated_text
   status: read
@@ -1285,6 +1294,7 @@ metrics:
     url: https://arxiv.org/abs/1608.07187
     local_pdf: sources/papers/weat.pdf
     version_read: v1
+    primary_artifact: https://doi.org/10.7910/DVN/DX4VWP
   sections_read:
   - 'Definition block: test statistic s(X,Y,A,B), one-sided permutation p-value, effect
     size'
@@ -1300,9 +1310,10 @@ metrics:
     - sentbias/weat.py:82-152 (p_val_permutation_test, exact vs sampled)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: 'FAITHFUL. RL-008 resolved: ddof=1, confirmed by the reference code and by
-    0.22% vs 3.50% agreement with the paper''s 840B number. v0.1.1 omitted the permutation
-    p-value; added in 0.2.0.'
+  notes: 'FAITHFUL for canonical static embeddings. The authors'' Harvard Dataverse
+    artifact is primary; May et al.''s sent-bias is a secondary reimplementation. RL-008
+    resolved: ddof=1, confirmed by sent-bias and by 0.22% vs 3.50% agreement with the
+    paper''s 840B number. Raw-text encoding and conservative ties are documented extensions.'
   fidelity_note: docs/fidelity/weat.md
 - metric: WinoBias
   family: prompt

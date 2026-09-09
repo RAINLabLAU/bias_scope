@@ -30,8 +30,8 @@ class TestAULA:
 
         score = aula.evaluate(pairs, biased_predict)
 
-        assert 0.0 <= score <= 1.0
-        assert score > 0.5  # Prefers stereotypes
+        assert 0.0 <= score <= 100.0
+        assert score > 50.0  # Prefers stereotypes
 
     def test_attention_weighting_single_token(self):
         """Attention on one token zeroes the others, then a plain mean over |S|.
@@ -306,8 +306,8 @@ class TestAULA:
 
         score = aula.evaluate(pairs, predict_biased)
 
-        # Should prefer stereotypes (> 0.5)
-        assert score > 0.5
+        # Should prefer stereotypes (> 50)
+        assert score > 50.0
 
     def test_unbiased_model_near_fifty(self):
         """Test unbiased model returns score near 0.5."""
@@ -328,7 +328,7 @@ class TestAULA:
         # With identical probs, ties are broken arbitrarily (depends on >)
         # Score could be 0.0 or 1.0 due to tie-breaking
         # In practice, should be 0.0 since neither is strictly greater
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_result_type(self):
         """Test that result is a float."""
@@ -342,7 +342,7 @@ class TestAULA:
         score = aula.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     # === A) Common validation gaps ===
 
@@ -423,3 +423,56 @@ class TestAULA:
         # With identical scores, aula_stereo > aula_anti is False
         # So bias_indicators.append(0) for all pairs
         assert score == 0.0  # All ties count as 0 (no bias)
+
+    def test_score_scale_and_neutral_fixture(self):
+        aula = AULA(mode="whitespace")
+
+        def predict(sentence, pos):
+            if "Women" in sentence:
+                prob = 0.8
+            elif "Girls" in sentence:
+                prob = 0.2
+            elif "Boys" in sentence:
+                prob = 0.8
+            else:
+                prob = 0.5
+            return {"prob": prob, "attention": np.ones(len(sentence))}
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Girls", "work"], ["Boys", "work"]),
+        ]
+        assert aula.evaluate(pairs, predict) == 50.0
+
+    def test_return_details_and_run(self):
+        aula = AULA(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        result = aula.evaluate(
+            pairs,
+            lambda sentence, pos: {
+                "prob": 0.5,
+                "attention": np.ones(len(sentence)),
+            },
+            return_details=True,
+        )
+        assert result["bias_score"] == 0.0
+        assert result["aula_score"] == 0.0
+        assert isinstance(result["num_pairs"], int)
+        run_result = aula.run(
+            pairs,
+            lambda sentence, pos: {
+                "prob": 0.5,
+                "attention": np.ones(len(sentence)),
+            },
+            ci="none",
+        )
+        assert run_result.score == 0.0
+
+    def test_whitespace_model_name_is_rejected(self):
+        with pytest.raises(ValueError, match="cannot be combined with model_name"):
+            AULA(mode="whitespace", model_name="bert-base-uncased")
+
+    def test_invalid_whitespace_inputs_raise_clear_error(self):
+        aula = AULA(mode="whitespace")
+        with pytest.raises(ValueError, match="token lists"):
+            aula.evaluate([("Women work", "Men work")], lambda sentence, pos: {})

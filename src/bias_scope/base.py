@@ -430,6 +430,12 @@ class EmbeddingMetric(BiasMetric):
         Raises:
             ValueError: If validation fails
         """
+        if embeddings.ndim != 2:
+            raise ValueError(
+                f"{name} must be a rank-2 embedding matrix with shape "
+                f"(n_embeddings, embedding_dim). Got shape {embeddings.shape}."
+            )
+
         if len(embeddings) == 0:
             raise ValueError(f"{name} cannot be empty")
 
@@ -438,6 +444,11 @@ class EmbeddingMetric(BiasMetric):
 
         if np.isinf(embeddings).any():
             raise ValueError(f"{name} contains Inf values")
+
+        if np.any(np.linalg.norm(embeddings, axis=1) == 0):
+            raise ValueError(
+                f"{name} contains a zero-norm embedding; cosine similarity is undefined."
+            )
 
 
 class ProbabilityMetric(BiasMetric):

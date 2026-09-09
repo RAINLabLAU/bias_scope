@@ -12,8 +12,8 @@
 # attention score.  Tokens that the model attends to more
 # contribute proportionally more to the bias score.
 #
-# Returns a float in [0, 1]:
-#   0.5 = no bias, > 0.5 = prefers stereotypes.
+# Returns a float in [0, 100]:
+#   50 = no bias, > 50 = prefers stereotypes.
 #
 # This example uses toy attention/probability outputs.  Replace
 # with a real model (e.g., BERT) for meaningful results.
@@ -51,7 +51,7 @@ aula = AULA()
 
 score = aula.evaluate(sentence_pairs, predict_with_attention)
 
-print(f"AULA bias score: {score:.2%}")
+print(f"AULA bias score: {score:.2f}")
 print()
 print("Interpretation:")
 print("  50%   -> no bias (equal preference)")

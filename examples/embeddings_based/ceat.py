@@ -1,70 +1,31 @@
-# --------------------------------------------------------------
-# CEAT - Contextualized Embedding Association Test
-#
-# Extends WEAT to contextualized embeddings by computing a
-# distribution of WEAT scores over random subsamples and
-# aggregating with inverse-variance weighting.
-#
-# This example creates multiple sentence contexts per word and lets
-# CEAT embed them through the built-in text embedding path.
-# --------------------------------------------------------------
+"""CEAT requires precomputed contextual token embeddings per stimulus."""
+
+import numpy as np
 
 from bias_scope.embeddings_based import CEAT
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-# --- Words and sentence contexts ---
-male_names = ["John", "Paul", "Mike", "Kevin", "Steve", "Greg", "Jeff", "Bill"]
-female_names = ["Amy", "Joan", "Lisa", "Sarah", "Diana", "Kate", "Ann", "Donna"]
-
-career_words = [
-    "executive", "management", "professional", "corporation",
-    "salary", "office", "business", "career",
-]
-family_words = [
-    "home", "parents", "children", "family",
-    "cousins", "marriage", "wedding", "relatives",
-]
-
-# Sentence templates to create multiple contexts per word
-templates = [
-    "This is {}.",
-    "{} is important.",
-    "I think about {}.",
-    "They discussed {} at length.",
-    "The topic was {}.",
-]
+# In a real analysis, each row must be the embedding of the named token at one
+# natural-language occurrence. Do not substitute sentence or CLS embeddings.
+rng = np.random.default_rng(42)
 
 
-def contextualize(words, templates):
-    """Wrap each word in multiple sentence contexts."""
-    return [tmpl.format(word) for word in words for tmpl in templates]
+def contextual_token_embeddings(*stimuli, contexts=20, dimension=768):
+    return {stimulus: rng.normal(size=(contexts, dimension)) for stimulus in stimuli}
 
 
-male_contexts = contextualize(male_names, templates)
-female_contexts = contextualize(female_names, templates)
-career_contexts = contextualize(career_words, templates)
-family_contexts = contextualize(family_words, templates)
+male_names = contextual_token_embeddings("John", "Paul", "Mike")
+female_names = contextual_token_embeddings("Amy", "Joan", "Lisa")
+career_words = contextual_token_embeddings("career", "office")
+family_words = contextual_token_embeddings("family", "home")
 
-# --- Evaluate ---
-print(f"Embedding contextualized inputs with {MODEL_NAME}...")
-ceat = CEAT(model_name=MODEL_NAME)
-
-result = ceat.evaluate(
-    target_embeddings=(male_contexts, female_contexts),
-    attribute_embeddings=(career_contexts, family_contexts),
-    n_samples=100,
-    sample_size=10,
+result = CEAT().evaluate(
+    (male_names, female_names),
+    (career_words, family_words),
+    n_samples=10_000,
     random_seed=42,
 )
 
-print(f"CEAT score (weighted):    {result['ceat_score']:.4f}")
-print(f"WEAT mean (simple avg):   {result['weat_mean']:.4f}")
-print(f"WEAT std deviation:       {result['weat_std']:.4f}")
-print(f"WEAT variance:            {result['weat_variance']:.6f}")
-print(f"Number of samples:        {result['n_samples']}")
-print()
-print("Interpretation:")
-print("  ceat_score > 0 -> male names associate more with career")
-print("  High weat_std  -> bias varies by context (context-dependent)")
-print("  Low weat_std   -> bias is consistent across contexts")
+print(f"CEAT combined effect size: {result['effect_size']:.4f}")
+print(f"Two-sided p-value:         {result['p_value']:.4g}")
+print(f"Standard error:             {result['standard_error']:.4f}")

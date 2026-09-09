@@ -4,11 +4,12 @@
 automatically from language corpora contain human-like biases*, Science
 356(6334). [arXiv:1608.07187](https://arxiv.org/abs/1608.07187), read as
 `sources/papers/weat.txt`.
-**Reference implementation:**
+**Primary replication artifact:** Caliskan's [WEFAT and WEAT replication data
+and code](https://doi.org/10.7910/DVN/DX4VWP), archived by the authors on
+Harvard Dataverse and cited by the Science paper. **Secondary implementation:**
 [W4ngatang/sent-bias](https://github.com/W4ngatang/sent-bias) @
-`e3559fb669ca4832743b42fee715994c15c7f1af`, CC-BY-4.0. Caliskan's own code is in
-the Science supplement, not on GitHub; sent-bias is May et al. 2019's
-reimplementation and is the de-facto reference.
+`e3559fb669ca4832743b42fee715994c15c7f1af`, CC-BY-4.0, is May et al. 2019's
+later reimplementation and is used here only as a secondary comparison point.
 **Sections and files read:** the "test statistic / p-value / effect size"
 definition block; `sentbias/weat.py:82-152` (`p_val_permutation_test`),
 `:174-176` (`stdev_s_wAB`), `:178-192` (`effect_size`).
@@ -63,16 +64,21 @@ assumed. Three independent lines agree on **`ddof=1`**:
 the reference exactly, including `ddof=1` and the mean-of-cosines form of
 `s(w, A, B)`.
 
-**v0.1.1 omitted the permutation test entirely** — half of the definition. Added
-in 0.2.0: exact enumeration over all `C(2n, n)` partitions when there are at most
-100,000 of them (so Caliskan's own 8-per-group tests are always exact) and
-sampling beyond that, matching the reference's strategy. The observed partition
-is always counted, so the p-value floors at `1/num_partitions` rather than
-reaching an impossible zero.
+**v0.1.1 omitted the permutation test entirely** — half of the definition. The
+canonical BiasScope mode now uses the paper's strict `>` comparison. Exact
+enumeration covers all `C(2n, n)` partitions up to 100,000; larger tests use a
+sampled estimate with exactly `n_permutation_samples` partition evaluations.
+`tie_policy="conservative"` is an explicitly noncanonical compatibility mode
+for May et al.'s `sent-bias` convention (`>=` and one observed pseudo-draw).
+
+Raw string inputs are another explicit BiasScope extension. They are encoded by
+the chosen sentence-transformer or Hugging Face model and therefore involve its
+tokenization, subword handling, truncation, and pooling. Canonical WEAT takes
+precomputed static word vectors; Caliskan et al. used cased GloVe 840B/300d.
 
 ## Verdict
 
-**faithful.**
+**faithful for canonical static embeddings, with documented extensions.**
 
 The effect size was already faithful; the missing p-value was a completeness gap
 rather than a wrong statistic, and it is now closed. The oracle in
@@ -94,8 +100,8 @@ None outstanding. Two follow-ups:
 - **Tier 1:** Caliskan Table 1 reports effect sizes and p-values for ten tests
   on GloVe-840B. WEAT-6 is already reproduced at 0.22%. The remaining nine are
   registry candidates and the strongest Tier-1 evidence the library has.
-- **Tier 2:** sent-bias is CC-BY-4.0 and installs on a modern Python; a direct
-  equivalence test on cached cosine matrices is straightforward.
+- **Tier 2:** compare directly with the authors' Dataverse artifact; sent-bias
+  is a secondary compatibility target for conservative ties.
 - **Tier 3:** null, swap antisymmetry, permutation invariance and scale
   invariance all apply and hold. Monotonicity applies.
 

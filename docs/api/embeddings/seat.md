@@ -2,18 +2,34 @@
 
 ::: bias_scope.embeddings_based.seat.SEAT
 
+## Input and result contract
+
+Canonical SEAT takes precomputed sentence embeddings for fully formed,
+caller-supplied sentence stimuli. Callers are responsible for constructing
+May et al.'s semantically bleached templates; BiasScope does not create
+templates automatically.
+
+Raw sentence strings are accepted as a BiasScope convenience and encoded
+directly. The default CLS pooling uses Hugging Face special-token CLS
+representations, so it is not an exact reproduction of May et al.'s original
+encoder extraction setup. For experimental reproduction, provide precomputed
+sentence embeddings extracted with the intended encoder protocol.
+
+evaluate() returns the SEAT effect size by default. return_details=True also
+returns the one-sided permutation p-value and metadata. run() returns a
+BiasResult containing the effect size and p-value.
+
 ## Example
 
 ```python
 # --------------------------------------------------------------
 # SEAT - Sentence Encoder Association Test
 #
-# Adapts WEAT to sentence-level embeddings. Instead of encoding
-# bare words, SEAT wraps them in a sentence template
-# (e.g. "This is <word>") and compares sentence-level associations.
+# Adapts WEAT to sentence-level embeddings. The caller constructs
+# sentence templates/stimuli and SEAT compares their representations.
 #
-# This example uses the built-in text embedding path, so the metric
-# handles sentence encoding for you.
+# This example uses BiasScope's convenience text-encoding path.
+# It does not construct templates automatically.
 # --------------------------------------------------------------
 
 from bias_scope.embeddings_based import SEAT

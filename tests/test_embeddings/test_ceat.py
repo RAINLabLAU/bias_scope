@@ -1,345 +1,139 @@
-"""Tests for Contextualized Embedding Association Test (CEAT)."""
+"""Mathematical tests for canonical CEAT."""
+
+import math
 
 import numpy as np
 import pytest
-import torch
 
 from bias_scope.embeddings_based import CEAT
-
-
-class TestCEAT:
-    """Test Contextualized Embedding Association Test."""
-
-    def test_basic_functionality(self):
-        """Test CEAT with sufficient data and default parameters."""
-        ceat = CEAT()
-
-        # 50 embeddings per group, allowing for good sampling
-        target1 = np.random.randn(50, 768)
-        target2 = np.random.randn(50, 768)
-        attr1 = np.random.randn(40, 768)
-        attr2 = np.random.randn(40, 768)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        # Verify return type and keys
-        assert isinstance(result, dict)
-        assert "ceat_score" in result
-        assert "weat_mean" in result
-        assert "weat_std" in result
-        assert "weat_variance" in result
-        assert "n_samples" in result
-
-        # Verify all values are floats
-        assert isinstance(result["ceat_score"], float)
-        assert isinstance(result["weat_mean"], float)
-        assert isinstance(result["weat_std"], float)
-        assert isinstance(result["weat_variance"], float)
-
-        # Verify n_samples matches input
-        assert result["n_samples"] == 50
-
-    def test_with_minimal_data(self):
-        """Test CEAT with minimum viable data."""
-        ceat = CEAT()
-
-        # Exactly sample_size per group (10 each)
-        target1 = np.random.randn(10, 300)
-        target2 = np.random.randn(10, 300)
-        attr1 = np.random.randn(10, 300)
-        attr2 = np.random.randn(10, 300)
-
-        result = ceat.evaluate(
-            (target1, target2),
-            (attr1, attr2),
-            n_samples=20,
-            sample_size=10,
-            random_seed=42,
-        )
-
-        assert isinstance(result["ceat_score"], float)
-        assert not np.isnan(result["ceat_score"])
-
-    def test_with_large_data(self):
-        """Test CEAT with large dataset."""
-        ceat = CEAT()
-
-        # 100+ embeddings per group
-        target1 = np.random.randn(100, 768)
-        target2 = np.random.randn(100, 768)
-        attr1 = np.random.randn(80, 768)
-        attr2 = np.random.randn(80, 768)
-
-        result = ceat.evaluate(
-            (target1, target2),
-            (attr1, attr2),
-            n_samples=100,
-            sample_size=20,
-            random_seed=42,
-        )
-
-        assert isinstance(result["ceat_score"], float)
-
-    def test_reproducibility_with_seed(self):
-        """Test same seed produces identical results."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        result1 = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        result2 = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        # All values should be exactly equal
-        assert result1["ceat_score"] == result2["ceat_score"]
-        assert result1["weat_mean"] == result2["weat_mean"]
-        assert result1["weat_std"] == result2["weat_std"]
-        assert result1["weat_variance"] == result2["weat_variance"]
-
-    def test_different_seeds_different_results(self):
-        """Test different seeds produce different results."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        result1 = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        result2 = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=123
-        )
-
-        # Results should differ (random sampling)
-        assert result1["ceat_score"] != result2["ceat_score"]
-
-    def test_random_seed_does_not_mutate_global_rng(self):
-        """CEAT should use a local RNG instead of mutating NumPy's global state."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(20, 50)
-        target2 = np.random.randn(20, 50)
-        attr1 = np.random.randn(20, 50)
-        attr2 = np.random.randn(20, 50)
-
-        np.random.seed(123)
-        expected_next = np.random.RandomState(123).rand()
-        ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=5, sample_size=5, random_seed=42
-        )
-        observed_next = np.random.rand()
-
-        assert observed_next == pytest.approx(expected_next)
-
-    def test_ceat_score_within_reasonable_range(self):
-        """Test CEAT score is within expected range."""
-        ceat = CEAT()
-
-        # Random embeddings should produce moderate scores
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        # For random data, effect sizes typically in [-3, 3]
-        assert -3.0 < result["ceat_score"] < 3.0
-
-    def test_weat_variance_non_negative(self):
-        """Test variance is always non-negative."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        # Statistical property: variance >= 0
-        assert result["weat_variance"] >= 0
-
-    def test_sample_size_parameter(self):
-        """Test custom sample_size is respected."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        # Small sample size should work
-        result = ceat.evaluate(
-            (target1, target2),
-            (attr1, attr2),
-            n_samples=30,
-            sample_size=5,
-            random_seed=42,
-        )
-
-        assert isinstance(result["ceat_score"], float)
-
-    def test_automatic_sample_size_selection(self):
-        """Test sample_size=None uses min(10, smallest_group_size)."""
-        ceat = CEAT()
-
-        # Smallest group has 7 embeddings
-        target1 = np.random.randn(7, 300)
-        target2 = np.random.randn(8, 300)
-        attr1 = np.random.randn(15, 300)
-        attr2 = np.random.randn(20, 300)
-
-        # Should auto-select sample_size = min(10, 7) = 7
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=20, random_seed=42
-        )
-
-        assert isinstance(result["ceat_score"], float)
-
-    def test_insufficient_data_raises_error(self):
-        """Test error when not enough embeddings for sampling."""
-        ceat = CEAT()
-
-        # Only 5 embeddings but sample_size=10
-        target1 = np.random.randn(5, 300)
-        target2 = np.random.randn(5, 300)
-        attr1 = np.random.randn(5, 300)
-        attr2 = np.random.randn(5, 300)
-
-        with pytest.raises(ValueError, match="sample_size"):
-            ceat.evaluate((target1, target2), (attr1, attr2), sample_size=10)
-
-    def test_validates_dimensions(self):
-        """Test dimension mismatch raises error."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 100)
-        target2 = np.random.randn(50, 200)  # Different dimension!
-        attr1 = np.random.randn(40, 100)
-        attr2 = np.random.randn(40, 100)
-
-        with pytest.raises(ValueError, match="dimension"):
-            ceat.evaluate((target1, target2), (attr1, attr2))
-
-    def test_validates_n_samples_positive(self):
-        """Test n_samples must be positive."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        # Zero samples
-        with pytest.raises(ValueError, match="positive"):
-            ceat.evaluate((target1, target2), (attr1, attr2), n_samples=0)
-
-        # Negative samples
-        with pytest.raises(ValueError, match="positive"):
-            ceat.evaluate((target1, target2), (attr1, attr2), n_samples=-1)
-
-    def test_nan_in_embeddings(self):
-        """Test NaN detection."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target1[0, 0] = np.nan
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        with pytest.raises(ValueError, match="NaN"):
-            ceat.evaluate((target1, target2), (attr1, attr2))
-
-    def test_inf_in_embeddings(self):
-        """Test Inf detection."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        target2[0, 0] = np.inf
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        with pytest.raises(ValueError, match="Inf"):
-            ceat.evaluate((target1, target2), (attr1, attr2))
-
-    def test_high_dimensional_embeddings(self):
-        """Test with realistic BERT dimensions (768-dim)."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 768)
-        target2 = np.random.randn(50, 768)
-        attr1 = np.random.randn(40, 768)
-        attr2 = np.random.randn(40, 768)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=50, random_seed=42
-        )
-
-        assert isinstance(result["ceat_score"], float)
-        assert not np.isnan(result["ceat_score"])
-
-    def test_n_samples_equals_one(self):
-        """Test edge case where n_samples=1."""
-        ceat = CEAT()
-
-        target1 = np.random.randn(50, 300)
-        target2 = np.random.randn(50, 300)
-        attr1 = np.random.randn(40, 300)
-        attr2 = np.random.randn(40, 300)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=1, random_seed=42
-        )
-
-        # With n=1, CEAT score should equal the single WEAT score
-        # Variance should be undefined but handled gracefully
-        assert isinstance(result["ceat_score"], float)
-
-    def test_with_torch_tensors(self):
-        """Test CEAT handles PyTorch tensors."""
-        ceat = CEAT()
-
-        target1 = torch.randn(50, 300)
-        target2 = torch.randn(50, 300)
-        attr1 = torch.randn(40, 300)
-        attr2 = torch.randn(40, 300)
-
-        result = ceat.evaluate(
-            (target1, target2), (attr1, attr2), n_samples=30, random_seed=42
-        )
-
-        assert isinstance(result["ceat_score"], float)
-
-    def test_validates_tuple_length(self):
-        """Test tuple validation."""
-        ceat = CEAT()
-
-        target = np.random.randn(50, 300)
-        attr = np.random.randn(40, 300)
-
-        # Wrong number of target groups
-        with pytest.raises(ValueError, match="exactly 2 elements"):
-            ceat.evaluate((target,), (attr, attr))
-
-        # Wrong number of attribute groups
-        with pytest.raises(ValueError, match="exactly 2 elements"):
-            ceat.evaluate((target, target), (attr,))
+from bias_scope.embeddings_based._helpers import _ceat_random_effects, _weat_effect_components
+
+
+def _groups(n_contexts=4, dimension=3):
+    """Distinct, non-degenerate contextual token embeddings per stimulus."""
+    rng = np.random.default_rng(101)
+    return tuple(
+        {f"{prefix}{i}": rng.normal(loc=i, size=(n_contexts, dimension))
+         for i in range(count)}
+        for prefix, count in (("x", 3), ("y", 3), ("a", 2), ("b", 2))
+    )
+
+
+def test_every_stimulus_is_retained_once_per_iteration():
+    x, y, a, b = _groups()
+    result = CEAT().evaluate((x, y), (a, b), n_samples=3, random_seed=9, return_details=True)
+
+    selected = result["sampled_context_indices"]
+    assert set(selected["X"]) == set(x)
+    assert set(selected["Y"]) == set(y)
+    assert set(selected["A"]) == set(a)
+    assert set(selected["B"]) == set(b)
+    assert all(len(indices) == 3 for group in selected.values() for indices in group.values())
+
+
+def test_selection_is_stimulus_aligned_and_uses_replacement_only_when_needed():
+    x, y, a, b = _groups(n_contexts=5)
+    result = CEAT().evaluate((x, y), (a, b), n_samples=5, random_seed=2, return_details=True)
+    selected = result["sampled_context_indices"]
+    assert all(len(set(indices)) == 5 for group in selected.values() for indices in group.values())
+
+    x["x0"] = x["x0"][:2]
+    with_replacement = CEAT().evaluate(
+        (x, y), (a, b), n_samples=5, random_seed=2, return_details=True
+    )
+    assert len(with_replacement["sampled_context_indices"]["X"]["x0"]) == 5
+    assert len(set(with_replacement["sampled_context_indices"]["X"]["x0"])) < 5
+
+
+def test_sample_variance_is_square_of_weat_pooled_sd_not_standardized_variance():
+    x, y, a, b = _groups(n_contexts=1, dimension=4)
+    result = CEAT().evaluate((x, y), (a, b), n_samples=1, return_details=True)
+    matrices = [np.vstack(list(group.values())) for group in (x, y, a, b)]
+    _, _, pooled_sd, effect_size = _weat_effect_components(*matrices)
+    expected_variance = pooled_sd**2
+    old_formula = 2 / len(x) + effect_size**2 / (4 * len(x) - 4)
+    assert result["sample_variances"][0] == pytest.approx(expected_variance)
+    assert expected_variance != pytest.approx(old_formula)
+
+
+def test_random_effects_matches_independent_oracle_and_fixed_effect_limit():
+    effects = np.array([0.2, 1.5, -0.4])
+    variances = np.array([0.4, 0.7, 0.2])
+    actual = _ceat_random_effects(effects, variances)
+    w = 1 / variances
+    fixed = np.sum(w * effects) / np.sum(w)
+    q = np.sum(w * (effects - fixed) ** 2)
+    c = np.sum(w) - np.sum(w**2) / np.sum(w)
+    tau = max(0, (q - 2) / c)
+    v = 1 / (variances + tau)
+    ces = np.sum(v * effects) / np.sum(v)
+    se = math.sqrt(1 / np.sum(v))
+    assert actual["fixed_effect_mean"] == pytest.approx(fixed)
+    assert actual["Q"] == pytest.approx(q)
+    assert actual["between_context_variance"] == pytest.approx(tau)
+    assert actual["effect_size"] == pytest.approx(ces)
+    assert actual["standard_error"] == pytest.approx(se)
+
+    limit = _ceat_random_effects(np.array([1.0, 1.01]), np.array([0.5, 0.5]))
+    assert limit["between_context_variance"] == 0
+    assert limit["effect_size"] == pytest.approx(1.005)
+
+
+def test_sign_symmetry_reproducibility_and_two_sided_p_value():
+    x, y, a, b = _groups(n_contexts=6)
+    original = CEAT().evaluate((x, y), (a, b), n_samples=4, random_seed=7, return_details=True)
+    swapped = CEAT().evaluate((y, x), (a, b), n_samples=4, random_seed=7, return_details=True)
+    attributes_swapped = CEAT().evaluate(
+        (x, y), (b, a), n_samples=4, random_seed=7, return_details=True
+    )
+    again = CEAT().evaluate((x, y), (a, b), n_samples=4, random_seed=7, return_details=True)
+    assert swapped["effect_size"] == pytest.approx(-original["effect_size"])
+    assert swapped["p_value"] == pytest.approx(original["p_value"])
+    assert swapped["sampled_context_indices"]["Y"] == original["sampled_context_indices"]["X"]
+    assert swapped["sampled_context_indices"]["X"] == original["sampled_context_indices"]["Y"]
+    assert attributes_swapped["effect_size"] == pytest.approx(-original["effect_size"])
+    assert attributes_swapped["p_value"] == pytest.approx(original["p_value"])
+    assert attributes_swapped["sampled_context_indices"]["B"] == original["sampled_context_indices"]["A"]
+    assert attributes_swapped["sampled_context_indices"]["A"] == original["sampled_context_indices"]["B"]
+    assert again["sampled_context_indices"] == original["sampled_context_indices"]
+    assert again["sample_effect_sizes"] == original["sample_effect_sizes"]
+    assert 0 <= original["p_value"] <= 1
+
+
+def test_different_seeds_change_contextual_selection_when_contexts_allow_it():
+    x, y, a, b = _groups(n_contexts=6)
+    first = CEAT().evaluate((x, y), (a, b), n_samples=4, random_seed=1, return_details=True)
+    second = CEAT().evaluate((x, y), (a, b), n_samples=4, random_seed=2, return_details=True)
+    assert first["sampled_context_indices"] != second["sampled_context_indices"]
+
+
+@pytest.mark.parametrize(
+    "targets, attributes, message",
+    [
+        (({}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "empty"),
+        (({"x": np.ones((0, 2))}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "zero contextual"),
+        (({"x": np.ones((1, 2))}, {"y": np.ones((1, 3))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "same dimension"),
+        (({"x": np.array([[np.nan, 1]])}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "NaN or Inf"),
+        (({"x": np.array([[np.inf, 1]])}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "NaN or Inf"),
+        (({"x": np.array(1.0)}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), "shape"),
+        (({"x": np.ones((1, 2))}, {"y": np.ones((1, 2))}), ({"a": np.ones((1, 2))}, {"b": np.ones((1, 2))}), None),
+    ],
+)
+def test_malformed_inputs_are_rejected(targets, attributes, message):
+    if message is None:
+        with pytest.raises(ValueError, match="equal numbers"):
+            CEAT().evaluate((targets[0], {"y1": np.ones((1, 2)), "y2": np.ones((1, 2))}), attributes)
+    else:
+        with pytest.raises(ValueError, match=message):
+            CEAT().evaluate(targets, attributes)
+
+
+def test_flat_arrays_raw_strings_and_sample_size_are_rejected():
+    arrays = (np.ones((2, 3)), np.ones((2, 3)))
+    with pytest.raises(ValueError, match="mapping"):
+        CEAT().evaluate(arrays, arrays)
+    with pytest.raises(ValueError, match="mapping"):
+        CEAT().evaluate((["x"], ["y"]), (["a"], ["b"]))
+    x, y, a, b = _groups()
+    with pytest.raises(ValueError, match="sample_size"):
+        CEAT().evaluate((x, y), (a, b), sample_size=2)

@@ -23,8 +23,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, biased_predict)
 
-        assert 0.0 <= score <= 1.0
-        assert score >= 0.5  # Prefers stereotypes (>= allows for ties)
+        assert 0.0 <= score <= 100.0
+        assert score >= 50.0  # Prefers stereotypes (>= allows for ties)
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
@@ -43,8 +43,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, unbiased_predict)
 
-        # Should be approximately 0.5 (no preference)
-        assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
+        # Should be approximately 50 (no preference)
+        assert abs(score - 50.0) <= 60.0  # Allow variance due to randomness
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
@@ -148,8 +148,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, mock_predict)
 
-        # Single pair: score is either 0 or 1
-        assert score in [0.0, 1.0]
+        # Single pair: score is either 0 or 100
+        assert score in [0.0, 100.0]
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
@@ -162,7 +162,7 @@ class TestAUL:
 
         score = aul.evaluate(pairs, mock_predict)
 
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_deterministic_results(self):
         """Test deterministic prediction gives consistent results."""
@@ -195,7 +195,7 @@ class TestAUL:
         score = aul.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_position_based_probabilities(self):
         """Test with position-dependent probabilities."""
@@ -212,7 +212,7 @@ class TestAUL:
         score = aul.evaluate(pairs, position_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_computes_average_not_sum(self):
         """Test that AUL computes average, not sum."""
@@ -246,4 +246,40 @@ class TestAUL:
 
         score = aul.evaluate(pairs, anti_bias_predict)
 
-        assert score < 0.5  # Prefers anti-stereotypes
+        assert score < 50.0  # Prefers anti-stereotypes
+
+    def test_score_scale_and_neutral_fixture(self):
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            if "Women" in sentence:
+                return 0.8
+            if "Girls" in sentence:
+                return 0.2
+            if "Boys" in sentence:
+                return 0.8
+            return 0.5
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Girls", "work"], ["Boys", "work"]),
+        ]
+        assert aul.evaluate(pairs, predict) == 50.0
+
+    def test_return_details_and_run(self):
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        result = aul.evaluate(pairs, lambda sentence, pos: 0.5, return_details=True)
+        assert result["bias_score"] == 0.0
+        assert result["aul_score"] == 0.0
+        run_result = aul.run(pairs, lambda sentence, pos: 0.5, ci="none")
+        assert run_result.score == 0.0
+
+    def test_whitespace_model_name_is_rejected(self):
+        with pytest.raises(ValueError, match="cannot be combined with model_name"):
+            AUL(mode="whitespace", model_name="bert-base-uncased")
+
+    def test_invalid_whitespace_inputs_raise_clear_error(self):
+        aul = AUL(mode="whitespace")
+        with pytest.raises(ValueError, match="token lists"):
+            aul.evaluate([("Women work", "Men work")], lambda sentence, pos: 0.5)
