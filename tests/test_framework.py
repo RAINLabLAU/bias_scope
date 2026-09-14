@@ -2,6 +2,8 @@
 
 Includes the acceptance checks 5.4 lists, each as a named test:
 
+
+
 - the selected metric set equals exactly the metrics whose access ⊆ backend
   access and whose languages ∋ language
 - a second `suite.run()` on the same model makes zero generation calls
