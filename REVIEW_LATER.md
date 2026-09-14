@@ -742,7 +742,7 @@ silently miss metrics in the new family, reporting them as not importable.
 **To revisit:** whenever `bias_scope/suite.py`'s `_metric_classes()` module
 list changes.
 
-## RL-040 · decide · 2026-09-12 · bias_scope_agent / the confirm-before-run gate is structural, not semantic
+## RL-040 · decided · 2026-09-12 (opened) · 2026-09-14 (decided) · bias_scope_agent / the confirm-before-run gate is structural, not semantic
 **Encountered:** the agent must never call `run_suite` before a human has seen
 a `plan_suite` result and approved it. This project's architecture forbids a
 second "reviewer" LLM to double-check the first one's judgment.
@@ -759,9 +759,33 @@ stays with the single agent LLM, per this project's no-second-reviewer design.
 still call `confirm_plan` and then `run_suite` successfully — the gate would
 not catch that. This is an accepted limitation of the single-agent
 architecture, not an oversight.
-**To revisit:** if false-positive confirmations are observed in practice, a
-review would have to weigh a second check against the project's explicit
-no-second-reviewer-LLM constraint.
+
+**Decided (2026-09-14): Option A — stay structural, tighten the prompt.** The
+follow-up plan for this package posed two options: (A) keep the gate purely
+structural and make the system prompt's confirmation language stricter and
+more explicit, or (B) add a deterministic, non-LLM heuristic — log the literal
+text of the confirming turn on the `PlanRecord` and reject confirmation if it
+matches a hedge/question pattern (e.g. contains "?", "maybe", "not sure") —
+as a second, independent signal alongside the LLM's own judgment.
+
+Option A was chosen and implemented: `system_prompt.py`'s confirm_plan rule
+now spells out that only unambiguous affirmation should trigger it, that a
+hedge, a question, a change request, or silence is not confirmation, and that
+this judgment is "the one safeguard the system cannot make for you." Option B
+was not implemented. Reasoning: no live conversation has yet shown the agent
+actually misreading a reply (Item 1 of the follow-up plan, live-conversation
+testing, has not been run at the time of this decision) — adding a denylist
+heuristic now would be defending against a failure mode observed only in
+theory, and a phrase-matching heuristic is itself a coarse, easily-wrong
+signal (e.g. "yes, I think that's right" contains "think" and would be
+wrongly rejected; "no" contains no hedge word and would be wrongly accepted).
+Tightening the prompt is near-zero-cost and makes the existing risk visible
+in the one place capable of actually judging intent, rather than adding a
+second, cruder judge next to it.
+**To revisit:** if a live run (or production use) shows the agent misreading
+an ambiguous or negative reply as confirmation, revisit Option B — specifically
+whether a narrow heuristic (not a second LLM) is worth the false-rejection
+risk it would add for legitimately-worded affirmations.
 
 ## RL-041 · verify · 2026-09-12 · bias_scope / CrowSPairs and AUL cannot be run via .run()
 **Encountered:** while writing bias_scope_agent's integration test
@@ -791,4 +815,111 @@ works, which is why the repo's own existing integration test
 (tests/integration/test_tiny_model_fixtures.py) calls `.evaluate()` directly
 for CrowSPairs rather than `.run()`.
 **To revisit:** when task_f451e5a9 (or equivalent) is picked up.
+
+## RL-042 · verify · 2026-09-14 · bias_scope_agent / OpenAI and Gemini provider adapters untested against real APIs
+**Encountered:** Item 6 of the bias_scope_agent follow-up plan asked for full
+multi-provider support, not just an Anthropic-shaped config field. Built
+`OpenAIProvider` and `GeminiProvider` (`src/bias_scope_agent/providers.py`)
+translating this package's one internal tool representation to each
+provider's own function-calling wire format and back, grounded in each
+provider's publicly documented contract (OpenAI Chat Completions tool
+calling; Gemini function calling via `google-genai`) and verified with
+hand-built fakes matching that documented shape
+(`tests/test_bias_scope_agent/test_providers.py`, 20 tests, all passing,
+including a parametrized scripted conversation proving the confirm-before-run
+gate and tool dispatch behave identically across all three real adapters).
+**Chosen:** ship both, clearly flagged as unverified against the real APIs —
+no `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GOOGLE_API_KEY` was available in this
+session (see RL-038's sibling gap for the Anthropic path, which has the same
+limitation). This is the same category of gap as Item 1's deferred live
+conversation test, just for two more providers.
+**Where:** src/bias_scope_agent/providers.py (`OpenAIProvider`,
+`GeminiProvider`, and their translation helpers `_openai_*`/`_gemini_*`).
+**Risk if wrong:** a real API's actual response shape could differ from what
+these adapters assume in some edge case the hand-built fakes did not cover
+(e.g. multi-part tool-call responses, an SDK version's field renaming). The
+fakes are shaped to match each provider's documented contract as of this
+session, not captured from a live response.
+**To revisit:** the first time someone actually runs
+`BIASSCOPE_AGENT_PROVIDER=openai` or `=gemini` against a real key — treat any
+mismatch found there as higher-priority than a hypothetical one, and add a
+regression test pinned to the real response shape once seen.
+
+## RL-043 · decide · 2026-09-14 · bias_scope_agent / Gemini tool schemas are conservatively stripped, not translated precisely
+**Encountered:** `schemas.py`'s tool definitions use plain JSON Schema
+(`type`, `properties`, `enum`, `default`, etc.) for Anthropic's tool-use
+format. Gemini's function-declaration schema is a stricter subset of
+JSON Schema / OpenAPI and does not accept every keyword Anthropic's dialect
+allows — `default` is the one this package's own schemas actually use
+(`construct_backend`'s `dtype`/`summarize_report`'s `format`) and is known to
+cause issues in Gemini's schema validation.
+**Chosen:** `providers._strip_unsupported_schema_fields` keeps only a
+conservative, known-safe subset (`type`, `properties`, `items`, `required`,
+`enum`, `description`) when building Gemini's tool declarations, dropping
+everything else rather than attempting a precise, complete translation of
+every JSON Schema keyword Gemini might or might not accept. This trades some
+information loss (a `default` value is no longer visible to Gemini, so it may
+ask the user for a value that Anthropic/OpenAI would have inferred) for
+confidence that the schema Gemini receives is at least valid.
+**Where:** src/bias_scope_agent/providers.py `_strip_unsupported_schema_fields`,
+`_GEMINI_SCHEMA_KEYS`.
+**Risk if wrong:** if Gemini's actual accepted keyword set is broader than
+assumed here, this strips more than necessary and Gemini's tool-calling
+behavior is very slightly less informed (not incorrect, just missing a
+default hint) than it could be. If narrower, a real call could still fail
+schema validation on one of the kept keys — untested against the real API
+(see RL-042).
+**To revisit:** alongside RL-042, the first time this is run against a real
+Gemini key.
+
+## RL-044 · verify · 2026-09-14 · bias_scope_agent / model_type classification lookup is a modest, non-exhaustive list
+**Encountered:** `inspect_model`'s architecture-string heuristic
+(`_guess_kind_from_config`) only classifies a model confidently when
+`architectures` names something containing `CausalLM`/`LMHeadModel` or
+`MaskedLM`. A config that only sets `model_type` (no `architectures`, or an
+architecture name that doesn't match those substrings) fell through to
+`confidence="low"` even for extremely common open-weight families like
+Llama or RoBERTa, forcing an avoidable clarifying question every time.
+**Chosen:** added `_CAUSAL_MODEL_TYPES`/`_ENCODER_MODEL_TYPES`, two small,
+hand-picked sets of well-known `model_type` strings (llama, mistral, gpt2,
+… / bert, roberta, deberta, …), consulted as a fallback only when the
+architecture-string check doesn't already have an answer. Deliberately not
+exhaustive — a full mapping of every HF `model_type` to causal/encoder would
+itself need ongoing maintenance as new architectures ship, and getting this
+wrong just means one extra clarifying question, not an incorrect backend
+(the user still confirms `backend_kind` explicitly either way).
+**Where:** src/bias_scope_agent/introspection.py `_CAUSAL_MODEL_TYPES`,
+`_ENCODER_MODEL_TYPES`, `_guess_kind_from_config`.
+**Risk if wrong:** a model_type present in the wrong set would produce a
+*confident* wrong guess rather than a low-confidence one requiring
+confirmation — worth double-checking each entry stays accurate as
+`transformers` evolves (e.g. a `model_type` occasionally gets reused or
+renamed across major versions).
+**To revisit:** if a new popular open-weight family launches with a
+`model_type` not in either set, or if a reported misclassification traces
+back to one of these entries.
+
+## RL-045 · verify · 2026-09-14 · bias_scope_agent / litellm model-string hint uses a bundled, offline registry that can go stale
+**Encountered:** `inspect_model` now checks a plain identifier like
+"gpt-4o-mini" against `litellm.model_list` before ever attempting an HF Hub
+lookup, since a litellm-style model string is never a real HF repo id.
+**Chosen:** `_litellm_model_hint` uses `litellm.model_list`, which ships
+bundled with whatever `litellm` version is installed, not fetched live —
+confirmed by testing it directly: `"gpt-4o-mini"` matched exactly, but
+`"claude-3-5-sonnet-20241022"` did not (only prefixed/regional variants like
+`"anthropic.claude-3-5-sonnet-20241022-v2:0"` were present), meaning a
+completely valid, real model string can still miss an exact match and fall
+through to the (usually harmless, just slower) HF Hub attempt. This is
+treated as acceptable: the hint is advisory only — a match raises confidence
+and skips a pointless network call, a near-miss adds a "did you mean" note,
+and a total miss changes nothing about existing behavior. Nothing is ever
+blocked on this check.
+**Where:** src/bias_scope_agent/introspection.py `_litellm_model_hint`.
+**Risk if wrong:** worst case is a missed optimization (one avoidable failed
+HF Hub lookup) — never an incorrect backend, since `construct_backend`'s own
+`kind` argument (chosen by the agent/user, not by this hint) is what actually
+determines behavior.
+**To revisit:** if `litellm`'s bundled list format changes, or if this
+proves unhelpful often enough in practice (e.g. via Item 1's eventual live
+conversation testing) to not be worth the added code path.
 

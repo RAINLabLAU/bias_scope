@@ -31,7 +31,10 @@ CONSTRUCT_BACKEND: Dict[str, Any] = {
     "description": (
         "Build a backend for the user's target model and return an opaque handle. "
         "backend_kind is required when kind='huggingface' and must be 'causal' or "
-        "'encoder' - ask the user if inspect_model was not confident."
+        "'encoder' - ask the user if inspect_model was not confident. Never ask the "
+        "user for an API key here - tell them to export the provider's standard "
+        "environment variable (e.g. OPENAI_API_KEY) before this call; there is no "
+        "api_key argument on purpose."
     ),
     "input_schema": {
         "type": "object",
@@ -41,7 +44,6 @@ CONSTRUCT_BACKEND: Dict[str, Any] = {
             "backend_kind": {"type": "string", "enum": ["causal", "encoder"]},
             "dtype": {"type": "string", "enum": ["bf16", "fp32", "fp16"], "default": "bf16"},
             "device": {"type": "string"},
-            "api_key": {"type": "string"},
             "api_base": {"type": "string"},
         },
         "required": ["kind", "model_id"],

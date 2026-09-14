@@ -1,5 +1,5 @@
-"""The tool-calling loop: one agent LLM (Claude via the anthropic SDK),
-dispatching tool calls against a single AgentSession.
+"""The tool-calling loop: one agent LLM (Claude, GPT, or Gemini - see
+providers.py), dispatching tool calls against a single AgentSession.
 
 The confirm-before-run gate (session.py) is enforced here, in
 `_dispatch_one`, before the real `run_suite` is ever invoked - not just
@@ -7,6 +7,12 @@ stated in the system prompt. Tool implementations are looked up on the
 `tools`/`introspection` modules by name at dispatch time (not bound once at
 construction), so a test can patch e.g. `bias_scope_agent.loop.tools.run_suite`
 and prove the real function was never called when the gate rejects a call.
+
+This loop itself never branches on provider: `self.client` is a provider
+adapter (see providers.py) presenting one normalized interface -
+`create(system=, messages=) -> NormalizedResponse` - regardless of which LLM
+is actually behind it, and `self.messages` stays in that same
+provider-agnostic shape between turns.
 """
 
 from __future__ import annotations
@@ -16,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from bias_scope_agent import introspection, tools
 from bias_scope_agent.config import AgentConfig
-from bias_scope_agent.schemas import TOOLS
+from bias_scope_agent.providers import build_provider
 from bias_scope_agent.session import AgentSession, GateError
 from bias_scope_agent.system_prompt import render_system_prompt
 
@@ -33,23 +39,15 @@ class AgentLoop:
     def __init__(self, config: AgentConfig, session: AgentSession, client: Optional[Any] = None):
         self.config = config
         self.session = session
-        if client is None:
-            import anthropic
-
-            client = anthropic.Anthropic()
-        self.client = client
+        self.client = client if client is not None else build_provider(config)
         self.messages: List[Dict[str, Any]] = []
 
     def run_turn(self, user_text: str, *, max_tool_rounds: int = 8) -> str:
         self.session.advance_turn()
         self.messages.append({"role": "user", "content": user_text})
         for _ in range(max_tool_rounds):
-            response = self.client.messages.create(
-                model=self.config.model,
-                max_tokens=self.config.max_tokens,
-                system=render_system_prompt(self.session),
-                messages=self.messages,
-                tools=TOOLS,
+            response = self.client.create(
+                system=render_system_prompt(self.session), messages=self.messages
             )
             self.messages.append({"role": "assistant", "content": response.content})
             if response.stop_reason != "tool_use":
@@ -79,13 +77,19 @@ class AgentLoop:
             try:
                 output = self._dispatch_one(block)
                 results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(output)}
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "name": block.name,
+                        "content": json.dumps(output),
+                    }
                 )
             except _CAUGHT_TOOL_ERRORS as exc:
                 results.append(
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
+                        "name": block.name,
                         "content": str(exc),
                         "is_error": True,
                     }

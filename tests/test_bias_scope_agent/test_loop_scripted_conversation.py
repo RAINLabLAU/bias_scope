@@ -34,18 +34,26 @@ class FakeResponse:
 
 
 class FakeMessages:
+    """Records calls in the shape older assertions expect (client.messages.calls
+    with "system"/"messages" keys), while FakeClient.create is the actual
+    entry point AgentLoop calls - matching the provider-agnostic interface
+    every real Provider adapter implements (see providers.py)."""
+
     def __init__(self, responses: List[FakeResponse]):
         self._responses = list(responses)
         self.calls: List[Dict[str, Any]] = []
 
-    def create(self, **kwargs):
-        self.calls.append(kwargs)
+    def create(self, *, system, messages):
+        self.calls.append({"system": system, "messages": messages})
         return self._responses.pop(0)
 
 
 class FakeClient:
     def __init__(self, responses: List[FakeResponse]):
         self.messages = FakeMessages(responses)
+
+    def create(self, *, system, messages):
+        return self.messages.create(system=system, messages=messages)
 
 
 def text_block(text: str) -> FakeToolUseBlock:
@@ -293,3 +301,90 @@ class TestGateActuallyBlocksExecution:
         ]
         run_suite_results = [r for r in tool_results if r.get("is_error")]
         assert run_suite_results
+
+
+class TestRecordedFactsReachLaterTurns:
+    """Item 5 of the follow-up plan: verify the memory mechanism actually
+    plumbs through AgentLoop, not just that render_system_prompt() works in
+    isolation (already covered in test_schemas_and_prompt.py).
+
+    What this scripted test can and cannot prove: because the client here is
+    a canned response queue rather than a real LLM, it cannot demonstrate
+    that a *real* Claude would actually refrain from re-asking a question it
+    has already been answered - that requires a live conversation (Item 1).
+    What it *can* prove, mechanically: once record_fact has been called, the
+    fact is present in the `system` prompt string handed to
+    `client.messages.create` on every subsequent turn - i.e. the plumbing
+    this behavior depends on is wired correctly end to end through the real
+    AgentLoop, not just through the standalone render_system_prompt().
+    """
+
+    def test_fact_recorded_in_turn_two_is_present_in_turn_threes_system_prompt(self):
+        client = FakeClient(
+            [
+                # Turn 1: inspect_model comes back low-confidence (identifier
+                # is bogus; live=False keeps this deterministic, no network),
+                # so the agent asks the user directly instead of guessing.
+                FakeResponse(
+                    content=[
+                        tool_use(
+                            "inspect_model",
+                            {"identifier": "some-ambiguous-model", "live": False},
+                            "call-1",
+                        )
+                    ],
+                    stop_reason="tool_use",
+                ),
+                FakeResponse(
+                    content=[text_block("Is this a causal or an encoder model?")],
+                    stop_reason="end_turn",
+                ),
+                # Turn 2: user answers; agent records the fact.
+                FakeResponse(
+                    content=[
+                        tool_use(
+                            "record_fact",
+                            {"key": "model_kind", "value": "causal"},
+                            "call-2",
+                        )
+                    ],
+                    stop_reason="tool_use",
+                ),
+                FakeResponse(
+                    content=[text_block("Got it, thanks.")],
+                    stop_reason="end_turn",
+                ),
+                # Turn 3: a well-behaved script does not re-ask or re-inspect -
+                # this file cannot prove a *real* LLM would do the same, only
+                # that the fact was available to it in the system prompt.
+                FakeResponse(
+                    content=[text_block("Sure, what would you like to do next?")],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
+        loop = AgentLoop(AgentConfig(), AgentSession(), client=client)
+
+        loop.run_turn("I have a model called some-ambiguous-model.")
+        loop.run_turn("it's causal")
+        loop.run_turn("okay, what metrics can I run on it?")
+
+        third_turn_system_prompt = client.messages.calls[-1]["system"]
+        assert "model_kind" in third_turn_system_prompt
+        assert "causal" in third_turn_system_prompt
+
+    def test_fact_is_absent_from_the_very_first_turns_system_prompt(self):
+        # Sanity check for the assertion above: the fact must not simply be
+        # present in every prompt regardless of whether record_fact ran.
+        client = FakeClient(
+            [
+                FakeResponse(
+                    content=[text_block("Hi, tell me about your model.")],
+                    stop_reason="end_turn",
+                )
+            ]
+        )
+        loop = AgentLoop(AgentConfig(), AgentSession(), client=client)
+        loop.run_turn("hello")
+        first_turn_system_prompt = client.messages.calls[0]["system"]
+        assert "model_kind" not in first_turn_system_prompt

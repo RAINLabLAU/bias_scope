@@ -38,3 +38,35 @@ class TestLoadConfig:
     def test_no_api_key_field_exists(self):
         config = load_config(env={})
         assert not hasattr(config, "api_key")
+
+    def test_default_provider_is_anthropic(self):
+        config = load_config(env={})
+        assert config.provider == "anthropic"
+
+    @pytest.mark.parametrize(
+        "provider,expected_model",
+        [
+            ("openai", "gpt-4o-mini"),
+            ("gemini", "gemini-2.0-flash"),
+            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("local", "llama3.1"),
+        ],
+    )
+    def test_provider_gets_its_own_default_model(self, provider, expected_model):
+        config = load_config(env={"BIASSCOPE_AGENT_PROVIDER": provider})
+        assert config.provider == provider
+        assert config.model == expected_model
+
+    def test_explicit_model_overrides_the_providers_default(self):
+        config = load_config(
+            env={"BIASSCOPE_AGENT_PROVIDER": "openai", "BIASSCOPE_AGENT_MODEL": "gpt-4o"}
+        )
+        assert config.model == "gpt-4o"
+
+    def test_provider_is_case_insensitive(self):
+        config = load_config(env={"BIASSCOPE_AGENT_PROVIDER": "OpenAI"})
+        assert config.provider == "openai"
+
+    def test_unknown_provider_raises_value_error(self):
+        with pytest.raises(ValueError, match="BIASSCOPE_AGENT_PROVIDER"):
+            load_config(env={"BIASSCOPE_AGENT_PROVIDER": "not-a-real-provider"})

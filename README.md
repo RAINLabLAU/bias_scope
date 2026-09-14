@@ -46,7 +46,8 @@ What each extra includes:
 - `embeddings`: `sentence-transformers` for the built-in embedding helper used by embedding-based convenience paths
 - `datasets`: `datasets` for prompt-based benchmark loaders
 - `llm`: `litellm` for prompt-based model calls
-- `agent`: `anthropic`, `huggingface_hub` for the optional `bias_scope_agent` conversational agent (see [Agent](#agent-optional) below)
+- `agent`: `anthropic`, `huggingface_hub` for the optional `bias_scope_agent` conversational agent (see [Agent](#agent-optional) below) - Claude is the default agent LLM
+- `agent-openai` / `agent-gemini`: `openai` / `google-genai`, for using GPT or Gemini as the agent LLM instead of Claude - `agent-openai` is also reused for a **local** agent LLM (any OpenAI-compatible server: Ollama, llama.cpp, LM Studio, vLLM)
 - `all`: everything above
 
 Install from source:
@@ -215,17 +216,49 @@ The repository includes runnable examples for each metric family:
 ## Agent (optional)
 
 `bias_scope_agent` is a thin, separate package that wraps BiasScope in a
-conversational agent: a single Claude LLM, in a tool-calling loop, that talks
-to you about your model, recommends which metrics can legally run against it,
-shows you the plan, and only executes it once you have explicitly confirmed —
-never inventing input data, never running a metric on a plan you have not
-seen.
+conversational agent: a single LLM, in a tool-calling loop, that talks to you
+about your model, recommends which metrics can legally run against it, shows
+you the plan, and only executes it once you have explicitly confirmed — never
+inventing input data, never running a metric on a plan you have not seen.
 
 ```bash
 pip install "bias-scope[agent]"
 export ANTHROPIC_API_KEY=sk-...
 python -m bias_scope_agent
 ```
+
+By default the agent LLM is Claude. `openai` and `gemini` are also supported
+via `BIASSCOPE_AGENT_PROVIDER`:
+
+```bash
+pip install "bias-scope[agent-openai]"   # or [agent-gemini]
+export BIASSCOPE_AGENT_PROVIDER=openai   # or gemini
+export OPENAI_API_KEY=sk-...             # or GOOGLE_API_KEY for gemini
+python -m bias_scope_agent
+```
+
+If the relevant API key is missing, `python -m bias_scope_agent` fails
+immediately with a message naming the exact environment variable to set,
+rather than a traceback from deep inside the SDK.
+
+The agent LLM can also be a **local** model — anything served behind an
+OpenAI-compatible endpoint (Ollama, llama.cpp's server, LM Studio, vLLM):
+
+```bash
+pip install "bias-scope[agent-openai]"   # reused as a generic OpenAI-compatible client
+export BIASSCOPE_AGENT_PROVIDER=local
+export BIASSCOPE_AGENT_MODEL=llama3.1              # whatever you've pulled
+export BIASSCOPE_AGENT_LOCAL_BASE_URL=http://localhost:11434/v1   # defaults to this (Ollama)
+python -m bias_scope_agent
+```
+
+No API key needed — `local` defaults to a placeholder most local servers
+ignore. Override it with `BIASSCOPE_AGENT_LOCAL_API_KEY` if yours checks one.
+
+The same rule applies to the model being *tested*, not just the agent's own
+brain: if it is an API-based model (via `litellm`), the agent never asks you
+to paste that model's API key into chat - export the provider's standard
+variable yourself (e.g. `OPENAI_API_KEY`) and just name the model.
 
 It never modifies `bias_scope` itself and contains no metric-selection logic
 of its own — every recommendation comes from `recommend_metrics()`, every run

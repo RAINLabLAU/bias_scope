@@ -1019,3 +1019,189 @@ until a message is actually sent.
   `bias_scope` defect, flagged but not fixed.
 - Phases 3, 5, 7, 8 of the main v0.2 plan remain untouched, as before this
   session — this work was additive (a new package) and did not advance them.
+
+## 2026-09-14 · `bias_scope_agent` follow-up — packaging fix, gate decision, memory verification, multi-provider support
+
+Follow-up session closing the 6 gaps identified in review of the first pass
+(2026-09-12 entry above). Committed and pushed the first pass to
+`agent-implementation` (`git push -u origin agent-implementation`) before
+starting; `main` untouched throughout.
+
+**Item 1 (live conversation) — deferred, by request.** No `ANTHROPIC_API_KEY`
+was available in this session; the live-conversation integration test was
+not added. Left for whoever has a key; PLAN.md §14 tracks it as open.
+
+**Item 3 (packaging) — verified in a genuine clean venv, one real bug found
+and fixed.** `pip install -e ".[agent]"` in a fresh virtualenv installs
+`anthropic`+`huggingface_hub` correctly. But running `python -m
+bias_scope_agent` with no `ANTHROPIC_API_KEY` set and sending one real
+message reproduced exactly the failure mode the follow-up plan worried about:
+a bare `TypeError` raised ~15 frames deep inside the `anthropic` SDK's
+`_base_client.py`, surfacing only on the *first turn*, never naming
+`ANTHROPIC_API_KEY`. Fixed: `_build_default_client` (moved into
+`providers.py` during Item 6, see below) now checks for the key — and
+separately, whether the SDK package is even installed — before constructing
+anything, raising an immediate `RuntimeError` that names the missing
+variable and the exact `export` command to fix it. Reverified live in the
+same clean venv: the failure now surfaces at `AgentLoop.__init__`, before the
+REPL banner even prints. 4 new tests (`test_loop_default_client.py`).
+
+**Item 4 (RL-040) — decided: Option A.** `system_prompt.py`'s confirm_plan
+rule now explicitly requires unambiguous affirmation and names hedges,
+questions, and silence as *not* confirmation — the one safeguard the
+structural gate cannot provide on its own. Option B (a deterministic
+hedge-phrase denylist logged alongside the `PlanRecord`) was considered and
+rejected for now: no live run has shown the agent actually misreading a
+reply, and a phrase heuristic is itself easy to get wrong in both directions
+(see `REVIEW_LATER.md` RL-040's updated entry for the full reasoning). 1 new
+test asserting the tightened language is actually present in the rendered
+prompt.
+
+**Item 5 (memory) — verified through the real loop, not just the renderer.**
+A new three-turn scripted test
+(`test_loop_scripted_conversation.py::TestRecordedFactsReachLaterTurns`)
+proves a fact recorded via `record_fact` in turn 2 is present in the actual
+`system` string `AgentLoop.client.create()` receives on turn 3 — exercising
+the real plumbing end to end, not `render_system_prompt()` called in
+isolation (already covered separately). Documented explicitly, in the test's
+own docstring, what a scripted fake-client test can and cannot prove here: it
+cannot show a *real* LLM would actually stop re-asking a question; only a
+live run (Item 1) can. 2 new tests.
+
+**Item 6 (multi-provider) — built, scope confirmed as full support.** Added
+`src/bias_scope_agent/providers.py`: `AgentConfig.provider`
+(`BIASSCOPE_AGENT_PROVIDER`, default `anthropic`, each provider gets its own
+sensible default model string) plus one adapter class per provider
+(`AnthropicProvider`, `OpenAIProvider`, `GeminiProvider`), each translating
+`schemas.TOOLS` to that provider's own function-calling wire format and
+normalizing its response back into a shared `NormalizedResponse`
+(`{content: [NormalizedBlock...], stop_reason}`). `loop.py` was refactored
+to call only `self.client.create(system=, messages=)` — it no longer
+branches on provider or knows anything Anthropic-specific; `AgentSession`'s
+transcript is kept in the same provider-agnostic normalized shape between
+turns regardless of which provider is active. Real translation-level
+correctness matters most for Gemini, whose protocol correlates tool results
+by *name* rather than *id* — `_dispatch_tools` (`loop.py`) now attaches a
+`name` field to every tool-result dict for exactly this reason, harmless to
+the other two providers which correlate by id and ignore it. Gemini's
+schema dialect also does not accept every JSON-Schema keyword this package's
+own `schemas.py` uses (`default`, on two properties) — `providers.py` strips
+to a conservative, known-safe keyword subset when building Gemini's tool
+declarations (`REVIEW_LATER.md` RL-043).
+
+New extras: `agent-openai` (`openai>=1.0.0`), `agent-gemini`
+(`google-genai>=0.3.0`) — deliberately *not* folded into the base `agent`
+extra, so a Claude-only install stays at two dependencies; both folded into
+`all`. Reasoning for not routing the agent LLM through litellm despite it
+already being a dependency (`bias_scope`'s target-model backends,
+`bias_scope_agent.introspection`'s API-endpoint probing) is in
+`DECISIONS.md`'s 2026-09-14 entry.
+
+34 new tests: 4 (default-client error messages) + 1 (system-prompt wording)
++ 2 (memory plumbing) + 7 (config provider field/env var) + 20
+(`test_providers.py`: per-provider translation unit tests, plus a
+parametrized scripted conversation proving the confirm-before-run gate and
+tool dispatch behave identically across all three real adapters). Verified
+in a clean venv that `pip install -e ".[agent,agent-openai,agent-gemini]"`
+installs `anthropic`, `huggingface_hub`, `openai`, and `google-genai`
+correctly and all four import cleanly.
+
+**Not done, flagged instead of silently skipped:** the `openai`/`gemini`
+adapters have not been run against real APIs in this session (no key
+available for either) — `REVIEW_LATER.md` RL-042/RL-043 log this explicitly,
+alongside Item 1's same gap for Anthropic. Item 2 (BBQMetric registry
+mismatch mentioned in the original follow-up plan) was explicitly out of
+scope and not touched.
+
+### Verification
+
+```
+ruff check src tests                                                clean
+pytest -q --cov=bias_scope --cov=bias_scope_agent
+  1904 passed, 2 skipped, 5 deselected, 2 xfailed, 89%   (was 1870, 89%)
+```
+
+`bias_scope_agent` module coverage: `session.py`/`registry.py`/`schemas.py`/
+`system_prompt.py`/`cli.py`/`__init__.py` 100%; `config.py` 98%; `loop.py`
+96%; `tools.py` 96%; `providers.py` 92%; `introspection.py` 89%;
+`__main__.py` 0% (unexercised 3-line guard, as expected under pytest).
+`bias_scope_agent` test count: 117 (was 83).
+
+### What remains
+
+- Item 1: no live-Anthropic-API conversation test in this session (by
+  request, no key available) — `test_bias_scope_agent_live_conversation.py`
+  was not created.
+- RL-042/RL-043: the `openai`/`gemini` provider adapters are unit-tested
+  against hand-built fakes matching each provider's documented API contract,
+  not yet run against the real APIs.
+- RL-041 (`CrowSPairs`/`AUL` unusable via `.run()`), from the first pass,
+  remains a pre-existing `bias_scope` defect, still not fixed (out of scope).
+- Phases 3, 5, 7, 8 of the main v0.2 plan remain untouched, as before.
+
+## 2026-09-14 (later) · `bias_scope_agent` — a fourth agent-LLM provider and target-model UX fixes
+
+Two more requests handled in the same follow-up thread, after the multi-
+provider work above landed.
+
+**A `local` agent-LLM provider.** `LocalProvider` (`providers.py`) subclasses
+`OpenAIProvider`, overriding only client construction (`base_url` defaulting
+to Ollama's endpoint, a placeholder API key most local servers ignore) —
+inherits `create()` unchanged, since Ollama/llama.cpp/LM Studio/vLLM all
+converged on the same OpenAI-compatible wire format. No new dependency;
+`_PROVIDERS` and `_DEFAULT_MODELS` both gained a `"local"` entry. 6 new tests.
+
+**Target-model UX, prompted by a direct review of the friction involved.**
+Walking through what a user actually has to know/do to specify a target
+model surfaced three real gaps, all fixed:
+
+1. `inspect_model` previously had no way to recognize an API-style model
+   string ("gpt-4o-mini") at all — it would just fail an HF Hub lookup for
+   it and return an unhelpful low-confidence guess. It now checks litellm's
+   bundled, offline model registry first (`_litellm_model_hint`): an exact
+   match skips the HF Hub attempt entirely (`guessed_source=
+   "litellm_model_id"`, confidence high), and a near-miss (a typo) adds a
+   "did you mean" note. Confirmed empirically that this registry can still
+   miss valid real strings (`"claude-3-5-sonnet-20241022"` isn't in it,
+   only provider-prefixed variants are) — logged as RL-045 rather than
+   treated as exhaustive; the check is advisory only, never blocking.
+2. `inspect_model` silently returned low-confidence, no explanation, for any
+   encoder-decoder/seq2seq model (T5, BART, ...) — which
+   `HuggingFaceBackend` cannot represent at all (`kind` is only "causal" or
+   "encoder"). It now names this explicitly in `notes` rather than leaving
+   it an unexplained guess.
+3. `inspect_model`'s causal/encoder classification only trusted an exact
+   `architectures` string match, missing common open-weight families like
+   Llama or RoBERTa whenever a config only set `model_type`. Added a small,
+   deliberately non-exhaustive `model_type` fallback lookup (RL-044).
+4. **The bigger one:** `construct_backend`'s LLM-facing schema no longer
+   has an `api_key` property at all — the target model's own API key can
+   now never become a tool-call argument, which means it can never enter
+   `self.messages` (the transcript also sent to the *agent* LLM as context
+   on every turn). This works for free: `LiteLLMBackend.generate()` already
+   passes `api_key=self.api_key` straight to `litellm.completion()`, which
+   falls back to the provider's standard env var when `api_key` is `None` -
+   confirmed by reading `backends.py` directly before relying on it.
+   `system_prompt.py` now states this rule explicitly. Same "structural, not
+   prompted" pattern as the confirm-before-run gate (RL-040) - not a
+   coincidence, a deliberate reuse of that design.
+
+11 new tests (9 introspection, 2 schema/prompt).
+
+### Verification
+
+```
+ruff check src tests                                              clean
+pytest -q tests/test_bias_scope_agent/ tests/integration/test_bias_scope_agent_tiny_model.py
+  134 passed   (was 117 before this entry)
+```
+
+### What remains
+
+- Same live-testing gaps as before (RL-042, and now also the `local`
+  provider — no Ollama/llama.cpp instance was available to verify against).
+- The `model_type` lookup (RL-044) and litellm hint (RL-045) are both
+  deliberately non-exhaustive; revisit if a misclassification or a missed
+  match is ever actually reported.
+- Still not committed/pushed — held per instruction, same as the rest of
+  this session's work.
