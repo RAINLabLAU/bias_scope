@@ -209,6 +209,106 @@ class HuggingFaceChatGenerator:
         return {"model_id": self.model_id, "model_revision": self._resolved_model_revision or self.revision, "tokenizer_id": self.tokenizer_id, "tokenizer_revision": self._resolved_tokenizer_revision or self.tokenizer_revision, "dtype": self.dtype, "device_map": self.device_map, "device": self.device_map, "cuda_available": None, "cuda_version": None, "quantization": self.quantization}
 
 
+class HuggingFaceCausalGenerator:
+    """Lazy raw-causal local generation for paper-reproduction runners.
+
+    Unlike :class:`HuggingFaceChatGenerator`, this class never applies a chat
+    template.  It is deliberately a small protocol-neutral primitive: callers
+    own exact prompt text, sampling settings, and any paper-specific seeding.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        *,
+        tokenizer_id: Optional[str] = None,
+        revision: Optional[str] = None,
+        tokenizer_revision: Optional[str] = None,
+        dtype: str = "fp32",
+        device: Optional[str] = None,
+    ):
+        self.model_id, self.tokenizer_id = model_id, tokenizer_id or model_id
+        self.revision, self.tokenizer_revision = revision, tokenizer_revision or revision
+        self.dtype, self.device = dtype, device
+        self._model = self._tokenizer = None
+        self._resolved_model_revision = self._resolved_tokenizer_revision = None
+        self._cuda_available = self._cuda_version = None
+
+    def _load(self):
+        if self._model is not None:
+            return self._tokenizer, self._model
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover - optional runtime
+            raise ImportError(
+                "HuggingFaceCausalGenerator requires torch and transformers; "
+                "install bias-scope[torch]."
+            ) from exc
+        torch_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}.get(self.dtype)
+        if torch_dtype is None:
+            raise ValueError("dtype must be fp16, bf16, or fp32")
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self.tokenizer_id, revision=self.tokenizer_revision
+        )
+        if self._tokenizer.pad_token_id is None:
+            if self._tokenizer.eos_token_id is None:
+                raise ValueError("raw causal generation requires an EOS or pad token")
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+        self._model = AutoModelForCausalLM.from_pretrained(
+            self.model_id, revision=self.revision, torch_dtype=torch_dtype
+        )
+        self._model.eval()
+        if self.device:
+            self._model.to(self.device)
+        self._resolved_model_revision = getattr(self._model.config, "_commit_hash", None)
+        self._resolved_tokenizer_revision = self._tokenizer.init_kwargs.get("_commit_hash")
+        self._cuda_available = torch.cuda.is_available()
+        self._cuda_version = torch.version.cuda
+        return self._tokenizer, self._model
+
+    def generate(self, prompt: str, **generation: Any) -> str:
+        """Generate continuation text, excluding the directly tokenized prompt."""
+        return self.generate_batch([prompt], **generation)[0]
+
+    def generate_batch(self, prompts: Sequence[str], **generation: Any) -> List[str]:
+        """Generate one raw continuation for each prompt in a causal batch."""
+        if not prompts or any(not isinstance(prompt, str) for prompt in prompts):
+            raise ValueError("raw causal prompts must be a non-empty sequence of strings")
+        try:
+            import torch
+        except ImportError as exc:  # pragma: no cover - optional runtime
+            raise ImportError("HuggingFaceCausalGenerator requires torch.") from exc
+        tokenizer, model = self._load()
+        encoded = tokenizer(list(prompts), return_tensors="pt", padding=True)
+        target_device = getattr(model, "device", None)
+        if target_device is not None:
+            encoded = encoded.to(target_device)
+        settings = dict(generation)
+        settings.setdefault("pad_token_id", tokenizer.pad_token_id)
+        settings.setdefault("eos_token_id", tokenizer.eos_token_id)
+        with torch.no_grad():
+            output = model.generate(**encoded, **settings)
+        prompt_width = encoded["input_ids"].shape[1]
+        return [
+            tokenizer.decode(sequence[prompt_width:], skip_special_tokens=True)
+            for sequence in output
+        ]
+
+    def protocol_fields(self) -> Dict[str, Any]:
+        return {
+            "model_id": self.model_id,
+            "model_revision": self._resolved_model_revision or self.revision,
+            "tokenizer_id": self.tokenizer_id,
+            "tokenizer_revision": self._resolved_tokenizer_revision or self.tokenizer_revision,
+            "dtype": self.dtype,
+            "device": self.device,
+            "cuda_available": self._cuda_available,
+            "cuda_version": self._cuda_version,
+            "pad_token": "eos" if self._tokenizer is None or self._tokenizer.pad_token_id == getattr(self._tokenizer, "eos_token_id", None) else "explicit",
+        }
+
+
 class LiteLLMBackend(Backend):
     """
     Chat APIs through LiteLLM.
@@ -383,6 +483,7 @@ __all__ = [
     "Backend",
     "HuggingFaceBackend",
     "HuggingFaceChatGenerator",
+    "HuggingFaceCausalGenerator",
     "LiteLLMBackend",
     "StubBackend",
     "load_model",

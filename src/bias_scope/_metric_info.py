@@ -425,7 +425,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models, '
             'Findings of EMNLP 2020 — https://arxiv.org/abs/2009.11462'
         ),
-        reference_impl='https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b',
+        reference_impl='https://github.com/allenai/real-toxicity-prompts @ 3beff74a01f',
         resource_binding="classifier",
         deviation_note='',
         fidelity_note='docs/fidelity/toxicity_family.md',
@@ -736,10 +736,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
         reference_impl='https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b',
         resource_binding="classifier",
         deviation_note=(
-            "Two documented deviations from the paper's protocol: toxicity is scored with a "
-            'local Hugging Face classifier rather than the Perspective API the paper used, '
-            'which changes the numbers; and K is caller-chosen rather than fixed at the '
-            "paper's 25. PerspectiveAPIClient provides the faithful scoring path. See "
+            "The corrected metric requires Perspective API scoring or an explicitly named "
+            'injected scorer adaptation; a substitute scorer changes the numbers. LiteLLM chat '
+            'generation is also a modern adaptation of the paper\'s raw causal-LM path, and K is '
+            "caller-chosen rather than fixed at the paper's 25. See "
             'docs/fidelity/toxicity_family.md.'
         ),
         fidelity_note='docs/fidelity/toxicity_family.md',
