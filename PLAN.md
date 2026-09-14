@@ -760,6 +760,32 @@ report (compare to a stored PNG hash or to the drawn data, not pixels).
 
 ---
 
+## 14. Phase 9 — `bias_scope_agent`: an LLM tool-calling agent over `bias_scope`
+
+A thin, separate top-level package (`src/bias_scope_agent/`) that adds a
+single agent LLM (Claude, via the `anthropic` SDK) in a tool-calling loop,
+driving `bias_scope`'s existing `recommend_metrics`, `explain_exclusions`,
+`BiasSuite.plan()`/`.run()`, and `Report` rendering. `src/bias_scope/` is not
+modified by this phase — it adds a consumer of the library, not a change to
+it.
+
+**Section 4.0's mandatory source-retrieval gate does not apply to this
+phase.** No new bias metric is added or touched here — this is agent/harness
+code wrapping the existing, already-audited library. Do not go looking for a
+paper or authors' code to cite for tool-wrapper functions.
+
+- [x] Phase 0 — scaffolding: `src/bias_scope_agent/` package, `AgentConfig`/`load_config` (env-var config; no agent-specific API key — the `anthropic` SDK already reads `ANTHROPIC_API_KEY`, see `REVIEW_LATER.md` RL-038).
+- [x] Phase 1 — `HandleRegistry` (opaque UUID handles for backends/reports, so live objects never cross the tool-call boundary) and `introspection.py` (`metrics_needing_data` via `inspect.signature`, since `MetricInfo` has no input-shape field; `inspect_model` best-guess causal/encoder/API-endpoint detection, live by default behind `BIASSCOPE_AGENT_INSPECT_LIVE`).
+- [x] Phase 2 — tool wrappers (`tools.py`): `construct_backend`, `recommend_metrics_tool`, `explain_exclusions_tool`, `plan_suite`, `request_missing_inputs`, `confirm_plan`, `run_suite`, `summarize_report`, `record_fact`. No metric-selection logic added — all of it stays in `bias_scope`.
+- [x] Phase 3 — the confirm-before-run gate (`session.py`, `AgentSession`/`GateError`): a *structural*, application-level guarantee (plan shown, a real turn boundary passed, `confirm_plan` explicitly called) enforced by the tool dispatcher before `run_suite` is ever invoked — not just a prompted instruction. Proven in tests via a spy asserting the real function is never called when the gate rejects a call.
+- [x] Phase 4 — Anthropic tool-use JSON schemas (`schemas.py`) and the system prompt (`system_prompt.py`), rendering `session.facts` each turn so answered clarifications are never re-asked.
+- [x] Phase 5 — `AgentLoop` (`loop.py`): the tool-calling loop, dispatching by name at call time (not bound once at construction) so tests can spy on/patch individual tool functions.
+- [x] Phase 6 — CLI (`cli.py`, `__main__.py`, `bias-scope-agent` console script): a minimal REPL, not the focus of this feature.
+- [x] Phase 7 — tests: `tests/test_bias_scope_agent/` (one file per concern: config, registry, introspection, tools, session gate, schemas/prompt, loop, cli) plus `tests/integration/test_bias_scope_agent_tiny_model.py` (real `HuggingFaceBackend` end to end, using `WEAT` — see `REVIEW_LATER.md` RL-041 for why `CrowSPairs`/`AUL` were not usable here).
+- [x] Phase 8 — this section, `REVIEW_LATER.md` RL-038–RL-041, `PROGRESS.md` entry, `pyproject.toml` (wheel packages, `agent` extra, `[project.scripts]`, coverage source).
+
+---
+
 ## Appendix A — `docs/fidelity/<metric>.md` template
 
 ```markdown

@@ -930,3 +930,92 @@ classifier-bound (`FirstPersonFairness`, `LLMDecisionBias`,
   is Phase 8 work and each needs its evidence, not a plausible pointer.
 - Three documented `adaptation` → `faithful` paths: UnQover masked-LM,
   TruthfulQA MC1/MC2, SocialGroupSubstitution W1.
+
+## 2026-09-12 · Phase 9 — `bias_scope_agent`, a tool-calling agent over the library
+
+New top-level package, `src/bias_scope_agent/`: a single agent LLM (Claude,
+via the `anthropic` SDK) in a tool-calling loop, driving `bias_scope`'s
+existing `recommend_metrics`, `explain_exclusions`, `BiasSuite.plan()`/`.run()`
+and `Report` rendering through thin wrapper functions. `src/bias_scope/`
+itself was not touched — Section 4.0's source-retrieval gate does not apply
+here, since no metric was added or changed (noted explicitly in the new
+PLAN.md §14 so it isn't mistaken for a gap).
+
+Built in dependency order, test-first throughout (`ruff check` and
+`pytest -q --cov=...` after every module): `config.py` (env-var config, no
+agent-specific API key — the `anthropic` SDK already reads `ANTHROPIC_API_KEY`,
+RL-038) → `registry.py` (`HandleRegistry`, opaque UUID handles so backends and
+reports never cross the tool-call boundary) → `introspection.py`
+(`metrics_needing_data` via `inspect.signature`, since `MetricInfo` has no
+input-shape field — confirmed by reading the class in full; `inspect_model`
+best-guess model inspection, live by default behind
+`BIASSCOPE_AGENT_INSPECT_LIVE`) → `tools.py` (the ten tool wrappers:
+`construct_backend`, `recommend_metrics_tool`, `explain_exclusions_tool`,
+`plan_suite`, `request_missing_inputs`, `confirm_plan`, `run_suite`,
+`summarize_report`, `record_fact`, plus `inspect_model`) → `session.py` (the
+confirm-before-run gate: `AgentSession`/`GateError`) → `schemas.py` +
+`system_prompt.py` → `loop.py` (`AgentLoop`) → `cli.py`/`__main__.py`
+(`bias-scope-agent` console script).
+
+**The gate is structural, not semantic** (RL-040): `AgentSession.check_run_gate`
+guarantees a plan was recorded, a real turn boundary passed, and `confirm_plan`
+was explicitly called — enforced by `AgentLoop`'s dispatcher *before* the real
+`run_suite` is ever invoked, not just stated in the system prompt. A scripted-
+conversation test proves this with a spy on `tools.run_suite` that asserts
+zero calls when the script tries to jump the gate, not just that the
+transcript order looks right.
+
+**Metric-input-shape design fork** (RL-039): `MetricInfo` has no field
+describing what `evaluate()` needs, so `metrics_needing_data` introspects
+signatures directly via `inspect.signature`, reimplementing (not importing)
+`bias_scope.suite`'s private `_metric_classes()` — that helper isn't in
+`__all__`, so `bias_scope_agent` keeps its own four-module-name copy rather
+than depending on an internal symbol with no deprecation path.
+
+**Found, not fixed** (RL-041): while writing the integration test,
+`BiasSuite.run()` raised `BiasScopeError` for `CrowSPairs` and `AUL` — both
+return a `"<name>_score"` dict key (`crows_pairs_score`, `aul_score`) that
+`BiasMetric._extract_score`'s accepted-key list (`bias_score`, `score`,
+`value`, `effect_size`) doesn't recognize, so neither metric can currently run
+through `.run()`/`BiasSuite` at all (only `.evaluate()` called directly works
+— which is presumably why `tests/integration/test_tiny_model_fixtures.py`
+already does exactly that). Out of scope for this phase (CLAUDE.md forbids
+touching `src/bias_scope/` here); flagged as a follow-up task instead. The
+integration test uses `WEAT` (raw embedding arrays, per its own docstring
+example) against a real `HuggingFaceBackend` for
+`hf-internal-testing/tiny-random-BertForMaskedLM` instead.
+
+`pyproject.toml`: new `agent` extra (`anthropic`, `huggingface_hub`, folded
+into `all`), `src/bias_scope_agent` added to the wheel `packages` list, new
+`[project.scripts]` entry (`bias-scope-agent`), and `bias_scope_agent` added
+to `[tool.coverage.run] source`.
+
+### Verification
+
+```
+ruff check src tests                                              clean
+pytest -q --cov=bias_scope --cov=bias_scope_agent   1870 passed, 2 skipped, 5 deselected, 2 xfailed, 89%
+```
+
+bias_scope_agent module coverage: `config.py` 97%, `introspection.py` 89%,
+`loop.py` 90%, `tools.py` 96%; `session.py`/`registry.py`/`schemas.py`/
+`system_prompt.py`/`cli.py`/`__init__.py` 100% (only `__main__.py`'s 3-line
+guard is unexercised, as expected under pytest). Overall repo coverage
+88% → **89%**.
+
+Manual smoke tests: `python -m bias_scope_agent` starts, prints its prompt,
+and exits cleanly on `exit`/`quit`/Ctrl-D without any API key; with no
+`ANTHROPIC_API_KEY` set, a real turn correctly fails at the point of the
+actual API call (`anthropic`'s own `TypeError` on missing auth), not before —
+confirming `AgentLoop`'s lazy client construction doesn't require credentials
+until a message is actually sent.
+
+### What remains
+
+- No live-Anthropic-API conversation test was run in this session (needs a
+  real `ANTHROPIC_API_KEY`); the scripted-conversation test covers the tool-
+  calling loop's logic against a fake client instead.
+- RL-041 (`CrowSPairs`/`AUL` unusable via `.run()`) is a pre-existing
+  `bias_scope` defect, flagged but not fixed.
+- Phases 3, 5, 7, 8 of the main v0.2 plan remain untouched, as before this
+  session — this work was additive (a new package) and did not advance them.

@@ -702,3 +702,93 @@ than a silently different number. That is the intended failure mode.
 **To revisit:** nothing outstanding; a test now pins each default to the
 faithful path, and the 50 whitespace-path tests name their mode explicitly.
 
+## RL-038 · decide · 2026-09-12 · bias_scope_agent / no agent-specific API key env var
+**Encountered:** bias_scope_agent (new package, tool-calling agent layer over
+bias_scope) needs an Anthropic API key to run its agent LLM loop. The obvious
+option was a new `BIASSCOPE_AGENT_API_KEY` env var, mirroring the project's
+existing `BIASSCOPE_*` naming convention.
+**Chosen:** no such variable. The `anthropic` Python SDK already reads
+`ANTHROPIC_API_KEY` from the environment when `anthropic.Anthropic()` is
+constructed with no explicit `api_key=`. A second, agent-specific variable
+would create two sources of truth for the same secret with no behavioural
+benefit — whichever is stale wins silently. `AgentLoop` defers entirely to the
+SDK's own env lookup.
+**Where:** src/bias_scope_agent/config.py (`AgentConfig` has no api_key
+field); src/bias_scope_agent/loop.py (`AgentLoop.__init__` constructs
+`anthropic.Anthropic()` with no explicit key).
+**Risk if wrong:** none identified — this only reduces surface area.
+**To revisit:** if a future version needs multiple concurrent agent sessions
+each with a different key, at which point `AgentConfig` would need its own
+field and `AgentLoop` would need to pass it through explicitly.
+
+## RL-039 · verify · 2026-09-12 · bias_scope_agent / reimplements suite.py's private _metric_classes()
+**Encountered:** `bias_scope_agent.introspection.metrics_needing_data` needs
+every importable metric class by name, to introspect `evaluate()`'s required
+parameters via `inspect.signature`. `bias_scope.suite` already has exactly
+this (`_metric_classes()`), but it is private (leading underscore, not in
+`__all__`).
+**Chosen:** `bias_scope_agent.introspection` keeps its own copy of the same
+four family-module names (`_FAMILY_MODULES`) and its own `_agent_metric_classes()`,
+rather than importing `bias_scope.suite._metric_classes` directly. Importing a
+private symbol from another package couples us to its internals with no
+deprecation path; duplicating four literal strings is small, explicit, and
+directly diffable against `suite.py`.
+**Where:** src/bias_scope_agent/introspection.py `_FAMILY_MODULES`,
+`_agent_metric_classes`; compare against src/bias_scope/suite.py
+`_metric_classes`.
+**Risk if wrong:** if `suite.py`'s module list changes (a new metric family
+subpackage added) and this copy is not updated, `metrics_needing_data` will
+silently miss metrics in the new family, reporting them as not importable.
+**To revisit:** whenever `bias_scope/suite.py`'s `_metric_classes()` module
+list changes.
+
+## RL-040 · decide · 2026-09-12 · bias_scope_agent / the confirm-before-run gate is structural, not semantic
+**Encountered:** the agent must never call `run_suite` before a human has seen
+a `plan_suite` result and approved it. This project's architecture forbids a
+second "reviewer" LLM to double-check the first one's judgment.
+**Chosen:** `AgentSession.check_run_gate` enforces a *structural* guarantee
+only — a matching plan was recorded, a real turn boundary passed, and
+`confirm_plan` was explicitly called — checked by `AgentLoop`'s dispatcher
+before the real `run_suite` is ever invoked (proven in tests via a spy that
+asserts zero calls). It cannot and does not judge whether the user's reply
+was actually affirmative ("yes, run it" vs. "no, don't") — that judgment call
+stays with the single agent LLM, per this project's no-second-reviewer design.
+**Where:** src/bias_scope_agent/session.py (`AgentSession.check_run_gate`,
+`confirm_plan`); src/bias_scope_agent/loop.py (`AgentLoop._dispatch_one`).
+**Risk if wrong:** an agent LLM that misreads a "no" as confirmation could
+still call `confirm_plan` and then `run_suite` successfully — the gate would
+not catch that. This is an accepted limitation of the single-agent
+architecture, not an oversight.
+**To revisit:** if false-positive confirmations are observed in practice, a
+review would have to weigh a second check against the project's explicit
+no-second-reviewer-LLM constraint.
+
+## RL-041 · verify · 2026-09-12 · bias_scope / CrowSPairs and AUL cannot be run via .run()
+**Encountered:** while writing bias_scope_agent's integration test
+(tests/integration/test_bias_scope_agent_tiny_model.py), `BiasSuite.run()` for
+`CrowSPairs` (both whitespace and wordpiece modes) and `AUL` raised
+`BiasScopeError: cannot find a headline score in evaluate()'s result`.
+`BiasMetric._extract_score` (base.py) only recognizes dict keys `bias_score`,
+`score`, `value`, `effect_size`, but `CrowSPairs.evaluate(return_details=True)`
+returns `{"crows_pairs_score": ..., "num_pairs": ...}` and `AUL.evaluate(...)`
+returns `{"aul_score": ..., "num_pairs": ...}` — neither key is in the
+accepted list. Reproduced directly (not via a test, since fixing bias_scope
+metric internals is out of scope for the bias_scope_agent feature; CLAUDE.md
+forbids touching src/bias_scope/ for this work).
+**Chosen:** not to fix here. Flagged as a separate follow-up task
+(task_f451e5a9) for someone to investigate whether other probability/generated
+-text metrics share the same `"<name>_score"` pattern and to either widen
+`_extract_score`'s accepted keys or rename the metrics' dict keys.
+bias_scope_agent's own integration test uses `WEAT` instead (unaffected by
+this, and the only embedding metric that accepts raw embedding arrays
+directly without a live model download).
+**Where:** src/bias_scope/base.py `_extract_score`;
+src/bias_scope/probability_based/crows_pairs.py;
+src/bias_scope/probability_based/aul.py.
+**Risk if wrong:** these two (and possibly more) metrics are currently
+unusable through `BiasSuite`/`.run()` — only `.evaluate()` called directly
+works, which is why the repo's own existing integration test
+(tests/integration/test_tiny_model_fixtures.py) calls `.evaluate()` directly
+for CrowSPairs rather than `.run()`.
+**To revisit:** when task_f451e5a9 (or equivalent) is picked up.
+

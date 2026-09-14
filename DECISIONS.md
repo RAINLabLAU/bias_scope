@@ -70,3 +70,41 @@ rest on nothing a reader could re-run.
 **Same pattern as** the existing scipy usage: a dev-only oracle for a formula
 the library implements itself.
 
+## 2026-09-12 · `anthropic` and `huggingface_hub` in a new `agent` extra
+
+**Decision.** `anthropic>=0.40.0` and `huggingface_hub>=0.24.0` are added to a
+new `[project.optional-dependencies] agent` extra (folded into `all`, like
+every other extra). `src/bias_scope/` still depends on nothing but `numpy` and
+`requests` — this extra is consumed only by the new `src/bias_scope_agent/`
+package.
+
+**Why.** `bias_scope_agent` is a single-LLM tool-calling agent (the `anthropic`
+SDK drives its tool-use loop) that can optionally live-inspect a target model
+identifier by fetching `config.json` from the Hugging Face Hub
+(`huggingface_hub.hf_hub_download`, behind the `BIASSCOPE_AGENT_INSPECT_LIVE`
+flag). Both imports are deferred to inside the specific functions that need
+them (`bias_scope_agent.loop.AgentLoop.__init__`,
+`bias_scope_agent.introspection._download_hf_config`), so importing
+`bias_scope_agent` itself does not require either package unless a real
+Anthropic client or a live Hub lookup is actually used — `AgentSession`,
+`tools.py`, and the test suite all run with a `StubBackend` and no client at
+all.
+
+**Consequence if removed.** `bias_scope_agent.loop.AgentLoop()` (with no
+`client=` override) and `bias_scope_agent.introspection.inspect_model(...,
+live=True)` on a Hub identifier would raise `ImportError` naming the missing
+package. Every unit test in `tests/test_bias_scope_agent/` passes a fake
+client or mocks the Hub call, so the fast suite does not depend on this extra
+being installed; `tests/integration/test_bias_scope_agent_tiny_model.py` does
+not need it either (it exercises `HuggingFaceBackend`, not `huggingface_hub`,
+and uses `WEAT` with raw embedding arrays rather than a live model call — see
+`REVIEW_LATER.md` RL-041).
+
+**Not litellm.** `bias_scope` already depends on `litellm` (the `llm` extra)
+for target-model backends, and `bias_scope_agent.introspection` also uses it
+opportunistically to probe an API-endpoint identifier. But the agent LLM
+itself (the model running the tool-calling loop, as opposed to the model being
+bias-tested) uses the `anthropic` SDK directly rather than going through
+litellm, per an explicit decision made before implementation: v1 targets one
+provider (Claude) with native tool-use, not a multi-provider abstraction.
+

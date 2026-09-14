@@ -36,6 +36,7 @@ pip install "bias-scope[torch]"
 pip install "bias-scope[embeddings]"
 pip install "bias-scope[datasets]"
 pip install "bias-scope[llm]"
+pip install "bias-scope[agent]"
 pip install "bias-scope[all]"
 ```
 
@@ -45,6 +46,7 @@ What each extra includes:
 - `embeddings`: `sentence-transformers` for the built-in embedding helper used by embedding-based convenience paths
 - `datasets`: `datasets` for prompt-based benchmark loaders
 - `llm`: `litellm` for prompt-based model calls
+- `agent`: `anthropic`, `huggingface_hub` for the optional `bias_scope_agent` conversational agent (see [Agent](#agent-optional) below)
 - `all`: everything above
 
 Install from source:
@@ -209,6 +211,27 @@ The repository includes runnable examples for each metric family:
 - [examples/generated_text_based](examples/generated_text_based)
 - [examples/prompts_based](examples/prompts_based)
 - [examples/metric_usage_examples.py](examples/metric_usage_examples.py)
+
+## Agent (optional)
+
+`bias_scope_agent` is a thin, separate package that wraps BiasScope in a
+conversational agent: a single Claude LLM, in a tool-calling loop, that talks
+to you about your model, recommends which metrics can legally run against it,
+shows you the plan, and only executes it once you have explicitly confirmed —
+never inventing input data, never running a metric on a plan you have not
+seen.
+
+```bash
+pip install "bias-scope[agent]"
+export ANTHROPIC_API_KEY=sk-...
+python -m bias_scope_agent
+```
+
+It never modifies `bias_scope` itself and contains no metric-selection logic
+of its own — every recommendation comes from `recommend_metrics()`, every run
+from `BiasSuite`, every score labelled with its fidelity badge. See
+[src/bias_scope_agent](src/bias_scope_agent) for the tool wrappers and
+`BIASSCOPE_AGENT_*` environment variables that configure it.
 
 ## Documentation
 
