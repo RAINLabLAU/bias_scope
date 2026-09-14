@@ -149,6 +149,66 @@ class HuggingFaceBackend(Backend):
         return outputs
 
 
+class HuggingFaceChatGenerator:
+    """Local causal-LM chat generation with native tokenizer templates.
+
+    This is intentionally separate from ``HuggingFaceBackend``: a model loaded
+    through Transformers does not thereby claim generic chat-API access.  It is
+    reusable by paper reproduction runners that explicitly own their prompt
+    protocol.
+    """
+    def __init__(self, model_id: str, *, tokenizer_id: Optional[str] = None,
+                 revision: Optional[str] = None, tokenizer_revision: Optional[str] = None,
+                 dtype: str = "fp16", device_map: Optional[str] = "auto",
+                 quantization: Optional[str] = None, model_kwargs: Optional[Dict[str, Any]] = None):
+        self.model_id, self.tokenizer_id = model_id, tokenizer_id or model_id
+        self.revision, self.tokenizer_revision = revision, tokenizer_revision or revision
+        self.dtype, self.device_map, self.quantization = dtype, device_map, quantization
+        if quantization not in {None, "4bit", "8bit"}:
+            raise ValueError("quantization must be None, '4bit', or '8bit'")
+        self.model_kwargs = dict(model_kwargs or {}); self._model = self._tokenizer = None
+        self._resolved_model_revision = None
+        self._resolved_tokenizer_revision = None
+
+    def _load(self):
+        if self._model is not None: return self._tokenizer, self._model
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as exc:
+            raise ImportError("HuggingFaceChatGenerator requires torch and transformers; install bias-scope[torch]. Quantized paper runs additionally require accelerate/bitsandbytes when selected.") from exc
+        dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}.get(self.dtype)
+        if dtype is None: raise ValueError("dtype must be fp16, bf16, or fp32")
+        self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_id, revision=self.tokenizer_revision)
+        kwargs = {"revision": self.revision, "torch_dtype": dtype, **self.model_kwargs}
+        if self.device_map: kwargs["device_map"] = self.device_map
+        if self.quantization == "4bit": kwargs.update({"load_in_4bit": True, "bnb_4bit_compute_dtype": torch.float16})
+        elif self.quantization == "8bit": kwargs["load_in_8bit"] = True
+        try:
+            self._model = AutoModelForCausalLM.from_pretrained(self.model_id, **kwargs)
+        except RuntimeError as exc:  # pragma: no cover - depends on local hardware
+            raise RuntimeError(
+                "Unable to load the local model with the requested dtype/quantization. "
+                "BiasScope will not silently change precision or quantization; "
+                "free suitable resources or choose an explicit non-paper configuration."
+            ) from exc
+        self._model.eval()
+        self._resolved_model_revision = getattr(self._model.config, "_commit_hash", None)
+        self._resolved_tokenizer_revision = self._tokenizer.init_kwargs.get("_commit_hash")
+        return self._tokenizer, self._model
+
+    def generate_messages(self, messages: Sequence[Dict[str, str]], **generation: Any) -> str:
+        import torch
+        tokenizer, model = self._load()
+        prompt = tokenizer.apply_chat_template(list(messages), tokenize=False, add_generation_prompt=True)
+        encoded = tokenizer(prompt, return_tensors="pt").to(model.device)
+        with torch.no_grad(): output = model.generate(**encoded, **generation)
+        return tokenizer.decode(output[0][encoded["input_ids"].shape[1]:], skip_special_tokens=True).strip()
+
+    def protocol_fields(self) -> Dict[str, Any]:
+        return {"model_id": self.model_id, "model_revision": self._resolved_model_revision or self.revision, "tokenizer_id": self.tokenizer_id, "tokenizer_revision": self._resolved_tokenizer_revision or self.tokenizer_revision, "dtype": self.dtype, "device_map": self.device_map, "device": self.device_map, "cuda_available": None, "cuda_version": None, "quantization": self.quantization}
+
+
 class LiteLLMBackend(Backend):
     """
     Chat APIs through LiteLLM.
@@ -322,6 +382,7 @@ cached_generate.misses = 0
 __all__ = [
     "Backend",
     "HuggingFaceBackend",
+    "HuggingFaceChatGenerator",
     "LiteLLMBackend",
     "StubBackend",
     "load_model",

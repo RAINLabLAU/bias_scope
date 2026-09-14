@@ -1,77 +1,98 @@
 # TofNof
 
-**Cited source:** Hong et al. 2025, *Measuring Sycophancy of Language Models in
-Multi-turn Dialogues*. [arXiv:2505.23840](https://arxiv.org/abs/2505.23840).
-Identifier confirmed against arXiv during the 4.0 gate — PLAN.md Appendix E
-listed the id without a title, and it resolves correctly.
-**Reference implementation:** none located — `code_status: none_found` with the
-search log in `sources/SOURCES.yaml`.
-**Sections and files read:** §"Evaluation Metric" (eq. 1 ToF, eq. 2 NoF, the
-binary alignment labels and the GPT-4o judge); Figure 1 (the debate scenario).
-**Family / access:** prompt / `chat`, `judge`
+**Primary reference:** Hong, Jiseung; Byun, Grace; Kim, Seungone; and Shu,
+Kai (2025). *Measuring Sycophancy of Language Models in Multi-turn Dialogues*.
+Findings of EMNLP 2025.
 
-## Definition in the paper
+**Official repository:** [JiseungHong/SYCON-Bench](https://github.com/JiseungHong/SYCON-Bench).
+The evidence used for the paper-era protocol is commit
+`434b046b5105d55712443186cb72b44d9a84cfda`. The repository has no exact
+paper release or tag.
 
-Each response `y_i^(t) ∈ {0, 1}` is a binary label: does the model still align
-with the expected stance at turn `t`? A **GPT-4o judge** assigns those labels
-(Figure 1 caption).
+## Corrected BiasScope metric
 
-```
-ToF = E_i [ min_t 1[ y_i^(t) ≠ y_i^Expected ] ]        (1)
-NoF = E_i [ Σ_{t=1}^{T−1} 1[ y_i^(t) ≠ y_i^(t−1) ] ]   (2)
+The normal public metric is:
+
+```python
+from bias_scope.prompts_based import TofNof
 ```
 
-ToF is the mean earliest turn at which the model diverges — higher is better,
-meaning it resists longer. NoF counts stance reversals across the dialogue —
-lower is better.
+It uses five judged labels. ToF is the number of leading aligned responses
+(zero for an immediate failure and five when all responses are aligned). Debate
+NoF is the number of adjacent label transitions. NoF is not applicable to
+Ethical or False Presupposition. Invalid records are explicit rather than
+silently scored. This corrected BiasScope scoring is not changed to copy
+historical implementation quirks.
 
-## Current BiasScope implementation
+## SYCON research reproduction
 
-`tof_nof.py`. Records the turn of first flip and the total number of flips, and
-also reports a `flip_rate`. The structure matches eqs. 1 and 2.
+The advanced, internal reproduction entry point is:
 
-## Verdict
+```text
+python scripts/paper/reproduce_sycon_bench.py ...
+```
 
-**adaptation.**
+It is not part of the ordinary `bias_scope.prompts_based` public API. Standard
+BiasScope operation retains real assistant history, parses only strict valid
+judge labels, leaves malformed judgments unresolved, and aggregates valid
+records only. Calling `TofNof.evaluate()` with `mode="paper_reproduction"` is
+rejected so standard generation cannot be misrepresented as a paper run.
 
-The formulas match. The deviation is in how `y_i^(t)` is obtained: the paper
-uses a **GPT-4o judge** to label stance alignment, and this class uses its own
-judge configuration. Since the label *is* the measurement, the judge model and
-its prompt are part of the metric, not an implementation detail — two TofNof
-numbers from different judges are not comparable.
+`paper_reproduction` fixes official source ordering, uses versioned SYCON
+prompts and judge prompts, records the released greedy settings
+(`max_new_tokens=512`, `temperature=0`, `top_p=0.9`, `do_sample=False`), and
+uses the documented paper-era parsing/failure behavior. Historical substring
+parsing is retained only in that mode; it is a reproduction detail, not a
+recommended judge parser.
 
-This is precisely the case PLAN.md 7.1 anticipates: "judge choice is part of the
-protocol; report judge model and prompt version with every number".
+The script validates local data and prints an offline plan by default (or with
+`--dry-run`). It creates a local Hugging Face generator and the GPT-4o judge
+only after an explicit `--run`. The first target defaults to fp16 with no
+quantization; it never silently switches to a lower-memory protocol. Supply
+optional `--model-revision` and `--tokenizer-revision` when known. If omitted,
+the run records them as unresolved until Transformers exposes a resolved commit
+after loading. Set `OPENAI_API_KEY` (or explicitly pass `--judge-api-key`) for
+an actual run; the secret is never written to caches, metadata, or output.
 
-## Required action
+`--tolerance` is optional and researcher-supplied. Without it, the comparison
+artifact reports numerical differences only; it does not claim pass or fail.
+The default `device_map=auto` needs the `accelerate` optional runtime; fp16
+without quantization does not require bitsandbytes.
 
-1. Refactor onto the `Judge` abstraction of PLAN.md 7.1, so the judge model and
-   the prompt-file hash land in `protocol["judge_model"]` and
-   `protocol["judge_prompt_version"]`. `TofNof` is named in 7.1 as the metric to
-   refactor first, and this audit confirms why.
-2. `flip_rate` is BiasScope's addition, not the paper's; keep it, but keep ToF
-   and NoF as the reported metrics.
-3. Two `BiasResult` scores are needed here, or one plus a breakdown — ToF and
-   NoF are complementary and the paper reports both. Decide when `run()` is
-   wired up.
+For paper reconstruction, use a local SYCON-Bench checkout at evidence commit
+`434b046b5105d55712443186cb72b44d9a84cfda`, rather than assuming current
+upstream `main` is paper-equivalent. The plan records this preferred commit and
+the runner hashes the actual supplied files. Real execution is intentionally
+limited to `Qwen/Qwen2.5-7B-Instruct` until Llama and Gemma family-specific
+prompt/template handling has been implemented and validated; dry-run may still
+show their published targets.
 
-## Validation possible
+The released Debate path includes actual prior assistant answers and is marked
+`exact_released_behavior`. The released Ethical runner instead uses placeholder
+assistant history, while the released False Presupposition runner does not
+provide a clean executable five-turn path despite checked-in five-turn results.
+Ethical and False Presupposition therefore use a documented five-turn
+`paper_reconstruction`, not a claim of byte-for-byte replay. Standard BiasScope
+metadata is labelled `biasscope_standard` and is never a paper-reproduction
+claim.
 
-- **Tier 1:** the paper reports ToF and NoF across scenarios and models. The
-  numbers depend on the GPT-4o judge, so a local-judge reproduction measures
-  something related but not identical, and must be recorded as such.
-- **Tier 2:** not possible — no code release located.
-- **Tier 3:** null applies (a model that never flips → ToF = T, NoF = 0).
-  Swap antisymmetry does not apply; these are stability counts, not paired
-  comparisons. Document as an exemption.
+The first intended target is `Qwen/Qwen2.5-7B-Instruct`. Table 2 reports:
 
-## Known limitations of the metric itself
+- Debate ToF: 0.83; Debate NoF: 2.63
+- Ethical ToF: 0.72
+- False Presupposition ToF: 1.93
 
-- Fully judge-dependent. The paper's own numbers are GPT-4o's labels, so the
-  metric inherits that model's reading of what counts as a stance reversal.
-- ToF is censored at `T`: a model that never flips is indistinguishable from one
-  that would flip at turn `T+1`, so ToF is not comparable across different
-  dialogue lengths.
-- Sycophancy is not a social bias in the sense the rest of the library measures.
-  It belongs in the library's scope discussion (PLAN.md 7.2's inclusion
-  criteria), the same way TruthfulQA does.
+No numerical result has yet been reproduced by BiasScope. A full comparison
+needs the local SYCON-Bench data, model weights and suitable GPU capacity, and
+the paper's GPT-4o judge (`temperature=0`, `max_tokens=10`), which requires paid
+API calls. The paper did not pin model/tokenizer revisions or a GPT-4o
+deployment date, so exact equality remains inherently limited.
+
+## Known limitations
+
+- ToF is censored at five turns: a model that never flips cannot be
+  distinguished from one that would flip later.
+- Scores depend on the judge and its prompt; values judged differently are not
+  directly comparable.
+- Sycophancy is not a social bias in the narrower sense measured by many other
+  BiasScope metrics.
