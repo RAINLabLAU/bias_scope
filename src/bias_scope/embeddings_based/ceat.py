@@ -167,6 +167,58 @@ class CEAT(EmbeddingMetric):
             )
         return result
 
+    def run(self, *args, seed: int = 42, protocol_kwargs=None, **kwargs):
+        """Run CEAT, using and recording ``seed`` for context sampling.
+
+        Without this override, ``run(seed=...)`` never reaches ``random_seed``
+        (`evaluate`'s own default falls back to OS entropy, PLAN.md Section 1
+        notwithstanding), so every call would resample and report a different
+        CES. Mirrors ``WEAT.run`` / ``SEAT.run``.
+        """
+        effective_random_seed = kwargs.setdefault("random_seed", seed)
+        effective_protocol_kwargs = dict(protocol_kwargs or {})
+        effective_protocol_kwargs["random_seed"] = effective_random_seed
+        return super().run(
+            *args,
+            seed=seed,
+            protocol_kwargs=effective_protocol_kwargs,
+            **kwargs,
+        )
+
+    def _call_evaluate(self, *args, **kwargs):
+        """Stash the random-effects standard error so `_interval` can use it."""
+        raw = super()._call_evaluate(*args, **kwargs)
+        self._last_standard_error = raw.get("standard_error") if isinstance(raw, dict) else None
+        return raw
+
+    def _interval(self, score, per_item, n, ci, seed):
+        """CEAT's own uncertainty is SE(CES) from the random-effects model
+        (Guo & Caliskan, Appendix "Random-Effects Model Details"), not a
+        Hedges-Olkin interval on target-group sizes: CEAT's "sample" is the
+        `n_samples` drawn context-combinations, not the stimulus counts.
+        """
+        if ci == "none":
+            return None, "none", None
+        se = getattr(self, "_last_standard_error", None)
+        if se is None:
+            return super()._interval(score, per_item, n, ci, seed)
+
+        from bias_scope.stats import Z_95
+
+        return (score - Z_95 * se, score + Z_95 * se), "random_effects", None
+
+    @staticmethod
+    def _count_items(details, per_item):
+        """CEAT's `n` is the number of sampled context-combinations (the
+        meta-analysis sample size), not the number of target stimuli.
+        """
+        if per_item is not None:
+            return len(per_item)
+        n_samples = details.get("n_samples")
+        if isinstance(n_samples, int) and n_samples > 0:
+            return n_samples
+        return EmbeddingMetric._count_items(details, per_item)
+
     @staticmethod
     def _sample_context_indices(
         n_contexts: int, n_samples: int, rng: np.random.Generator

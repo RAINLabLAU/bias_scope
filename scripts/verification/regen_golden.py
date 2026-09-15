@@ -50,9 +50,37 @@ def _golden_weat() -> Dict[str, Any]:
     }
 
 
+def _golden_seat() -> Dict[str, Any]:
+    """SEAT on seeded fixture vectors: effect size and the >= permutation p-value.
+
+    SEAT inherits WEAT's effect size, so ``score`` here matches WEAT's golden on
+    the same inputs; ``p_value`` freezes May et al.'s non-strict convention
+    (``tie_policy="conservative"``), which is what distinguishes SEAT from WEAT.
+    """
+    import numpy as np
+
+    from bias_scope.embeddings_based import SEAT
+    from bias_scope.utils import seed_everything
+
+    seed_everything(42)
+    rng = np.random.default_rng(42)
+    sets = [rng.standard_normal((8, 16)) for _ in range(4)]
+
+    details = SEAT().evaluate(
+        (sets[0], sets[1]), (sets[2], sets[3]), return_details=True
+    )
+    return {
+        "metric": "SEAT",
+        "inputs": "np.random.default_rng(42).standard_normal((8, 16)) x4",
+        "score": details["effect_size"],
+        "p_value": details["p_value"],
+    }
+
+
 # metric name -> generator. One entry per metric with a golden; Phases 1-4 grow this.
 GENERATORS: Dict[str, Callable[[], Dict[str, Any]]] = {
     "WEAT": _golden_weat,
+    "SEAT": _golden_seat,
 }
 
 

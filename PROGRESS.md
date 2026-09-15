@@ -930,3 +930,215 @@ classifier-bound (`FirstPersonFairness`, `LLMDecisionBias`,
   is Phase 8 work and each needs its evidence, not a plausible pointer.
 - Three documented `adaptation` → `faithful` paths: UnQover masked-LM,
   TruthfulQA MC1/MC2, SocialGroupSubstitution W1.
+
+---
+
+## 2026-09-09 · WEAT from-scratch re-audit (no code changed)
+
+Re-audited WEAT against Caliskan, Bryson & Narayanan 2017 (Science 356:6334,
+`biasscope papers/WEAT.pdf`, Methods "Word Embedding Association Test" +
+Supplement "Cosine similarity") and the sent-bias reference
+(`W4ngatang/sent-bias@e3559fb`, from memory + SOURCES.yaml notes; repo copy is
+git-ignored and absent locally).
+
+**Traced:** `weat.py` (`evaluate`, `_permutation_test`, `_validate_permutation_options`,
+`run`, dead `_compute_effect_size`), `_helpers._weat_effect_components` /
+`_compute_similarity_measure`, `utils.cosine_similarity`, `base.EmbeddingMetric`
+(`_interval`, `_count_items`, guards), `metadata`/`_metric_info` WEAT row,
+`stats.hedges_olkin_ci` / `permutation_p`, `tests/test_embeddings/test_weat*.py`,
+`tests/oracles/weat_oracle.py`, `tests/golden/weat.json`, docs + example.
+
+**Result: FAITHFUL WITH DOCUMENTED EXTENSIONS.** Canonical static-embedding path
+(effect size d, ddof=1; one-sided strict `>` permutation p-value; exact
+enumeration of all C(2n,n) partitions ≤ 100k) reproduces an independent
+from-scratch implementation to 0.0 abs difference over 60 random inputs
+(effect size and exact p-value both). Null / swap-antisymmetry / scale /
+permutation properties hold numerically.
+
+**Findings (all Minor; none Critical/Major):**
+1. Sampled permutation p (|X|=|Y|≥10 only) uses `count/n_samples` in strict mode
+   — biased, can return exactly 0; should be `(1+count)/(1+n_samples)`.
+   weat.py:329-343. Caliskan's own n≤8 tests always hit the exact branch.
+2. `stats.permutation_p` docstring claims to be "the test WEAT and SEAT define"
+   but computes a two-sided |Δmean| test; paper/impl use one-sided on the sum
+   statistic. Public, exported, unused internally. stats.py:184-203.
+3. `WEAT._compute_effect_size` (weat.py:370-402) is dead code duplicating the
+   effect-size formula.
+4. `run()` Hedges–Olkin CI SE ≠ the SE in `scripts/experiments/finalize_emnlp.py`
+   (already RL-016); not the paper's statistic (permutation p is, and is
+   reported).
+5. `BiasResult.n` for WEAT is |X|+|Y| (16), not the paper's per-group N_T (8).
+6. Provenance: paper prose ("permutation of the attribute words", "observed or
+   greater") contradicts its own formal equations (partition X∪Y, strict `>`);
+   BiasScope correctly follows the equations + reference code — worth stating in
+   `docs/fidelity/weat.md`.
+
+No REVIEW_LATER IDs created (audit only; findings listed here for the maintainer).
+
+---
+
+## 2026-09-09 · SEAT from-scratch re-audit (no code changed)
+
+Audited SEAT against May, Wang, Bordia, Bowman & Rudinger 2019 (NAACL,
+`biasscope papers/SEAT.pdf`, §"The Sentence Encoder Association Test" +
+**Appendix A** "Computation of P-value and Effect Size" + Appendix C pooling
+table) and the authors' own reference `W4ngatang/sent-bias@e3559fb`
+(`sentbias/weat.py::p_val_permutation_test`, `encoders/bert.py::encode`; repo
+copy git-ignored / absent locally, reasoned from the paper + WEAT audit).
+
+**Traced:** `seat.py` (delegates wholesale to `WEAT`), `weat.py._permutation_test`
+/ `_weat_effect_components`, `base.EmbeddingMetric` (`run`, `_interval`,
+`_count_items`), `_metric_info` SEAT row, `tests/test_embeddings/test_seat.py`
+(6 thin tests, no oracle/golden/property), docs/api + fidelity note + example.
+
+**Result: PARTIAL IMPLEMENTATION.** Effect size d is faithful (inherits WEAT:
+mean-of-cos, ddof=1 — Appendix A says "identically" to Caliskan). But:
+
+- **Major:** the permutation p-value uses Caliskan's strict `>` (WEAT default
+  `tie_policy="strict"`), whereas SEAT Appendix A *explicitly* switches to the
+  non-strict `≥` ("the more conservative non-strict inequality") and floors p at
+  1e-5. `SEAT.evaluate` / `SEAT.run` expose no `tie_policy` / `n_permutation_samples`
+  / `permutation_seed` (no `**kwargs`), so the paper's convention is
+  unreachable. Counterexample (n=4, maximally separated): BiasScope SEAT p=0.0;
+  reference (`≥`) p=1/70≈0.0143. `docs/fidelity/seat.md` affirmatively
+  misstates this ("same one-sided permutation p-value. Only the inputs differ").
+- **Minor:** `SEAT` doesn't override `run()` → `run(seed=)` never reaches the
+  permutation RNG (stays 42) and `protocol` omits `permutation_seed` (WEAT does
+  both); sampled path (unreachable) would use 10k draws w/o the +1, not the
+  reference's 100k+1; `fidelity="faithful"` + empty `deviation_note` despite the
+  undocumented p-value deviation and un-generated templates (should be
+  `adaptation`); `weat_score` key + Caliskan-branded `p_value_note` leak into
+  SEAT details; `test_calls_weat` locks in "SEAT == WEAT exactly"; default
+  `pooling="cls"` paired with a mean-pooling default model; example invents a
+  non-paper attribute template.
+- SEAT's defining contribution (bleached templates + per-encoder pooling) is
+  not implemented — caller supplies sentence embeddings. Disclosed in docstring
+  / docs / fidelity note.
+
+### Fix applied (same session)
+
+- `src/bias_scope/embeddings_based/seat.py`: `evaluate` now delegates with
+  `tie_policy="conservative"` (May et al.'s `>=`) and
+  `n_permutation_samples=100_000` (SEAT_PERMUTATION_SAMPLES; the paper's
+  99,999 + 1), and exposes `tie_policy` / `n_permutation_samples` /
+  `permutation_seed` params. `run()` overridden to thread + record
+  `permutation_seed` (mirrors `WEAT.run`). `__init__` validates `pooling`.
+  `weat_score` key dropped from the returned details.
+- `_metric_info.py`: SEAT keeps `fidelity="faithful"` (matches reference for
+  both effect size and p-value on precomputed embeddings, as WEAT does) but
+  now carries a non-empty `deviation_note` covering the `>=` convention and
+  the un-reproduced templates/pooling.
+- `docs/fidelity/seat.md`, `docs/api/embeddings/seat.md`: corrected the
+  "p-value unchanged" claim; documented Appendix A and the new defaults.
+- Tests: `tests/test_embeddings/test_seat.py` rewritten (seeded; new
+  `TestSeatPermutationConvention` + `TestSeatRun`); `tests/oracles/test_seat_oracle.py`
+  (differential vs the WEAT oracle, 200 inputs, 1e-8); `tests/golden/seat.json`
+  + generator + `test_golden.py::test_seat_score_and_pvalue_have_not_drifted`.
+  `examples/embeddings_based/seat.py` uses a real bleached template.
+- Verified: SEAT n=4 maximally separated now p = 1/C(8,4) (was 0.0); effect
+  size unchanged; `SEAT` == `WEAT` effect size still holds; full embeddings +
+  framework + metadata + run + oracle + golden + properties + examples suites
+  green (717 passed). `DECISIONS.md` + `CHANGELOG.md` updated.
+
+No REVIEW_LATER IDs created.
+
+---
+
+## 2026-09-09 · CEAT from-scratch audit (no code changed)
+
+Audited CEAT against Guo & Caliskan 2021 (AIES, `biasscope papers/CEAT.pdf`:
+§CEAT, §Random-Effects Model, Appendix "Random-Effects Model Details",
+Table 1/2) and the authors' reference `weiguowilliam/CEAT@497e2958` — **cloned
+and read this session** (`code/ceat.py`: `effect_size`, `ceat_meta`).
+
+**Traced:** `ceat.py` (`__init__`, `evaluate`, `_sample_context_indices`,
+`_rng_for_stimulus`, `_prepare_group`), `_helpers._weat_effect_components` /
+`_ceat_random_effects`, `base.EmbeddingMetric._interval` / `_count_items`,
+`_metric_info` CEAT row, `tests/test_ceat.py`, docs/api + fidelity note + example.
+
+**Verified faithful (exact vs reference `ceat.py`):**
+- per-sample ES = `delta_mean / std(s, ddof=1)`; in-sample `V_i = std(s)**2`
+  (matches paper AND `ceat.py:174-177`) — agree to 1e-16.
+- DerSimonian-Laird pooling: `W=1/V`, `Q=ΣWE²-(ΣWE)²/ΣW`, `c=ΣW-ΣW²/ΣW`,
+  `τ²=max(0,(Q-(N-1))/c)`, `v=1/(V+τ²)`, `CES=ΣvE/Σv`, `SE=√(1/Σv)` — agree
+  to 1e-16 with a fresh port of `ceat_meta`.
+- default `n_samples=10_000` matches the paper's main N (RL-021, which says the
+  default is 100, is STALE — code was reworked in 6f91e68).
+
+**Findings:**
+- **Major M1:** `CEAT().run(seed=42)` is non-reproducible — no `run()` override
+  threads `seed→random_seed`, and the `random_seed=None` fallback uses OS
+  entropy (`np.random.SeedSequence().entropy`). Two calls: CES 0.045 vs -0.073.
+  `evaluate(random_seed=42)` is fine. Same class as the SEAT `run()` fix.
+- **Major M2:** `CEAT().run()` attaches `hedges_olkin_ci(CES, |X|, |Y|)` and
+  `ci_method="hedges_olkin"`, `n=|X|+|Y|` — discards CEAT's own `SE(CES)`.
+  Example: reported CI width 3.2 vs the random-effects CI width 0.25 (13×). p is
+  correct. CEAT needs its own `_interval` from `details["standard_error"]`.
+- **Major M3:** sampling diverges from the reference undocumented. `ceat.py:220`
+  uses `np.random.randint` (with replacement, always); BiasScope uses
+  `rng.choice(..., replace = n_contexts < n_samples)` — the paper *text*, not the
+  code. PLAN §1 says follow the code. Diverges for any stimulus with n_s ≥ N;
+  breaks Tier-2 equivalence. Fix: `sampling=` param, default = reference.
+- **Major M4:** `docs/fidelity/ceat.md` + `SOURCES.yaml` note describe code that
+  no longer exists — `V_i = 2/n + ES²/(4n-4)` (wrong; it's `std²`), default
+  `n_samples=100` (wrong; 10_000), `pooling="cls"` (wrong; CEAT raises on
+  `pooling`), function `_compute_random_effects_weights` (wrong name). Provenance
+  is not actually established by the note.
+- **Minor m1:** p-value is two-sided `2[1-Φ(|z|)]` (matches paper Appendix +
+  Table 1); reference `ceat.py:261` is `norm.sf(z)` — one-sided, signed, no abs
+  — an apparent bug in the reference script. BiasScope's choice is correct;
+  document it (`verify`).
+- **Minor:** per-stimulus SHA-seeded RNG (extension, statistically equivalent);
+  one degenerate sample aborts the whole run (reference yields nan); `|A|=|B|`
+  not enforced though the paper requires it; `CEAT().run()` has zero test
+  coverage.
+
+**Verdict: FAITHFUL WITH DOCUMENTED EXTENSIONS for `evaluate()`** (core CES +
+meta-analysis are an exact reproduction of the reference). `run()` carries M1+M2;
+M3 + M4 undocumented. CWE-extraction pipeline not implemented (disclosed).
+
+No REVIEW_LATER IDs created; RL-021 should be closed as stale.
+
+---
+
+## 2026-09-15 · CEAT `run()` fix (Major findings M1/M2 from the CEAT audit)
+
+Fixed the two Major, code-level findings from the 2026-09-09 CEAT audit above;
+left the two `verify`-tagged reference-script divergences (sampling scheme,
+p-value formula) documented rather than changed, per that audit's own
+recommendation.
+
+**Test-first:** added `TestCeatRun` to `tests/test_embeddings/test_ceat.py`
+(6 tests) proving, before the fix: `run(seed=)` doesn't reach `random_seed`
+(non-reproducible), `ci_method` is `"hedges_olkin"` on the wrong basis, and
+`n` is `|X|+|Y|` not `n_samples`. 5 of 6 failed pre-fix as expected.
+
+**Fix:**
+- `CEAT.run()` — new override threading/recording `random_seed` (mirrors
+  `WEAT.run`/`SEAT.run`).
+- `CEAT._interval()` — new override returning
+  `(CES - Z_95*SE, CES + Z_95*SE)`, `"random_effects"`, from
+  `details["standard_error"]` (stashed via a new `_call_evaluate` override),
+  falling back to the base behaviour only if `standard_error` is absent.
+- `CEAT._count_items()` — new override: `n = n_samples` when present.
+- `bias_scope.result.make_protocol` / `PROTOCOL_KEYS` — added a `random_seed`
+  field (distinct from `permutation_seed`, which is WEAT/SEAT's permutation-test
+  seed) so `CEAT.run`'s `protocol_kwargs["random_seed"]` has somewhere to go.
+
+**Docs/metadata brought in sync with the code** (M4 from the audit):
+`docs/fidelity/ceat.md` rewritten against the current implementation (correct
+`V_i` formula, correct `n_samples=10_000` default, correct function names,
+the two `verify` divergences from the reference script, the `run()` fix).
+`_metric_info.py` CEAT `deviation_note` populated (was empty). `sources/SOURCES.yaml`
+CEAT note rewritten. `REVIEW_LATER.md` RL-021 closed as stale (already resolved
+in code before this session); RL-038/RL-039 added for the two `verify` items.
+`DECISIONS.md` and `CHANGELOG.md` updated.
+
+**Verified:** `tests/test_embeddings/test_ceat.py` 20/20 passed after the fix.
+Broader regression (`test_embeddings/`, `test_metadata.py`, `test_run.py`,
+`test_framework.py`, `oracles/`, `golden/`, `properties/`, `test_examples/`,
+`test_multilingual.py`): 752 passed, 1 skipped (fairlearn), 1 xfailed
+(pre-existing FGB/PGB), 0 failed. `evaluate()`'s CES and p-value are untouched
+by this change — they already matched the reference implementation exactly.
+
+REVIEW_LATER: RL-021 closed; RL-038, RL-039 created (both `verify`).

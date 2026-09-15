@@ -22,7 +22,7 @@ from bias_scope.utils import protocol_hash
 PROTOCOL_KEYS = (
     "metric", "model_id", "dtype", "seed", "dataset", "dataset_revision",
     "decoding", "resources", "judge_model", "judge_prompt_version", "permutation_seed",
-    "library_version", "timestamp", "hash",
+    "random_seed", "library_version", "timestamp", "hash",
 )
 
 
@@ -59,6 +59,7 @@ def make_protocol(
     judge_model: Optional[str] = None,
     judge_prompt_version: Optional[str] = None,
     permutation_seed: Optional[int] = None,
+    random_seed: Optional[int] = None,
     timestamp: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -92,6 +93,10 @@ def make_protocol(
         For judge-based metrics; the prompt version is a filename plus hash.
     permutation_seed : int, optional
         Effective random seed for a metric's permutation procedure, when used.
+    random_seed : int, optional
+        Effective random seed for a metric's own Monte Carlo sampling (e.g.
+        CEAT's context resampling), when used and distinct from a permutation
+        test.
     timestamp : str, optional
         ISO-8601. Defaults to now, in UTC. Excluded from the hash.
 
@@ -119,6 +124,7 @@ def make_protocol(
         "judge_model": judge_model,
         "judge_prompt_version": judge_prompt_version,
         "permutation_seed": permutation_seed,
+        "random_seed": random_seed,
         "library_version": _library_version(),
     }
     protocol["hash"] = protocol_hash(protocol)

@@ -7,6 +7,7 @@ import pytest
 
 from bias_scope.embeddings_based import CEAT
 from bias_scope.embeddings_based._helpers import _ceat_random_effects, _weat_effect_components
+from bias_scope.stats import Z_95
 
 
 def _groups(n_contexts=4, dimension=3):
@@ -126,6 +127,63 @@ def test_malformed_inputs_are_rejected(targets, attributes, message):
     else:
         with pytest.raises(ValueError, match=message):
             CEAT().evaluate(targets, attributes)
+
+
+class TestCeatRun:
+    """PLAN.md 5.3: run() must be reproducible under `seed` and report CEAT's
+    own uncertainty, not a Hedges-Olkin interval built from stimulus counts."""
+
+    def test_run_threads_and_records_the_random_seed(self):
+        """Without threading, ``run(seed=...)`` would not reach ``random_seed``
+        and every call would resample from OS entropy (as WEAT.run/SEAT.run
+        already guard against for their own RNGs)."""
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        result = CEAT().run((x, y), (a, b), seed=3, n_samples=50)
+        direct = CEAT().evaluate(
+            (x, y), (a, b), random_seed=3, n_samples=50, return_details=True
+        )
+        assert result.protocol["random_seed"] == 3
+        assert result.score == pytest.approx(direct["effect_size"])
+        assert result.p_value == pytest.approx(direct["p_value"])
+
+    def test_run_is_reproducible_with_a_fixed_seed(self):
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        first = CEAT().run((x, y), (a, b), seed=7, n_samples=50)
+        second = CEAT().run((x, y), (a, b), seed=7, n_samples=50)
+        assert first.score == second.score
+        assert first.p_value == second.p_value
+
+    def test_different_run_seeds_change_the_score(self):
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        first = CEAT().run((x, y), (a, b), seed=1, n_samples=50)
+        second = CEAT().run((x, y), (a, b), seed=2, n_samples=50)
+        assert first.score != second.score
+
+    def test_explicit_random_seed_overrides_run_seed(self):
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        first = CEAT().run((x, y), (a, b), seed=1, random_seed=9, n_samples=50)
+        second = CEAT().run((x, y), (a, b), seed=2, random_seed=9, n_samples=50)
+        assert first.protocol["random_seed"] == second.protocol["random_seed"] == 9
+        assert first.score == second.score
+
+    def test_run_reports_the_random_effects_interval_not_hedges_olkin(self):
+        """CEAT's uncertainty is SE(CES) from the random-effects model (paper
+        Appendix 'Random-Effects Model Details'), not a Hedges-Olkin interval
+        on |X|,|Y|. Before this fix a 3-vs-3-stimulus run reported a CI ~13x
+        wider than the true SE(CES)."""
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        result = CEAT().run((x, y), (a, b), seed=5, n_samples=200)
+        se = result.details["standard_error"]
+        assert result.ci_method == "random_effects"
+        assert result.ci == pytest.approx(
+            (result.score - Z_95 * se, result.score + Z_95 * se)
+        )
+
+    def test_run_n_is_the_number_of_sampled_contexts(self):
+        """CEAT's 'n' is the meta-analysis sample size, not the stimulus count."""
+        x, y, a, b = _groups(n_contexts=40, dimension=6)
+        result = CEAT().run((x, y), (a, b), seed=5, n_samples=123)
+        assert result.n == 123
 
 
 def test_flat_arrays_raw_strings_and_sample_size_are_rejected():

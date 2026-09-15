@@ -411,22 +411,15 @@ caller could still misread as "no bias".
 or raise rather than return an empty score when every row in a subset is
 excluded. The latter is a one-line guard and should probably happen first.
 
-## RL-021 · decide · 2026-08-23 · Phase 1 / CEAT's default sample count is far below the paper's
+## RL-021 · decide · 2026-08-23 · CLOSED 2026-09-15 · CEAT's default sample count is far below the paper's
 **Encountered:** `CEAT.evaluate(n_samples=100)` by default, while Guo & Caliskan
-report CES at **N = 1,000 and N = 10,000** sampled contexts. CES is a weighted
-mean over those samples, so N controls its variance directly: at N = 100 the
-estimate is materially noisier than anything the paper reports, and two runs at
-different seeds can differ enough to change a qualitative reading.
-**Where:** `src/bias_scope/embeddings_based/ceat.py:100`.
-**Chosen (provisional):** left at 100 for now and documented in
-`docs/fidelity/ceat.md`, because raising it changes every existing CEAT number
-and the audit had no mandate to move results. Flagged rather than acted on.
-**Risk if wrong:** any CEAT value produced at the default is not comparable to
-the paper's, and nothing in the output currently says so.
-**To revisit:** before Phase 3 Tier 1. Either raise the default to 1,000, or
-make `n_samples` required with no default so the caller must choose. The second
-is more honest and is a one-line change; it is breaking, so it needs a CHANGELOG
-entry.
+report CES at **N = 1,000 and N = 10,000** sampled contexts.
+**Closed:** re-checked during the 2026-09-15 CEAT audit — the code (and
+`docs/fidelity/ceat.md`, rewritten the same day) already reads
+`n_samples: int = 10_000` (`ceat.py:56`), matching the paper's main N. This
+entry described a state that no longer matched the code; whichever commit
+raised the default did not update this entry or the fidelity note. No action
+needed now; closing rather than leaving a stale "open" decision in the file.
 
 ## RL-022 · verify · 2026-08-23 · Phase 1 / EMT omits the paper's standard deviation
 **Encountered:** Gehman et al. §3.2 define expected maximum toxicity as
@@ -701,4 +694,51 @@ whitespace-style callback now gets a TypeError naming the requirement, rather
 than a silently different number. That is the intended failure mode.
 **To revisit:** nothing outstanding; a test now pins each default to the
 faithful path, and the 50 whitespace-path tests name their mode explicitly.
+
+## RL-038 · verify · 2026-09-15 · Phase 1 / CEAT's context sampling follows the paper, not the reference script
+**Encountered:** auditing CEAT from scratch and cloning
+`weiguowilliam/CEAT@497e2958` found that the paper's prose says a stimulus with
+`n_s ≥ N` contexts is sampled **without** replacement across the N iterations,
+but the reference script (`code/ceat.py:220-223`) always calls
+`np.random.randint(...)` — **with** replacement, unconditionally, for every
+stimulus and iteration. `CEAT._sample_context_indices` implements the paper's
+prose (`replace = n_contexts < n_samples`), which PLAN.md Section 4.0's "paper
+vs code" rule says should instead follow the code.
+**Options:** (a) follow the paper text (current); (b) follow the script exactly
+(always with replacement); (c) expose both via a parameter.
+**Chosen:** (a), left as-is, because reading the script alone does not settle
+which behaviour actually produced Table 1's numbers — the script and its own
+paper disagree with each other, so "follow the code" is not a clean tiebreaker
+here. Flagged rather than silently changed.
+**Where:** `src/bias_scope/embeddings_based/ceat.py::_sample_context_indices`;
+documented in `docs/fidelity/ceat.md` and `MetricInfo.deviation_note` for CEAT.
+**Risk if wrong:** a byte-for-byte Tier-2 comparison against the reference
+script will show spurious disagreement for any stimulus with
+`n_contexts >= n_samples`, growing as `n_contexts` approaches `n_samples`.
+**To revisit:** before any Tier-2 CEAT equivalence run; add a `sampling=`
+parameter (`"with_replacement"` matching the script as an explicit opt-in) if
+Tier-2 needs exact reference parity rather than paper-text parity.
+
+## RL-039 · verify · 2026-09-15 · Phase 1 / CEAT's p-value follows the paper's formula, not the reference script's
+**Encountered:** same CEAT audit. The paper's Appendix gives a two-sided
+p-value, `2×[1-Φ(|CES/SE|)]`, and says so explicitly ("since we notice that
+some CES are negative, we use a two-tailed p-value"); Table 1's reported
+numbers are only consistent with that formula. The reference script
+(`code/ceat.py:261`) computes `scipy.stats.norm.sf(z)` on the **signed** `z`
+with no `abs()` — one-sided — which for a positive CES returns exactly half
+the paper's value and for a negative CES returns ≈1, contradicting the paper's
+own Table 1. `CEAT.evaluate` implements the paper's two-sided formula
+(`math.erfc(abs(z)/sqrt(2))`).
+**Chosen:** follow the paper over the literal script, because the script's
+formula cannot reproduce the paper's own published numbers and is therefore
+more likely a bug in that one line than the intended method.
+**Where:** `src/bias_scope/embeddings_based/ceat.py:135`; documented in
+`docs/fidelity/ceat.md` and `MetricInfo.deviation_note` for CEAT.
+**Risk if wrong:** if a later, unpublished fix to the script (not visible at
+SHA `497e2958`) is what actually produced Table 1, BiasScope's formula would
+still be right for different reasons; if the authors truly used the one-sided
+signed formula and Table 1 has an unrelated error, BiasScope's p-values would
+not reproduce theirs.
+**To revisit:** if a maintainer of `weiguowilliam/CEAT` can confirm which
+version produced Table 1, or a later commit changes the formula.
 

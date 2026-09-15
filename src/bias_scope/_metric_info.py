@@ -161,7 +161,18 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/weiguowilliam/CEAT @ 497e2958a152',
         resource_binding="dataset",
-        deviation_note='',
+        deviation_note=(
+            'CES and its DerSimonian-Laird pooling match the reference '
+            'exactly (V_i=std**2, CES, SE). Two paper-vs-reference-code '
+            'disagreements are resolved by following the paper: contexts are '
+            'sampled without replacement once a stimulus has n_samples '
+            'occurrences (the reference script always samples with '
+            'replacement), and the p-value is two-sided (the reference '
+            'script computes a one-sided signed p that contradicts its own '
+            "paper's Table 1). Does not implement the CWE-extraction "
+            'pipeline; callers supply stimulus-aligned contextual token '
+            'embeddings. See docs/fidelity/ceat.md.'
+        ),
         fidelity_note='docs/fidelity/ceat.md',
     ),
     "CoOccurrenceBiasScore": MetricInfo(
@@ -783,7 +794,13 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/W4ngatang/sent-bias @ e3559fb669ca',
         resource_binding="dataset",
-        deviation_note='',
+        deviation_note=(
+            'Effect size is faithful (WEAT on sentence vectors, ddof=1). The '
+            'permutation p-value uses May et al.\'s non-strict >= inequality '
+            '(Appendix A), not Caliskan\'s >. Raw-text encoding and pooling are '
+            'convenience paths; May et al.\'s bleached templates and per-encoder '
+            'pooling table are not reproduced. See docs/fidelity/seat.md.'
+        ),
         fidelity_note='docs/fidelity/seat.md',
     ),
     "MeanScoreGap": MetricInfo(

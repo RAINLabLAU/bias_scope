@@ -51,6 +51,32 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 - `SEAT` now reports its group sizes, so `run()` can build a Hedges-Olkin
   interval. Before this it was **silently skipped by `BiasSuite`** — found by
   running the suite for real rather than by a unit test.
+- **`CEAT().run()` is now reproducible and reports its own interval.** `run()`
+  did not thread `seed` into `random_seed` — `evaluate()`'s own
+  `random_seed=None` default falls back to OS entropy, so two `run(seed=42)`
+  calls could return effect sizes of opposite sign. `run()` also attached a
+  Hedges-Olkin interval built from `|X|`,`|Y|` (the target-*stimulus* counts)
+  instead of CEAT's own random-effects `SE(CES)` — 13x too wide in one test
+  case, and the wrong quantity regardless of width. `CEAT` now overrides
+  `run()` (threads/records `random_seed`, mirroring `WEAT.run`/`SEAT.run`),
+  `_interval` (`CES ± Z_95·SE(CES)`, `ci_method="random_effects"`), and
+  `_count_items` (`n = n_samples`). `bias_scope.result.make_protocol` gained a
+  `random_seed` field alongside `permutation_seed`. `evaluate()`'s CES and
+  p-value are unaffected — they already matched the reference implementation
+  exactly. (2026-09 CEAT audit.)
+- **`SEAT` permutation p-value now follows May et al.'s Appendix A, not
+  Caliskan's.** SEAT delegated the p-value to `WEAT` with its default
+  `tie_policy="strict"` (Caliskan's `>`), but the SEAT paper deliberately uses
+  the **non-strict `>=`** ("the more conservative non-strict inequality",
+  because "the equality has positive probability" in the nonparametric
+  version) and floors the sampled estimate at 1e-5. `SEAT.evaluate` now
+  delegates with `tie_policy="conservative"` and `n_permutation_samples=100_000`
+  by default, and exposes `tie_policy`, `n_permutation_samples` and
+  `permutation_seed` so the strict convention is still selectable. Concretely:
+  a maximally separated n=4 test returned `p=0.0` (impossible per the paper's
+  1e-5 floor); it now returns `1/C(8,4)`. The effect size is unchanged.
+  `SEAT.run` now threads and records `permutation_seed` the way `WEAT.run`
+  does. `SEAT(pooling=...)` validates its argument. (2026-09 SEAT audit.)
 
 ### Breaking
 - **`CrowSPairs`, `AUL` and `AULA` now default to `mode="wordpiece"`.** All

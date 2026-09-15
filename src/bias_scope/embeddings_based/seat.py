@@ -13,23 +13,40 @@ from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based.encoder import DEFAULT_EMBEDDING_MODEL
 from bias_scope.embeddings_based.weat import WEAT
 
+#: May et al. 2019, Appendix A: the sampled p-value draws 99,999 partitions and
+#: hallucinates one more hit, so it can never fall below 1 / 100,000. WEAT's
+#: ``tie_policy="conservative"`` branch already adds the observed partition, so
+#: 100,000 total evaluations reproduce that 1e-5 precision floor exactly.
+SEAT_PERMUTATION_SAMPLES = 100_000
+
 
 class SEAT(EmbeddingMetric):
     """
     Sentence Encoder Association Test.
 
-    Adapts WEAT to contextualized sentence embeddings. Uses the same
-    effect size calculation as WEAT, but operates on sentence-level
+    Adapts WEAT to contextualized sentence embeddings. Uses the same effect
+    size calculation as WEAT (mean-of-cosines association, ``ddof=1``
+    standardised mean difference), but operates on sentence-level
     representations instead of static word embeddings.
+
+    The permutation p-value follows May et al.'s Appendix A rather than
+    Caliskan's: the inequality is **non-strict** (``Pr[s(Xi,Yi,A,B) >=
+    s(X,Y,A,B)]``, "the more conservative non-strict inequality", because "the
+    equality has positive probability" in the nonparametric version), and the
+    sampled estimate is floored at 1e-5. That maps to ``tie_policy="conservative"``
+    and ``n_permutation_samples=100_000`` here, both of which are the SEAT
+    defaults. Pass ``tie_policy="strict"`` for Caliskan's ``>`` convention.
 
     Canonical input is precomputed sentence embeddings, or fully formed SEAT
     sentence stimuli that callers construct themselves. BiasScope does not
-    generate May et al.'s semantically bleached templates automatically.
+    generate May et al.'s semantically bleached templates automatically, and it
+    does not reproduce their per-encoder pooling table.
 
     Reference
     ---------
     May, C., Wang, A., Bordia, S., Bowman, S. R., & Rudinger, R. (2019).
     On measuring social biases in sentence encoders. NAACL-HLT 2019.
+    https://arxiv.org/abs/1903.10561
 
     Examples
     --------
@@ -69,8 +86,10 @@ class SEAT(EmbeddingMetric):
             pooling (str): 'cls' (default) uses Hugging Face CLS pooling for
                 raw strings; 'mean' uses sentence-transformer pooling. Both
                 are BiasScope convenience paths, not an exact reproduction of
-                May et al.'s original encoder extraction setup.
+                May et al.'s original per-encoder extraction setup.
         """
+        if pooling not in ("mean", "cls"):
+            raise ValueError(f"pooling must be 'mean' or 'cls', got {pooling!r}")
         self.model_name = model_name
         self.pooling = pooling
 
@@ -88,6 +107,9 @@ class SEAT(EmbeddingMetric):
         return_details: bool = False,
         *,
         pooling: str | None = None,
+        n_permutation_samples: int = SEAT_PERMUTATION_SAMPLES,
+        permutation_seed: int = 42,
+        tie_policy: str = "conservative",
     ) -> float | Dict[str, float]:
         """
         Evaluate SEAT score.
@@ -101,6 +123,12 @@ class SEAT(EmbeddingMetric):
                 when text inputs are provided. If omitted, uses the ``model_name``
                 configured on ``__init__``. If passed here, it overrides the
                 instance default for this call only.
+            n_permutation_samples (int): Positive total number of partition
+                evaluations in sampled p-values. Ignored when exact enumeration
+                is used. Defaults to 100,000 (May et al. Appendix A).
+            permutation_seed (int): RNG seed for sampled permutations.
+            tie_policy (str): ``"conservative"`` (default, May et al.'s non-strict
+                ``>=``) or ``"strict"`` (Caliskan's ``>``).
 
         Returns:
             float: SEAT effect size score
@@ -110,9 +138,11 @@ class SEAT(EmbeddingMetric):
 
         Notes:
             **Method:**
-            SEAT uses the identical calculation as WEAT, simply applied to
+            SEAT uses the identical effect size calculation as WEAT, applied to
             sentence embeddings instead of word embeddings. This method
-            delegates to WEAT internally.
+            delegates the mathematics to WEAT internally. The one deliberate
+            difference (May et al. Appendix A) is the non-strict permutation
+            inequality, carried through as ``tie_policy="conservative"``.
 
             **Input Structure:**
             - target_embeddings: (target_group1, target_group2)
@@ -134,9 +164,8 @@ class SEAT(EmbeddingMetric):
             supply precomputed sentence embeddings from the intended protocol.
 
             evaluate() returns the effect size by default. With
-            return_details=True, it also returns WEAT's one-sided p-value and
-            permutation metadata; run() exposes that p-value through
-            BiasResult.p_value.
+            return_details=True, it also returns the permutation p-value and
+            metadata; run() exposes that p-value through BiasResult.p_value.
 
         Examples:
             >>> import numpy as np
@@ -158,9 +187,10 @@ class SEAT(EmbeddingMetric):
         effective_model_name = model_name or self.model_name
         effective_pooling = pooling or self.pooling
 
-        # SEAT is just WEAT applied to sentence embeddings, so delegate and
-        # inherit its effect size, its ddof=1 convention and its permutation
-        # p-value rather than reimplementing any of them.
+        # SEAT is WEAT applied to sentence embeddings. It inherits WEAT's effect
+        # size and ``ddof=1``, but May et al. (Appendix A) count
+        # s(Xi,Yi,A,B) >= s(X,Y,A,B) rather than Caliskan's strict >, so the
+        # default ``tie_policy`` differs from WEAT's.
         weat_instance = WEAT(model_name=self.model_name, pooling=self.pooling)
         details = weat_instance.evaluate(
             target_embeddings,
@@ -168,12 +198,35 @@ class SEAT(EmbeddingMetric):
             model_name=effective_model_name,
             pooling=effective_pooling,
             return_details=True,
+            n_permutation_samples=n_permutation_samples,
+            permutation_seed=permutation_seed,
+            tie_policy=tie_policy,
         )
         score = float(details["effect_size"])
         if not return_details:
             return score
 
-        # Carry WEAT's group sizes and p-value through. Without the sizes,
-        # `run()` cannot form a Hedges-Olkin interval and its `n > 0` guard
-        # rejects the result — which is exactly what happened before 0.2.0.
-        return {**details, "seat_score": score, "effect_size": score}
+        # Carry WEAT's group sizes and p-value through so ``run()`` can form a
+        # Hedges-Olkin interval and pass its ``n > 0`` guard. Drop the internal
+        # ``weat_score`` alias; SEAT reports ``seat_score``.
+        result = {key: value for key, value in details.items() if key != "weat_score"}
+        result["seat_score"] = score
+        result["effect_size"] = score
+        return result
+
+    def run(self, *args, seed: int = 42, protocol_kwargs=None, **kwargs):
+        """Run SEAT, using and recording ``seed`` for sampled permutations.
+
+        Mirrors ``WEAT.run``: without threading the seed into
+        ``permutation_seed``, ``run(seed=...)`` would not reach the permutation
+        RNG and the protocol block would not record it.
+        """
+        effective_permutation_seed = kwargs.setdefault("permutation_seed", seed)
+        effective_protocol_kwargs = dict(protocol_kwargs or {})
+        effective_protocol_kwargs["permutation_seed"] = effective_permutation_seed
+        return super().run(
+            *args,
+            seed=seed,
+            protocol_kwargs=effective_protocol_kwargs,
+            **kwargs,
+        )

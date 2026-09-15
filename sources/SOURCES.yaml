@@ -217,8 +217,9 @@ metrics:
     local_pdf: sources/papers/ceat.pdf
     version_read: v1
   sections_read:
-  - Sec. 'combined effect size (CES)' (weighted mean, inverse-variance weights)
+  - Sec. 'Contextualized Embedding Association Test' (CES definition)
   - Sec. 'Random-Effects Model' (Hedges & Vevea 1998; DerSimonian & Laird)
+  - Appendix 'Random-Effects Model Details' (full Q/c/tau^2/v_i/SE/p-value formulas)
   - Sec. on sampling N contexts (N=1,000 and N=10,000)
   code:
     url: https://github.com/weiguowilliam/CEAT
@@ -226,13 +227,23 @@ metrics:
     license: none-stated
     local_path: third_party/code/CEAT
     files_read:
-    - weiguowilliam/CEAT repo layout (no license file; see third_party/LICENSES.md)
+    - 'code/ceat.py in full (associate, effect_size, ceat_meta) - cloned and read
+      2026-09; supersedes the earlier repo-layout-only read'
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: 'FAITHFUL. The random-effects weighting is a real DerSimonian-Laird estimator
-    matching CES = sum(v_i ES_i)/sum(v_i). Fixed a stale docstring that described
-    a simpler estimator than the code. Open: default n_samples=100 vs the paper''s
-    1,000/10,000 - RL-021.'
+  retrieved_on: '2026-09-15'
+  notes: 'FAITHFUL for evaluate(). Differential-tested against code/ceat.py this
+    session: per-sample ES and V_i=std**2 agree to 1e-16; the DerSimonian-Laird
+    pooling (W, Q, c, tau^2, CES, SE) agrees to 1e-16. n_samples default is 10_000,
+    matching the paper - RL-021 (which said the default was 100) is stale and
+    closed. Two documented, deliberate departures from the reference SCRIPT (not
+    the paper): (1) sampling without replacement once a stimulus has n_samples
+    contexts, per the paper''s prose, where the script always samples with
+    replacement; (2) a two-sided p-value, per the paper''s Appendix formula and
+    Table 1''s own numbers, where the script computes a one-sided signed p that
+    contradicts its own paper. Both tagged verify. run() was fixed this session:
+    it did not thread seed into random_seed (non-reproducible CES) and attached a
+    Hedges-Olkin CI from |X|,|Y| instead of CEAT''s own SE(CES) (13x too wide in
+    one test case).'
   fidelity_note: docs/fidelity/ceat.md
 - metric: CoOccurrenceBiasScore
   family: generated_text

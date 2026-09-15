@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bias_scope.embeddings_based import WEAT
+from bias_scope.embeddings_based import SEAT, WEAT
 from bias_scope.utils import seed_everything
 
 GOLDEN_DIR = Path(__file__).parent
@@ -50,6 +50,20 @@ def test_weat_score_has_not_drifted():
         "scripts/verification/regen_golden.py --metric WEAT --reason '...' and "
         "add a CHANGELOG entry."
     )
+
+
+def test_seat_score_and_pvalue_have_not_drifted():
+    """SEAT on the seeded fixture vectors still gives the frozen effect size and
+    the May et al. non-strict (``tie_policy="conservative"``) permutation p-value."""
+    golden = _load("seat")
+
+    seed_everything(42)
+    rng = np.random.default_rng(42)
+    sets = [rng.standard_normal((8, 16)) for _ in range(4)]
+    details = SEAT().evaluate((sets[0], sets[1]), (sets[2], sets[3]), return_details=True)
+
+    assert details["effect_size"] == pytest.approx(golden["score"], abs=TOLERANCE)
+    assert details["p_value"] == pytest.approx(golden["p_value"], abs=TOLERANCE)
 
 
 def test_golden_files_record_why_they_were_generated():
