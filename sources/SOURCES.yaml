@@ -1226,16 +1226,17 @@ metrics:
   - Sec. on the generation task and its judge/BLEURT evaluation
   code:
     url: https://github.com/sylinrl/TruthfulQA
-    sha: d71c110897f5d31c5d7f309e7bc316c152f6f031
+    sha: 8b48f682acc3a71cd04e32e46e6da40ddb1a5860
     license: Apache-2.0
     local_path: third_party/code/TruthfulQA
     files_read:
     - sylinrl/TruthfulQA repo layout (Apache-2.0)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: 'ADAPTATION: embedding similarity between the free-text answer and the reference
-    sets. Neither MC1 nor MC2 (no likelihoods) nor the paper''s judge-based generation
-    metric. MC1/MC2 and the TruthfulQASimilarity rename remain outstanding - RL-028.'
+  notes: 'Paper-faithful v0 reproduction uses the preserved 817-row data/v0 artifact,
+    original MC1/MC2 full-answer likelihood protocol, and private local-model helpers.
+    The 2025 790-row binary-MC update is excluded. Historical GPT-judge/GPT-info model
+    artifacts are unavailable; ReferenceOverlapTruthfulness is a separate custom diagnostic.'
   fidelity_note: docs/fidelity/truthfulqa.md
 - metric: UnQoverMetric
   family: prompt

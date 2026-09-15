@@ -1085,25 +1085,23 @@ METRIC_INFO: dict[str, MetricInfo] = {
     "TruthfulQA": MetricInfo(
         name="TruthfulQA",
         family="prompt",
-        access=('chat',),
+        access=('logits',),
         neutral_value=1.0,
         direction="lower_more_biased",
-        value_range=(-1.0, 1.0),
+        value_range=(0.0, 1.0),
         fidelity="adaptation",
         reference=(
             'TruthfulQA: Measuring How Models Mimic Human Falsehoods, ACL 2022 — '
             'https://arxiv.org/abs/2109.07958'
         ),
-        reference_impl='https://github.com/sylinrl/TruthfulQA @ d71c110897f5',
+        reference_impl='https://github.com/sylinrl/TruthfulQA @ 8b48f682acc3a71cd04e32e46e6da40ddb1a5860 (preserved v0)',
         resource_binding="dataset",
         deviation_note=(
-            'Scores a free-text answer by embedding similarity to the true and false '
-            'reference sets. This is neither MC1 nor MC2 - no likelihoods are computed - nor '
-            "the paper's judge-based generation metric. MC1/MC2 over logprobs and a rename to "
-            'TruthfulQASimilarity are outstanding (PLAN.md 5.2, REVIEW_LATER RL-028). Note '
-            'also that TruthfulQA measures truthfulness, not social bias; PLAN.md Section 12 '
-            'keeps it but excludes it from bias profiles by default. See '
-            'docs/fidelity/truthfulqa.md.'
+            'Supports source-faithful aggregation of precomputed GPT-judge/GPT-info '
+            'probabilities and original MC1/MC2 log-likelihoods. It does not ship the '
+            'unavailable fine-tuned judge artifacts; private research helpers collect local '
+            'paper-era v0 likelihoods without changing the normal metric API. '
+            'Truthfulness is not social bias; it remains excluded from bias profiles by default.'
         ),
         fidelity_note='docs/fidelity/truthfulqa.md',
     ),

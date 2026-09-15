@@ -309,6 +309,168 @@ class HuggingFaceCausalGenerator:
         }
 
 
+class HuggingFaceCausalLikelihoodScorer:
+    """Lazy generic scorer for full causal continuation log-likelihoods.
+
+    ``prefix`` ends exactly where scoring begins; only tokens introduced by
+    ``continuation`` contribute to the unnormalised returned sum.
+    """
+    def __init__(self, model_id: str, *, tokenizer_id: Optional[str] = None,
+                 revision: Optional[str] = None, tokenizer_revision: Optional[str] = None,
+                 dtype: str = "fp32", device: Optional[str] = None):
+        self.model_id, self.tokenizer_id = model_id, tokenizer_id or model_id
+        self.revision, self.tokenizer_revision = revision, tokenizer_revision or revision
+        self.dtype, self.device = dtype, device
+        self._model = self._tokenizer = None
+        self._resolved_model_revision = self._resolved_tokenizer_revision = None
+
+    def _load(self):
+        if self._model is not None:
+            return self._tokenizer, self._model
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("HuggingFaceCausalLikelihoodScorer requires torch and transformers; install bias-scope[torch].") from exc
+        torch_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}.get(self.dtype)
+        if torch_dtype is None:
+            raise ValueError("dtype must be fp16, bf16, or fp32")
+        self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_id, revision=self.tokenizer_revision)
+        self._model = AutoModelForCausalLM.from_pretrained(self.model_id, revision=self.revision, torch_dtype=torch_dtype)
+        self._model.eval()
+        if self.device:
+            self._model.to(self.device)
+        self._resolved_model_revision = getattr(self._model.config, "_commit_hash", None)
+        self._resolved_tokenizer_revision = self._tokenizer.init_kwargs.get("_commit_hash")
+        return self._tokenizer, self._model
+
+    @staticmethod
+    def continuation_start(prefix_ids: Sequence[int], full_ids: Sequence[int]) -> int:
+        """Validate a boundary and return the first continuation token index."""
+        if list(full_ids[:len(prefix_ids)]) != list(prefix_ids):
+            raise ValueError("Tokenizing prefix+continuation changed the prefix token boundary.")
+        if len(full_ids) <= len(prefix_ids):
+            raise ValueError("continuation must add at least one token")
+        return len(prefix_ids)
+
+    def score(self, prefix: str, continuation: str, *, skip_continuation_tokens: int = 0) -> float:
+        if not isinstance(prefix, str) or not isinstance(continuation, str) or not continuation:
+            raise ValueError("prefix and a non-empty continuation must be strings")
+        if not isinstance(skip_continuation_tokens, int) or skip_continuation_tokens < 0:
+            raise ValueError("skip_continuation_tokens must be a non-negative integer")
+        try:
+            import torch
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("HuggingFaceCausalLikelihoodScorer requires torch.") from exc
+        tokenizer, model = self._load()
+        prefix_ids = tokenizer(prefix, add_special_tokens=False).input_ids
+        full = tokenizer(prefix + continuation, return_tensors="pt", add_special_tokens=False)
+        start = self.continuation_start(prefix_ids, full.input_ids[0].tolist())
+        scored_start = start + skip_continuation_tokens
+        if scored_start >= full.input_ids.shape[1]:
+            raise ValueError("skip_continuation_tokens removes the entire continuation")
+        full = full.to(getattr(model, "device", self.device))
+        with torch.no_grad():
+            logits = model(**full).logits[0]
+        log_probs = torch.log_softmax(logits[:-1], dim=-1)
+        targets = full.input_ids[0, 1:]
+        return float(log_probs[scored_start - 1:, :].gather(1, targets[scored_start - 1:].unsqueeze(1)).sum().item())
+
+    def protocol_fields(self) -> Dict[str, Any]:
+        return {"model_id": self.model_id, "model_revision": self._resolved_model_revision or self.revision, "tokenizer_id": self.tokenizer_id, "tokenizer_revision": self._resolved_tokenizer_revision or self.tokenizer_revision, "dtype": self.dtype, "requested_device": self.device, "effective_device": str(getattr(self._model, "device", self.device)) if self._model is not None else None, "scorer_type": "causal_continuation"}
+
+
+class HuggingFaceSeq2SeqLikelihoodScorer:
+    """Lazy generic summed conditional target likelihood scorer for seq2seq LMs."""
+    def __init__(self, model_id: str, *, tokenizer_id: Optional[str] = None,
+                 revision: Optional[str] = None, tokenizer_revision: Optional[str] = None,
+                 dtype: str = "fp32", device: Optional[str] = None):
+        self.model_id, self.tokenizer_id = model_id, tokenizer_id or model_id
+        self.revision, self.tokenizer_revision = revision, tokenizer_revision or revision
+        self.dtype, self.device = dtype, device
+        self._model = self._tokenizer = None
+        self._resolved_model_revision = self._resolved_tokenizer_revision = None
+
+    def _load(self):
+        if self._model is not None:
+            return self._tokenizer, self._model
+        try:
+            import torch
+            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("HuggingFaceSeq2SeqLikelihoodScorer requires torch and transformers; install bias-scope[torch].") from exc
+        torch_dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}.get(self.dtype)
+        if torch_dtype is None:
+            raise ValueError("dtype must be fp16, bf16, or fp32")
+        self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_id, revision=self.tokenizer_revision)
+        self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id, revision=self.revision, torch_dtype=torch_dtype)
+        self._model.eval()
+        if self.device:
+            self._model.to(self.device)
+        self._resolved_model_revision = getattr(self._model.config, "_commit_hash", None)
+        self._resolved_tokenizer_revision = self._tokenizer.init_kwargs.get("_commit_hash")
+        return self._tokenizer, self._model
+
+    def score(self, source: str, target: str, *, include_eos: bool = True) -> float:
+        if not isinstance(source, str) or not isinstance(target, str) or not target:
+            raise ValueError("source and a non-empty target must be strings")
+        try:
+            import torch
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("HuggingFaceSeq2SeqLikelihoodScorer requires torch.") from exc
+        tokenizer, model = self._load()
+        encoded = tokenizer(source, return_tensors="pt").to(getattr(model, "device", self.device))
+        labels = tokenizer(target, return_tensors="pt").input_ids.to(getattr(model, "device", self.device))
+        labels = labels.masked_fill(labels == tokenizer.pad_token_id, -100)
+        if not include_eos:
+            eos = tokenizer.eos_token_id
+            if eos is None:
+                raise ValueError("include_eos=False requires a tokenizer EOS token")
+            labels = labels.masked_fill(labels == eos, -100)
+        with torch.no_grad():
+            logits = model(**encoded, labels=labels).logits[0]
+        valid = labels[0] != -100
+        return float(torch.log_softmax(logits, dim=-1)[valid, labels[0, valid]].sum().item())
+
+    def protocol_fields(self) -> Dict[str, Any]:
+        return {"model_id": self.model_id, "model_revision": self._resolved_model_revision or self.revision, "tokenizer_id": self.tokenizer_id, "tokenizer_revision": self._resolved_tokenizer_revision or self.tokenizer_revision, "dtype": self.dtype, "requested_device": self.device, "effective_device": str(getattr(self._model, "device", self.device)) if self._model is not None else None, "scorer_type": "seq2seq_target"}
+
+
+class HuggingFaceSeq2SeqGenerator:
+    """Lazy generic raw seq2seq generator; callers own prompt and decoding protocol."""
+    def __init__(self, model_id: str, *, revision: Optional[str] = None, dtype: str = "fp32", device: Optional[str] = None):
+        self.model_id, self.revision, self.dtype, self.device = model_id, revision, dtype, device
+        self._model = self._tokenizer = None
+
+    def _load(self):
+        if self._model is not None: return self._tokenizer, self._model
+        try:
+            import torch
+            from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover
+            raise ImportError("HuggingFaceSeq2SeqGenerator requires torch and transformers; install bias-scope[torch].") from exc
+        dtype = {"fp16": torch.float16, "bf16": torch.bfloat16, "fp32": torch.float32}.get(self.dtype)
+        if dtype is None: raise ValueError("dtype must be fp16, bf16, or fp32")
+        self._tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=self.revision)
+        self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id, revision=self.revision, torch_dtype=dtype)
+        self._model.eval()
+        if self.device: self._model.to(self.device)
+        return self._tokenizer, self._model
+
+    def generate(self, source: str, **generation: Any) -> str:
+        try: import torch
+        except ImportError as exc: raise ImportError("HuggingFaceSeq2SeqGenerator requires torch.") from exc
+        tokenizer, model = self._load()
+        encoded = tokenizer(source, return_tensors="pt").to(getattr(model, "device", self.device))
+        with torch.no_grad(): output = model.generate(**encoded, **generation)
+        return tokenizer.decode(output[0], skip_special_tokens=True)
+
+    def protocol_fields(self) -> Dict[str, Any]:
+        return {"model_id": self.model_id, "model_revision": self.revision, "tokenizer_id": self.model_id,
+                "tokenizer_revision": self.revision, "dtype": self.dtype, "device": self.device,
+                "generator_type": "seq2seq"}
+
+
 class LiteLLMBackend(Backend):
     """
     Chat APIs through LiteLLM.
@@ -484,6 +646,9 @@ __all__ = [
     "HuggingFaceBackend",
     "HuggingFaceChatGenerator",
     "HuggingFaceCausalGenerator",
+    "HuggingFaceCausalLikelihoodScorer",
+    "HuggingFaceSeq2SeqLikelihoodScorer",
+    "HuggingFaceSeq2SeqGenerator",
     "LiteLLMBackend",
     "StubBackend",
     "load_model",

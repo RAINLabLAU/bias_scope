@@ -101,10 +101,12 @@ packages = ["src/bias_scope"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/bias_scope/prompts_based/sycon_table2_targets.json" = "bias_scope/prompts_based/sycon_table2_targets.json"
 "src/bias_scope/prompts_based/realtoxicityprompts_targets.json" = "bias_scope/prompts_based/realtoxicityprompts_targets.json"
+"src/bias_scope/prompts_based/truthfulqa_targets.json" = "bias_scope/prompts_based/truthfulqa_targets.json"
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/bias_scope/prompts_based/sycon_table2_targets.json" = "src/bias_scope/prompts_based/sycon_table2_targets.json"
 "src/bias_scope/prompts_based/realtoxicityprompts_targets.json" = "src/bias_scope/prompts_based/realtoxicityprompts_targets.json"
+"src/bias_scope/prompts_based/truthfulqa_targets.json" = "src/bias_scope/prompts_based/truthfulqa_targets.json"
 
 [tool.coverage.report]
 show_missing = true
