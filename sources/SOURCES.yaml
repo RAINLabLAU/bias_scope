@@ -741,29 +741,23 @@ metrics:
   family: prompt
   status: read
   paper:
-    title: ''
-    venue: ''
-    year: null
-    url: ''
+    title: Whose Opinions Do Language Models Reflect?
+    venue: ICML / PMLR 202
+    year: 2023
+    url: https://proceedings.mlr.press/v202/santurkar23a.html
     local_pdf: ''
     version_read: v1
-    paper_status: no_cited_source
+    paper_status: read
   sections_read:
-  - Confirmed no cited metric is being claimed; inspiration sources checked for a
-    reusable score and none defined (see docs/fidelity/originals.md)
-  code_status: none_found
+  - Sections 3.2 and 4.3; Appendix A.3-A.4 and B.3
+  code_status: official_repository
   search_log:
-  - paper footnotes and code-availability statement
-  - ACL Anthology 'Code' link
-  - Papers with Code
-  - GitHub search for the exact paper title
-  - GitHub search for the metric name
-  - first author's GitHub profile
-  - Hugging Face datasets and spaces
-  resources: []
+  - official repository consistency.ipynb and helpers.py
+  resources:
+  - https://github.com/tatsu-lab/opinions_qa @ 612e5c1592803c1900b43bd832a27cddb3707f60
   retrieved_on: '2026-08-23'
-  notes: ORIGINAL. See docs/fidelity/originals.md.
-  fidelity_note: docs/fidelity/originals.md
+  notes: Adaptation consuming released precomputed distributions. The paper formula uses equal coarse-topic weighting; the paper-era notebook has a separately reconstructible question-weighted overall selection.
+  fidelity_note: docs/api/prompts/opinion_consistency_across_personas.md
 - metric: PGB
   family: generated_text
   status: read

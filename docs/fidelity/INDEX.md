@@ -83,7 +83,7 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `IdentitySwapConsistency` | prompt | **original** | [originals.md](originals.md) |
 | `MeanScoreGap` | generated_text | **original** | [score_parity.md](score_parity.md) |
 | `OccupationPronounSkew` | prompt | **original** | [demographic_representation_bias.md](demographic_representation_bias.md) |
-| `OpinionConsistencyAcrossPersonas` | prompt | **original** | [originals.md](originals.md) |
+| `OpinionConsistencyAcrossPersonas` | prompt | **adaptation** | [API note](../api/prompts/opinion_consistency_across_personas.md) |
 | `PairwiseLikelihoodPreference` | probability | **original** | [lpbs.md](lpbs.md) |
 | `StereotypeRuleHitRate` | generated_text | **original** | [stereotypical_associations.md](stereotypical_associations.md) |
 | `TopKFillDivergence` | probability | **original** | [disco.md](disco.md) |

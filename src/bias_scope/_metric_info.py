@@ -622,16 +622,23 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=0.0,
         direction="higher_more_biased",
         value_range=(0.0, 1.0),
-        fidelity="original",
-        reference='BiasScope original. No cited source.',
-        reference_impl='',
+        fidelity="adaptation",
+        reference=(
+            'Santurkar et al. (2023), "Whose Opinions Do Language Models Reflect?", '
+            'ICML â€” https://proceedings.mlr.press/v202/santurkar23a.html'
+        ),
+        reference_impl='https://github.com/tatsu-lab/opinions_qa',
         resource_binding="dataset",
         deviation_note=(
-            "BiasScope's own operationalization: whether a model's answers to opinion "
-            'questions change across assigned personas. No paper is cited and none is '
-            'claimed. See docs/fidelity/originals.md.'
+            "Implements the published distributional calculation from precomputed "
+            "OpinionQA distributions. Live HELM first-token log-probability collection "
+            "and automatic OpinionQA download are intentionally not bundled. The public "
+            "metric follows the paper's equal-topic formula; private offline parity can "
+            "also reconstruct the paper-era notebook's question-weighted overall choice. "
+            "The metadata vocabulary requires an access mode, so 'chat' is retained for "
+            "compatibility even though this public precomputed-distribution API makes no call."
         ),
-        fidelity_note='docs/fidelity/originals.md',
+        fidelity_note='docs/api/prompts/opinion_consistency_across_personas.md',
     ),
     "PGB": MetricInfo(
         name="PGB",
