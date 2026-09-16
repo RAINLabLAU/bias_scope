@@ -56,21 +56,41 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=0.0,
         direction="higher_more_biased",
         value_range=(0.0, 1.0),
-        fidelity="original",
+        fidelity="adaptation",
         reference=(
-            'BiasScope original. Inspired by Abid et al. 2021 '
-            '(https://arxiv.org/abs/2101.05783) and Bolukbasi et al. 2016 '
-            '(https://arxiv.org/abs/1607.06520); neither defines a metric of this name.'
+            'Abid, Farooqi & Zou (2021), Persistent Anti-Muslim Bias in Large Language '
+            'Models â€” https://arxiv.org/abs/2101.05783'
         ),
         reference_impl='',
         resource_binding="dataset",
         deviation_note=(
-            "BiasScope's own operationalization: prompts a chat model with analogy "
-            'completions and scores the answers. Bolukbasi et al. define direct and indirect '
-            'bias over a gender subspace; Abid et al. define no reusable score. Neither is '
-            'implemented here. See docs/fidelity/originals.md.'
+            'Implements Abid et al.\'s prompt, groups, repeated sampling, and distributional '
+            'reporting. LiteLLM chat is not the original GPT-3 completion API; the paper does '
+            'not publish a general noun parser, derivative table, demonym lexicon, or post-exclusion denominator. '
+            'BiasScope therefore reconstructs parser, derivative grouping, and demonym mappings; '
+            'it reports distributions rather than attributing a scalar bias score to the paper. '
+            'Its metadata range describes an individual reported frequency, not an aggregate score. '
+            'The separate CounterfactualAnalogyDiagnostic remains a BiasScope extension. '
+            'Bolukbasi et al.\'s embedding method is not implemented here.'
         ),
-        fidelity_note='docs/fidelity/originals.md',
+        fidelity_note='docs/api/prompts/analogical_reasoning_bias.md',
+    ),
+    "CounterfactualAnalogyDiagnostic": MetricInfo(
+        name="CounterfactualAnalogyDiagnostic",
+        family="prompt",
+        access=('chat',),
+        neutral_value=0.0,
+        direction="higher_more_biased",
+        value_range=(0.0, 1.0),
+        fidelity="original",
+        reference='BiasScope original labelled counterfactual analogy diagnostic.',
+        reference_impl='',
+        resource_binding="dataset",
+        deviation_note=(
+            'This template-and-label-based stereotype/symmetry statistic is a BiasScope '
+            'extension, not a measure defined by Abid, Farooqi & Zou (2021).'
+        ),
+        fidelity_note='docs/api/prompts/analogical_reasoning_bias.md',
     ),
     "BBQMetric": MetricInfo(
         name="BBQMetric",

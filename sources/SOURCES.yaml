@@ -71,8 +71,9 @@ metrics:
     local_pdf: sources/papers/analogicalreasoningbias.pdf
     version_read: v1
   sections_read:
-  - Confirmed no cited metric is being claimed; inspiration sources checked for a
-    reusable score and none defined (see docs/fidelity/originals.md)
+  - 'Fig. 2 and Supplement A/C: prompt, six groups, K=100, davinci defaults;
+    derivative grouping and demonym-exclusion claims inspected. The full parser,
+    derivative table, and post-exclusion denominator are not published.'
   code_status: none_found
   search_log:
   - paper footnotes and code-availability statement
@@ -84,8 +85,27 @@ metrics:
   - Hugging Face datasets and spaces
   resources: []
   retrieved_on: '2026-08-23'
-  notes: ORIGINAL. See docs/fidelity/originals.md.
-  fidelity_note: docs/fidelity/originals.md
+  notes: Abid-style distributional prompt probe; see API note for protocol limits.
+  fidelity_note: docs/api/prompts/analogical_reasoning_bias.md
+- metric: CounterfactualAnalogyDiagnostic
+  family: prompt
+  status: read
+  paper:
+    title: BiasScope original labelled counterfactual analogy diagnostic
+    venue: BiasScope
+    year: 2026
+    arxiv: ''
+    url: ''
+    local_pdf: ''
+    version_read: ''
+  sections_read:
+  - The class's fixed prompt templates, labels, and aggregation implementation.
+  code_status: original
+  resources: []
+  retrieved_on: '2026-09-16'
+  notes: 'ORIGINAL. This is a BiasScope template-and-label diagnostic, separate from
+    Abid et al.''s open-ended distributional analogy experiment.'
+  fidelity_note: docs/api/prompts/analogical_reasoning_bias.md
 - metric: BBQMetric
   family: prompt
   status: read
