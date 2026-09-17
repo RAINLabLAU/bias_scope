@@ -50,6 +50,8 @@ class TestLoadConfig:
             ("gemini", "gemini-2.0-flash"),
             ("anthropic", "claude-sonnet-4-5-20250929"),
             ("local", "llama3.1"),
+            ("openrouter", "anthropic/claude-3.5-sonnet"),
+            ("litellm", "openrouter/anthropic/claude-3.5-sonnet"),
         ],
     )
     def test_provider_gets_its_own_default_model(self, provider, expected_model):

@@ -255,6 +255,29 @@ python -m bias_scope_agent
 No API key needed — `local` defaults to a placeholder most local servers
 ignore. Override it with `BIASSCOPE_AGENT_LOCAL_API_KEY` if yours checks one.
 
+Two more options for the agent's own brain, both reusing the OpenAI-shaped
+tool-calling wire format:
+
+```bash
+# OpenRouter directly - one key, access to OpenRouter's model catalog
+pip install "bias-scope[agent-openai]"
+export BIASSCOPE_AGENT_PROVIDER=openrouter
+export OPENROUTER_API_KEY=sk-or-...
+export BIASSCOPE_AGENT_MODEL=anthropic/claude-3.5-sonnet   # any OpenRouter slug
+python -m bias_scope_agent
+```
+
+```bash
+# litellm - a general escape hatch to any of the 100+ providers it supports,
+# OpenRouter included (note the extra "openrouter/" routing prefix litellm
+# itself needs, on top of the slug above)
+pip install "bias-scope[llm]"
+export BIASSCOPE_AGENT_PROVIDER=litellm
+export OPENROUTER_API_KEY=sk-or-...            # or whichever provider you route to
+export BIASSCOPE_AGENT_MODEL=openrouter/anthropic/claude-3.5-sonnet
+python -m bias_scope_agent
+```
+
 The same rule applies to the model being *tested*, not just the agent's own
 brain: if it is an API-based model (via `litellm`), the agent never asks you
 to paste that model's API key into chat - export the provider's standard

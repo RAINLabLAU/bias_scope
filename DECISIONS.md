@@ -242,3 +242,72 @@ parameter — but the structural guarantee is gone and enforcement reverts to
 "the system prompt asks nicely," which is exactly the category of risk this
 project has consistently avoided elsewhere (see RL-040).
 
+## 2026-09-17 · Two more agent-LLM providers: `openrouter` (direct) and `litellm` (general), by request
+
+**Decision.** Two more `AgentConfig.provider` values, requested directly
+rather than found in review like the earlier round: `"openrouter"` and
+`"litellm"`. Both are thin subclasses of `OpenAIProvider`, same pattern as
+`LocalProvider` — no new translation logic, only client construction
+differs.
+
+- `OpenRouterProvider` points the existing OpenAI-shaped client at
+  OpenRouter's own endpoint (`https://openrouter.ai/api/v1`), which is
+  itself a plain OpenAI-compatible chat completions API — requires
+  `OPENROUTER_API_KEY`, same fail-fast-with-a-clear-message pattern as
+  every other cloud provider here.
+- `LiteLLMProvider` routes through `litellm.completion()` directly instead
+  of a hand-built per-provider adapter, via a small shim
+  (`_wrap_litellm_client`) that makes `litellm.completion` answer to the
+  same `.chat.completions.create(...)` shape `OpenAIProvider.create()`
+  already calls — litellm's own response shape for `completion()` is
+  already OpenAI's (that is the point of litellm), so no separate
+  normalization was needed, just the shim. This gives access to whichever
+  of litellm's 100+ supported providers the model string names, OpenRouter
+  included via litellm's own `"openrouter/<slug>"` routing prefix — not
+  just OpenRouter, since litellm's whole value is being provider-agnostic.
+
+**Why two, not one.** They serve different needs: `openrouter` is the
+simpler, single-purpose path (one key, no extra dependency beyond `openai`,
+OpenRouter's own slug format) for someone who only wants OpenRouter.
+`litellm` is the general escape hatch — anything litellm itself reaches,
+using litellm's own conventions (routing-prefixed model strings, its own
+per-provider environment-variable resolution) — useful for a provider not
+worth a dedicated adapter, or for someone who already has litellm
+infrastructure (e.g. a self-hosted litellm proxy) they want this to go
+through.
+
+**This revisits, not reverses, the earlier "why not litellm" decision**
+(2026-09-14 entry above, made before multi-provider support existed at
+all). That entry reasoned litellm wouldn't avoid writing a translation
+layer for the *hand-built, first-class* providers (Anthropic/OpenAI/Gemini)
+and that reusing "generate text" plumbing for "run a tool-calling loop"
+would be the wrong abstraction for those. Neither point is actually
+contradicted here: `LiteLLMProvider` is an *additional*, optional path
+alongside the first-class adapters, not a replacement for them — and it
+still needed its own real (if small) translation shim, confirming litellm's
+tool-calling response shape needed adapting to this package's internal
+representation just like every other provider's does, exactly as that
+entry predicted.
+
+**Why `LiteLLMProvider` has no eager API-key check, unlike every other
+provider here.** The other four each check one specific, known environment
+variable before doing anything else. litellm has no such single variable —
+which one it needs depends on the model string's provider prefix
+(`OPENROUTER_API_KEY` for `"openrouter/..."`, `ANTHROPIC_API_KEY` for
+`"anthropic/..."`, and so on for the rest of its 100+ providers), and
+replicating litellm's own prefix-to-variable resolution here would be
+either incomplete or a maintenance burden tracking litellm's own provider
+list. A missing/wrong key surfaces as litellm's own authentication error on
+the first real call instead — later than the other providers' checks, but
+not silently.
+
+**Consequence if removed:** `build_provider(AgentConfig(provider=
+"openrouter"))` / `(provider="litellm")` raise `RuntimeError` naming the
+missing package/extra, same as every other provider. No effect on the
+other four.
+
+13 new tests (`test_providers.py`, `test_config.py`), ruff clean. Not run
+against a real OpenRouter/litellm call in this session — same
+unverified-against-a-real-API caveat as RL-042 for OpenAI/Gemini, logged
+as RL-046.
+

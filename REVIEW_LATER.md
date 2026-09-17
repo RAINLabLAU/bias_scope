@@ -923,3 +923,29 @@ determines behavior.
 proves unhelpful often enough in practice (e.g. via Item 1's eventual live
 conversation testing) to not be worth the added code path.
 
+## RL-046 · verify · 2026-09-17 · bias_scope_agent / OpenRouter and litellm providers untested against real APIs
+**Encountered:** `OpenRouterProvider` and `LiteLLMProvider` (added by direct
+request, `providers.py`) were built and unit-tested against hand-built
+fakes matching each dependency's documented shape (OpenRouter's own
+OpenAI-compatible endpoint; litellm's `completion()` response, which is
+itself OpenAI-shaped), same as every other provider adapter in this
+package.
+**Chosen:** ship both, clearly flagged as unverified against a real call —
+no `OPENROUTER_API_KEY` was available in this session. Same category of gap
+as RL-042 (OpenAI/Gemini) and the `local` provider's equivalent note in
+`DECISIONS.md` — every agent-LLM provider this package supports has now
+been built and unit-tested without ever making one real API call, in any
+session to date.
+**Where:** src/bias_scope_agent/providers.py (`OpenRouterProvider`,
+`LiteLLMProvider`, `_wrap_litellm_client`).
+**Risk if wrong:** `OpenRouterProvider` carries the same risk profile as
+`LocalProvider`/other `OpenAIProvider` subclasses — low, since it reuses
+proven translation code, only the endpoint differs. `LiteLLMProvider`
+carries a bit more: the shim assumes `litellm.completion()`'s response
+object is close enough to the raw `openai` SDK's own response object for
+`_normalize_openai_response` to read `.choices[0].message.content` /
+`.tool_calls` correctly — true per litellm's own design and documentation,
+but not confirmed against a real litellm response object in this session.
+**To revisit:** the first time either is run against a real key — treat any
+shape mismatch found there as higher-priority than a hypothetical one.
+

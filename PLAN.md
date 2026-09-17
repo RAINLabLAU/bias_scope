@@ -799,6 +799,10 @@ paper or authors' code to cite for tool-wrapper functions.
   - `inspect_model` checks a plain identifier against litellm's bundled, offline model registry before ever attempting a doomed HF Hub lookup for something like `"gpt-4o-mini"` — classified as `guessed_source="litellm_model_id"`, confidence high, no network call; a near-miss (typo) gets a "did you mean" note instead (RL-045).
   - `construct_backend`'s LLM-facing schema no longer exposes `api_key` — structurally, not just by prompted instruction, so the target model's own credentials can never enter the conversation transcript. `system_prompt.py` tells the agent to have the user export the standard provider env var instead. See `DECISIONS.md`'s later 2026-09-14 entry.
   - 11 new tests (9 introspection, 2 schema/prompt).
+- [x] Item 8 (added later, by request — supervisor wants OpenRouter + litellm access) — two more `AgentConfig.provider` values in `providers.py`:
+  - `openrouter` — `OpenRouterProvider(OpenAIProvider)`, points the existing OpenAI-shaped client at OpenRouter's own OpenAI-compatible endpoint. Requires `OPENROUTER_API_KEY`, fails fast with a clear message like every other cloud provider.
+  - `litellm` — `LiteLLMProvider(OpenAIProvider)`, a general escape hatch routing through `litellm.completion()` directly (100+ providers, OpenRouter included via litellm's own `"openrouter/<slug>"` prefix), via a small shim (`_wrap_litellm_client`) rather than a new translation — litellm's own response shape is already OpenAI's. No eager API-key check (litellm resolves the right variable per model-string prefix itself; see `DECISIONS.md`).
+  - 13 new tests (`test_providers.py`, `test_config.py`). See `DECISIONS.md`'s 2026-09-17 entry for why this revisits, without reversing, the earlier not-litellm-for-the-agent-LLM decision, and `REVIEW_LATER.md` RL-046 for the not-yet-run-against-a-real-key caveat both new providers share with every other one.
 
 ---
 

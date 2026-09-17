@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -266,6 +267,87 @@ class LocalProvider(OpenAIProvider):
         self.client = client if client is not None else _build_local_client()
 
 
+# --------------------------------------------------------------- OpenRouter
+
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def _build_openrouter_client() -> Any:
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. bias_scope_agent needs it to talk to "
+            "OpenRouter - export it before running, e.g.:\n"
+            "  export OPENROUTER_API_KEY=sk-or-...\n"
+            "(get a key at https://openrouter.ai/settings/keys)"
+        )
+    try:
+        import openai
+    except ImportError as exc:
+        raise RuntimeError(
+            "the openai package is not installed (bias_scope_agent's OpenRouter "
+            "provider reuses it as a generic OpenAI-compatible client). Install "
+            'it with: pip install "bias-scope[agent-openai]"'
+        ) from exc
+    return openai.OpenAI(base_url=_OPENROUTER_BASE_URL, api_key=os.environ["OPENROUTER_API_KEY"])
+
+
+class OpenRouterProvider(OpenAIProvider):
+    """OpenRouter exposes a plain OpenAI-compatible chat completions API, so
+    this is OpenAIProvider pointed at a different endpoint - same reasoning
+    and same reuse pattern as LocalProvider, just with a required API key
+    since OpenRouter is a hosted, metered service rather than something on
+    localhost.
+    """
+
+    def __init__(self, config: AgentConfig, client: Optional[Any] = None):
+        self.config = config
+        self.client = client if client is not None else _build_openrouter_client()
+
+
+# ----------------------------------------------------------------- LiteLLM
+
+
+def _import_litellm() -> Any:
+    try:
+        import litellm
+    except ImportError as exc:
+        raise RuntimeError(
+            "the litellm package is not installed. Install it with: "
+            'pip install "bias-scope[llm]"'
+        ) from exc
+    return litellm
+
+
+def _wrap_litellm_client(litellm_module: Any) -> Any:
+    """Makes litellm.completion() answer to the same
+    `.chat.completions.create(...)` shape OpenAIProvider.create() already
+    calls. litellm.completion()'s response is already OpenAI-shaped (that is
+    the whole point of litellm), so no separate translation is needed - just
+    this shim, so LiteLLMProvider can reuse create() unchanged.
+    """
+    completions = SimpleNamespace(create=litellm_module.completion)
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+
+class LiteLLMProvider(OpenAIProvider):
+    """A general escape hatch: any provider litellm itself supports (100+,
+    including OpenRouter's full catalog via "openrouter/<slug>" model
+    strings, e.g. "openrouter/anthropic/claude-3.5-sonnet"), routed through
+    litellm.completion() directly rather than a hand-built adapter per
+    provider. Reuses OpenAIProvider.create() unchanged via _wrap_litellm_client.
+
+    Deliberately has no required API key at construction, unlike the other
+    cloud providers: litellm resolves the right environment variable itself
+    from the model string's provider prefix - there is no single variable to
+    eagerly check for generically. A missing/wrong key surfaces as litellm's
+    own authentication error on the first real call instead.
+    """
+
+    def __init__(self, config: AgentConfig, client: Optional[Any] = None):
+        self.config = config
+        self.client = _wrap_litellm_client(client if client is not None else _import_litellm())
+
+
 # ------------------------------------------------------------------ Gemini
 
 # Gemini's function-declaration schema rejects JSON-schema keywords it does
@@ -402,6 +484,8 @@ _PROVIDERS = {
     "openai": OpenAIProvider,
     "gemini": GeminiProvider,
     "local": LocalProvider,
+    "openrouter": OpenRouterProvider,
+    "litellm": LiteLLMProvider,
 }
 
 

@@ -26,6 +26,13 @@ _DEFAULT_MODELS = {
     # correct for every setup (depends entirely on what the user has pulled),
     # but a name common enough to be a reasonable guess for Ollama users.
     "local": "llama3.1",
+    # OpenRouter's own slug format (no routing prefix - that is litellm's
+    # convention, not OpenRouter's own API).
+    "openrouter": "anthropic/claude-3.5-sonnet",
+    # litellm's routing-prefixed form, since OpenRouter access is the most
+    # likely first use of this provider - override for any other litellm-
+    # supported provider/model string.
+    "litellm": "openrouter/anthropic/claude-3.5-sonnet",
 }
 
 

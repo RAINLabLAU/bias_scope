@@ -16,10 +16,12 @@ from bias_scope_agent.loop import AgentLoop
 from bias_scope_agent.providers import (
     AnthropicProvider,
     GeminiProvider,
+    LiteLLMProvider,
     LocalProvider,
     NormalizedBlock,
     NormalizedResponse,
     OpenAIProvider,
+    OpenRouterProvider,
     build_provider,
 )
 from bias_scope_agent.session import AgentSession
@@ -96,6 +98,103 @@ class TestLocalProviderTranslation:
         assert result.stop_reason == "end_turn"
         assert result.content[0].type == "text"
         assert result.content[0].text == "hello there"
+
+
+class TestOpenRouterProviderClientConstruction:
+    def test_missing_key_raises_immediately(self, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+            build_provider(AgentConfig(provider="openrouter"))
+
+    def test_uses_openrouters_own_endpoint(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        captured = {}
+        with patch("openai.OpenAI", lambda **kw: captured.update(kw)):
+            build_provider(AgentConfig(provider="openrouter"))
+        assert captured["base_url"] == "https://openrouter.ai/api/v1"
+        assert captured["api_key"] == "sk-or-test"
+
+    def test_missing_openai_package_raises_immediately(self, monkeypatch):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+        with patch.dict(sys.modules, {"openai": None}):
+            with pytest.raises(RuntimeError, match=r"bias-scope\[agent-openai\]"):
+                build_provider(AgentConfig(provider="openrouter"))
+
+
+class TestOpenRouterProviderTranslation:
+    def test_reuses_openai_wire_format_exactly(self):
+        # Same reasoning as LocalProvider: OpenRouter exposes a plain
+        # OpenAI-compatible endpoint, so this is OpenAIProvider pointed
+        # elsewhere, not a new translation.
+        message = SimpleNamespace(content="hello from openrouter", tool_calls=None)
+        choice = SimpleNamespace(message=message, finish_reason="stop")
+        create = lambda **kw: SimpleNamespace(choices=[choice])  # noqa: E731
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        provider = OpenRouterProvider(AgentConfig(provider="openrouter"), client=client)
+
+        result = provider.create(system="sys", messages=[{"role": "user", "content": "hi"}])
+        assert result.stop_reason == "end_turn"
+        assert result.content[0].text == "hello from openrouter"
+
+
+class TestLiteLLMProviderClientConstruction:
+    def test_missing_litellm_package_raises_immediately(self):
+        with patch.dict(sys.modules, {"litellm": None}):
+            with pytest.raises(RuntimeError, match=r"bias-scope\[llm\]"):
+                build_provider(AgentConfig(provider="litellm"))
+
+    def test_no_single_api_key_is_required_up_front(self, monkeypatch):
+        # litellm resolves the right env var itself from the model string's
+        # provider prefix (OPENROUTER_API_KEY for "openrouter/...",
+        # ANTHROPIC_API_KEY for "anthropic/...", etc.) - there is no one
+        # variable to check for generically, so construction must not raise
+        # just because none of the usual ones happen to be set here.
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider = build_provider(AgentConfig(provider="litellm"))
+        assert isinstance(provider, LiteLLMProvider)
+
+
+class TestLiteLLMProviderTranslation:
+    def test_calls_litellm_completion_with_openai_shaped_tools_and_messages(self):
+        captured = {}
+
+        def fake_completion(**kwargs):
+            captured.update(kwargs)
+            message = SimpleNamespace(content="hi from litellm", tool_calls=None)
+            choice = SimpleNamespace(message=message, finish_reason="stop")
+            return SimpleNamespace(choices=[choice])
+
+        fake_litellm = SimpleNamespace(completion=fake_completion)
+        provider = LiteLLMProvider(
+            AgentConfig(provider="litellm", model="openrouter/anthropic/claude-3.5-sonnet"),
+            client=fake_litellm,
+        )
+
+        result = provider.create(system="sys", messages=[{"role": "user", "content": "hi"}])
+
+        assert captured["model"] == "openrouter/anthropic/claude-3.5-sonnet"
+        assert captured["messages"][0] == {"role": "system", "content": "sys"}
+        assert captured["tools"][0]["type"] == "function"
+        assert result.content[0].text == "hi from litellm"
+
+    def test_tool_calls_normalize_the_same_way_as_openai(self):
+        arguments = json.dumps({"metric_names": ["WEAT"]})
+        function = SimpleNamespace(name="plan_suite", arguments=arguments)
+        tool_call = SimpleNamespace(id="call-1", function=function)
+        message = SimpleNamespace(content=None, tool_calls=[tool_call])
+        choice = SimpleNamespace(message=message, finish_reason="tool_calls")
+
+        def fake_completion(**kwargs):
+            return SimpleNamespace(choices=[choice])
+
+        fake_litellm = SimpleNamespace(completion=fake_completion)
+        provider = LiteLLMProvider(AgentConfig(provider="litellm"), client=fake_litellm)
+        result = provider.create(system="sys", messages=[{"role": "user", "content": "hi"}])
+
+        assert result.stop_reason == "tool_use"
+        assert result.content[0].name == "plan_suite"
+        assert result.content[0].input == {"metric_names": ["WEAT"]}
 
 
 class TestAnthropicProviderTranslation:
