@@ -223,3 +223,83 @@ class TestDegenerateIntervals:
         broken = replace(result, score=result.ci[1] + 0.1)
         with pytest.raises(BiasScopeError, match="does not bracket"):
             GeneratedTextMetric._check_guards(broken)
+
+
+class TestMetricNamedScoreKey:
+    """Some metrics name their headline number after themselves rather than
+    using one of the four documented keys: CrowS-Pairs returns
+    "crows_pairs_score", AUL "aul_score", AULA "aula_score", CEAT
+    "ceat_score". Until run() accepts that, BiasSuite records all four as
+    skipped and they are unreachable through the suite and the agent, while
+    still working when evaluate() is called directly (REVIEW_LATER RL-041).
+    """
+
+    def test_a_single_name_suffixed_score_key_is_accepted(self):
+        class NamedScore(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"crows_pairs_score": 0.62, "num_pairs": 4, "per_item": [0.62]}
+
+        assert NamedScore().run().score == pytest.approx(0.62)
+
+    def test_a_documented_key_still_wins_over_a_suffixed_one(self):
+        """The four documented keys stay authoritative; the suffix is a fallback."""
+
+        class Both(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"aul_score": 0.9, "bias_score": 0.1, "per_item": [0.1]}
+
+        assert Both().run().score == pytest.approx(0.1)
+
+    def test_two_suffixed_keys_are_ambiguous_and_still_raise(self):
+        """Guessing between two candidates would be exactly the fabrication
+        PLAN.md Section 1 forbids."""
+
+        class Ambiguous(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"a_score": 0.1, "b_score": 0.2, "per_item": [0.1]}
+
+        with pytest.raises(BiasScopeError, match="headline score"):
+            Ambiguous().run()
+
+    def test_a_non_numeric_suffixed_key_is_not_mistaken_for_a_score(self):
+        class Textual(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"quality_score": "high", "per_item": [1.0]}
+
+        with pytest.raises(BiasScopeError, match="headline score"):
+            Textual().run()
+
+
+class TestWholeNumberItemCounts:
+    """`_count_items` looked for `isinstance(value, int)`, but a metric that
+    computes its count through numpy or a division reports a whole-number
+    float: CrowS-Pairs returns `num_pairs: 2.0`. The count then fell through
+    to 0 and the sample-size guard rejected a metric that had in fact scored
+    every item. The guard exists to catch "scored nothing", not to police
+    numeric type (REVIEW_LATER RL-041).
+    """
+
+    def test_a_whole_number_float_count_is_accepted(self):
+        class FloatCount(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"bias_score": 0.5, "num_pairs": 2.0}
+
+        assert FloatCount().run().n == 2
+
+    def test_a_fractional_count_is_still_rejected(self):
+        """2.5 items is not a count; it is a bug in the metric."""
+
+        class Fractional(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"bias_score": 0.5, "num_pairs": 2.5}
+
+        with pytest.raises(BiasScopeError, match="n must be positive"):
+            Fractional().run()
+
+    def test_a_zero_count_is_still_rejected(self):
+        class Empty(FakeMetric):
+            def evaluate(self, return_details: bool = False):
+                return {"bias_score": 0.5, "num_pairs": 0.0}
+
+        with pytest.raises(BiasScopeError, match="n must be positive"):
+            Empty().run()

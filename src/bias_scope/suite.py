@@ -31,6 +31,25 @@ NEEDS_DATA = (
 )
 
 
+def _missing_metric_message(name: str) -> str:
+    """Tell "no such metric" apart from "metric exists, extra not installed".
+
+    A metric whose optional dependency is absent never reaches `register()`,
+    so it is missing from `list_metrics()` for a reason a user can fix. Calling
+    that "unknown metric" sends them looking for a typo instead (RL-047).
+    """
+    from bias_scope.prompts_based import PROMPT_METRIC_NAMES
+
+    if name in PROMPT_METRIC_NAMES:
+        return (
+            f"{name} is a known metric, but its optional dependencies are not "
+            f"installed, so it is not registered. Install them with: "
+            f'pip install "bias-scope[datasets]", "bias-scope[llm]" or '
+            f'"bias-scope[all]".'
+        )
+    return f"unknown metric {name!r}"
+
+
 class BiasSuite:
     """
     Run every applicable metric against one model.
@@ -100,7 +119,7 @@ class BiasSuite:
         for name in self.requested:
             info = registry.get(name)
             if info is None:
-                raise ValueError(f"unknown metric {name!r}")
+                raise ValueError(_missing_metric_message(name))
             if not self.backend.supports(info.access):
                 missing = sorted(set(info.access) - set(self.backend.access))
                 raise ValueError(

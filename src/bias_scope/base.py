@@ -200,11 +200,25 @@ class BiasMetric(ABC):
             if key in raw and isinstance(raw[key], (int, float)):
                 return float(raw[key]), raw
 
+        # Several metrics name the number after themselves instead
+        # ("crows_pairs_score", "aul_score", "aula_score", "ceat_score").
+        # Accept exactly one such key: two would be a guess, and a guessed
+        # score is the fabrication PLAN.md Section 1 forbids (RL-041).
+        suffixed = [
+            key
+            for key, value in raw.items()
+            if key.endswith("_score")
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ]
+        if len(suffixed) == 1:
+            return float(raw[suffixed[0]]), raw
+
         numeric = [k for k, v in raw.items() if isinstance(v, (int, float))]
         raise BiasScopeError(
             f"cannot find a headline score in evaluate()'s result; expected one "
-            f"of 'bias_score', 'score', 'value', 'effect_size', found numeric "
-            f"keys {numeric}"
+            f"of 'bias_score', 'score', 'value', 'effect_size', or exactly one "
+            f"'<name>_score' key, found numeric keys {numeric}"
         )
 
     @staticmethod
@@ -226,8 +240,13 @@ class BiasMetric(ABC):
         for key in ("n", "num_items", "num_pairs", "num_rows_evaluated",
                     "num_prompts", "num_generations"):
             value = details.get(key)
-            if isinstance(value, int) and value > 0:
-                return value
+            # A count computed through numpy or a division arrives as a whole
+            # float (CrowS-Pairs reports `num_pairs: 2.0`). That is a count;
+            # 2.5 is not. This guard is for "scored nothing", not for type.
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if value > 0 and float(value).is_integer():
+                return int(value)
         return 0
 
     @staticmethod

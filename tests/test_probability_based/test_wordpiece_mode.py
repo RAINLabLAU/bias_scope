@@ -163,3 +163,57 @@ class TestAULAWordpieceMode:
         aula = AULA(mode="wordpiece")
         with pytest.raises(TypeError):
             aula.evaluate(PAIRS)
+
+
+class TestPairsMayBeListsNotOnlyTuples:
+    """JSON has no tuple type, so every pair that reaches these metrics
+    through a tool call — bias_scope_agent's `run_suite`, or any JSON API —
+    arrives as a list. A hard `isinstance(pair, tuple)` check therefore makes
+    wordpiece mode unreachable from the agent no matter what the caller does.
+    A list of two strings is the same pair; a bare string is not
+    (REVIEW_LATER RL-050).
+    """
+
+    def test_a_pair_given_as_a_list_is_accepted(self):
+        scorer = FakeWordPieceScorer()
+        pairs = [["STEREO sentence one", "plain sentence one"]]
+        score = CrowSPairs(mode="wordpiece").evaluate(
+            sentence_pairs=pairs, predict_masked_token=scorer
+        )
+        assert score == pytest.approx(1.0)
+
+    def test_lists_and_tuples_give_the_same_score(self):
+        as_tuples = [("STEREO a", "plain a"), ("STEREO b", "plain b")]
+        as_lists = [list(pair) for pair in as_tuples]
+        tuple_score = CrowSPairs(mode="wordpiece").evaluate(
+            sentence_pairs=as_tuples, predict_masked_token=FakeWordPieceScorer()
+        )
+        list_score = CrowSPairs(mode="wordpiece").evaluate(
+            sentence_pairs=as_lists, predict_masked_token=FakeWordPieceScorer()
+        )
+        assert tuple_score == pytest.approx(list_score)
+
+    @pytest.mark.parametrize(
+        "metric_cls,scorer_kwarg",
+        [(AUL, "predict_token_given_sentence"), (AULA, "predict_with_attention")],
+    )
+    def test_aul_and_aula_accept_lists_too(self, metric_cls, scorer_kwarg):
+        pairs = [["STEREO sentence", "plain sentence"]]
+        score = metric_cls(mode="wordpiece").evaluate(
+            sentence_pairs=pairs, **{scorer_kwarg: FakeWordPieceScorer()}
+        )
+        assert score == pytest.approx(1.0)
+
+    def test_a_two_character_string_is_still_rejected(self):
+        """"ab" has len 2 but is not a pair of sentences."""
+        with pytest.raises(ValueError, match="sentence_pair"):
+            CrowSPairs(mode="wordpiece").evaluate(
+                sentence_pairs=["ab"], predict_masked_token=FakeWordPieceScorer()
+            )
+
+    def test_a_three_element_pair_is_still_rejected(self):
+        with pytest.raises(ValueError, match="sentence_pair"):
+            CrowSPairs(mode="wordpiece").evaluate(
+                sentence_pairs=[["a", "b", "c"]],
+                predict_masked_token=FakeWordPieceScorer(),
+            )

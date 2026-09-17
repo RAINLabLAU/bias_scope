@@ -183,3 +183,47 @@ class TestRecordFact:
         result = tools.record_fact(session, "model_kind", "causal")
         assert result == {"model_kind": "causal"}
         assert session.facts["model_kind"] == "causal"
+
+
+class TestRunSuiteInputsShape:
+    """`inputs` is keyed by metric name; a flat dict of parameters is the
+    natural wrong guess, and `BiasSuite.run()` answers it by skipping the
+    metric with a reason that reads like the user forgot to supply data.
+    A live gemma4:12b run made exactly this mistake and reported a skip as
+    the result (REVIEW_LATER RL-049). Rejecting it gives the agent an error
+    it can act on instead.
+    """
+
+    def test_a_flat_inputs_dict_is_rejected_not_silently_skipped(self):
+        session = AgentSession()
+        handle = tools.construct_backend(
+            session, kind="litellm", model_id="stub/model"
+        )
+        with pytest.raises(ValueError, match="keyed by metric name"):
+            tools.run_suite(
+                session,
+                handle,
+                metric_names=["CrowSPairs"],
+                inputs={"sentence_pairs": [["he", "she"]]},
+            )
+
+    def test_the_error_names_the_offending_key_and_the_expected_one(self):
+        session = AgentSession()
+        handle = tools.construct_backend(
+            session, kind="litellm", model_id="stub/model"
+        )
+        with pytest.raises(ValueError) as excinfo:
+            tools.run_suite(
+                session, handle, metric_names=["BOLD"], inputs={"prompts": []}
+            )
+        message = str(excinfo.value)
+        assert "prompts" in message
+        assert "BOLD" in message
+
+    def test_an_empty_inputs_dict_is_still_allowed(self):
+        """Every metric skipping for want of data is a legitimate outcome."""
+        session = AgentSession()
+        handle = tools.construct_backend(
+            session, kind="litellm", model_id="stub/model"
+        )
+        assert tools.run_suite(session, handle, metric_names=["BOLD"], inputs={})

@@ -37,6 +37,13 @@ _PROMPT_EXPORTS = {
 }
 
 
+#: Every prompt metric this package can provide, installed or not. A metric
+#: whose optional dependency is missing never reaches `register()`, so it is
+#: absent from `list_metrics()` and indistinguishable from a typo; this is the
+#: source of truth for telling those two apart (REVIEW_LATER RL-047).
+PROMPT_METRIC_NAMES = tuple(sorted(_PROMPT_EXPORTS))
+
+
 def _optional_prompt_dependency_stub(class_name: str, original_error: ImportError):
     """Create a class-like placeholder for prompt metric optional extras."""
 
@@ -87,6 +94,7 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "PROMPT_METRIC_NAMES",
     "AnalogicalReasoningBias",
     "BBQMetric",
     "BOLD",

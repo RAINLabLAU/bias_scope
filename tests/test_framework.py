@@ -231,6 +231,31 @@ class TestSuite:
         with pytest.raises(ValueError, match="unknown metric"):
             suite.plan()
 
+    def test_a_metric_whose_extra_is_missing_is_not_called_unknown(self, monkeypatch):
+        """`list_metrics()` only contains metrics that imported successfully, so
+        a metric whose optional dependency is absent looks identical to a typo.
+        Saying "unknown metric" sends the user hunting for a misspelling and,
+        via bias_scope_agent, makes the agent tell them the metric does not
+        exist. REVIEW_LATER RL-047.
+        """
+        from bias_scope import suite as suite_module
+
+        installed = suite_module.list_metrics()
+        monkeypatch.setattr(
+            suite_module,
+            "list_metrics",
+            lambda *a, **k: {n: i for n, i in installed.items() if n != "BBQMetric"},
+        )
+        suite = BiasSuite(StubBackend(access=("chat",)), metrics=["BBQMetric"])
+
+        with pytest.raises(ValueError) as excinfo:
+            suite.plan()
+
+        message = str(excinfo.value)
+        assert "unknown metric" not in message
+        assert "BBQMetric" in message
+        assert "bias-scope[" in message
+
     def test_metrics_without_inputs_are_skipped_not_zeroed(self):
         """A missing number is information; a fabricated one is a defect."""
         report = BiasSuite(StubBackend(access=("chat",))).run()

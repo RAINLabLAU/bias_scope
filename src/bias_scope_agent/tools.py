@@ -123,6 +123,28 @@ def confirm_plan(session: AgentSession, plan_id: str) -> Dict[str, Any]:
     return {"confirmed": True, "plan_id": plan_id}
 
 
+def _check_inputs_shape(metric_names: Sequence[str], inputs: Dict[str, Any]) -> None:
+    """`inputs` is keyed by metric name, one entry per metric.
+
+    A flat dict of parameters is the natural wrong guess, and it reaches
+    `BiasSuite.run()` as "no data for this metric": the metric is skipped with
+    a reason that reads like the user's omission rather than a malformed call.
+    A live run made exactly this mistake (RL-049), so reject it here, where the
+    agent gets a ValueError back as a tool error it can correct.
+    """
+    unexpected = [key for key in inputs if key not in set(metric_names)]
+    if not unexpected:
+        return
+    example = metric_names[0] if metric_names else "<MetricName>"
+    raise ValueError(
+        f"inputs must be keyed by metric name: got top-level key(s) "
+        f"{unexpected}, which are not in metric_names {list(metric_names)}. "
+        f"Put each metric's parameters under its own name, with any "
+        f'constructor arguments under "__init__", e.g. '
+        f'{{"{example}": {{"__init__": {{"model_name": "..."}}, "<param>": ...}}}}.'
+    )
+
+
 def run_suite(
     session: AgentSession,
     backend_handle: str,
@@ -135,6 +157,7 @@ def run_suite(
     """Runs the suite and returns a report_handle. No gate logic here - the
     confirm-before-run gate is enforced by the tool dispatcher (loop.py),
     not this function, so this stays directly unit-testable."""
+    _check_inputs_shape(metric_names, inputs)
     backend = session.backends.get(backend_handle)
     suite = BiasSuite(backend, axis=axis, language=language, metrics=metric_names)
     report = suite.run(seed=seed, inputs=inputs)

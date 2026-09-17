@@ -787,7 +787,15 @@ an ambiguous or negative reply as confirmation, revisit Option B — specificall
 whether a narrow heuristic (not a second LLM) is worth the false-rejection
 risk it would add for legitimately-worded affirmations.
 
-## RL-041 · verify · 2026-09-12 · bias_scope / CrowSPairs and AUL cannot be run via .run()
+## RL-041 · RESOLVED 2026-09-17 (CEAT still open, see RL-048) · bias_scope / CrowSPairs and AUL cannot be run via .run()
+**Update 2026-09-17:** fixed. `_extract_score` now accepts exactly one
+`<name>_score` key as a fallback, and `_count_items` accepts a whole-number
+float count (a second, independent defect found while fixing the first — see
+RL-048). `CrowSPairs`, `AUL` and `AULA` verified running through `BiasSuite`
+with correct `n`. `CEAT` remains blocked for a different reason (RL-048).
+Tests: `tests/test_run.py::TestMetricNamedScoreKey`,
+`tests/test_run.py::TestWholeNumberItemCounts`.
+
 **Encountered:** while writing bias_scope_agent's integration test
 (tests/integration/test_bias_scope_agent_tiny_model.py), `BiasSuite.run()` for
 `CrowSPairs` (both whitespace and wordpiece modes) and `AUL` raised
@@ -949,3 +957,177 @@ but not confirmed against a real litellm response object in this session.
 **To revisit:** the first time either is run against a real key — treat any
 shape mismatch found there as higher-priority than a hypothetical one.
 
+
+## RL-047 · fix · 2026-09-17 · `.venv` was unusable: core dep missing, stale install, no extras — and `list_metrics()` silently shrinks when extras are absent
+**Encountered:** while answering a "how do I run the agent" question,
+`import bias_scope` failed outright in the repo's own `.venv`:
+`ModuleNotFoundError: No module named 'requests'`, raised from
+`generated_text_based/perspective_api.py:7`. `requests>=2.28.0` is a *core*
+dependency in `pyproject.toml`, not an extra. The venv also had no `pip`, no
+optional extras at all, and a stale editable install pinned at 0.1.0 while
+`pyproject.toml` read 0.1.1 — so every `results/` protocol block written from
+that venv recorded `library_version: 0.1.0`.
+**Chosen:** repaired the environment with `uv`, in this order:
+`uv pip install --python .venv/bin/python "requests>=2.28.0"`, then
+`-e .` (0.1.0 -> 0.1.1), then `-e ".[all]"`. Environment only; no source
+change. Full suite afterwards: **1930 passed, 3 skipped, 2 xfailed**, and
+`ruff check src tests` clean.
+**The finding worth keeping — `list_metrics()` is dependency-sensitive:**
+the registry silently omits any metric whose optional dependency is not
+installed, with no warning. Measured on the same checkout, changing nothing
+but installed packages:
+
+| venv state | `len(list_metrics())` | self-loading metrics |
+|---|---|---|
+| core only (broken) | 48 | 3 |
+| `+ [datasets]` | 54 | 8 |
+| `+ [all]` | 55 | 8 |
+
+`BBQMetric`, `StereoSetMetric`, `AnalogicalReasoningBias`,
+`OccupationPronounSkew` and `TofNof` all appear only once `datasets` is
+present. The user-visible consequence is a misleading error: `BiasSuite.plan()`
+raises `ValueError: unknown metric 'BBQMetric'` (`suite.py:103`) for a metric
+that exists and is correctly registered — it is merely not installed. The
+agent surfaces that string verbatim to the LLM as a tool error, so the agent
+will tell a user a metric does not exist when the real fix is
+`pip install "bias-scope[datasets]"`.
+**Correction to an earlier draft of this entry:** it claimed
+`tests/test_bias_scope_agent/test_introspection.py` and `test_tools.py` had
+rotted by referencing a removed `BBQMetric`. That was wrong — those two tests
+fail *only* in an environment without `datasets`, and pass once it is
+installed. No test rot exists; the tests are correct and PLAN.md Section 14's
+BBQ reference is accurate.
+**Where:** `src/bias_scope/metadata.py` (`list_metrics`), `src/bias_scope/suite.py:103`.
+**Risk if wrong:** low for the suggested fix; the current behaviour's risk is
+silent under-measurement — a user can run what looks like a complete
+evaluation and never learn that six metrics were invisible to it.
+**To revisit:** make the omission legible rather than silent. Cheapest option
+is for `plan()`'s `unknown metric` error to distinguish "not in the registry"
+from "registered but its extra is not installed, run `pip install ...`".
+RL-041 remains separately open and was re-confirmed here by direct
+reproduction: `CEAT`, `AUL`, `AULA` and `CrowSPairs` key their headline score
+as `<name>_score`, which `base.py:199`'s `_extract_score` rejects, so
+`BiasSuite` records them as skipped and the agent cannot reach them.
+
+## RL-048 · verify · 2026-09-17 · CEAT's `n` is its permutation-sample count, and deciding whether that is the right `n` needs the paper
+**Encountered:** while fixing RL-041, `CrowSPairs`, `AUL` and `AULA` were
+brought back through `BiasSuite`, but `CEAT` still raises
+`BiasScopeError: n must be positive, got 0`. Its details dict is
+`{"ceat_score", "weat_mean", "weat_std", "weat_variance", "n_samples"}` —
+`n_samples` (100 by default) is not among the count keys `_count_items`
+recognises (`n`, `num_items`, `num_pairs`, `num_rows_evaluated`,
+`num_prompts`, `num_generations`).
+**Chosen:** stopped rather than adding `n_samples` to that list. The other two
+fixes were plumbing — a key spelling and a numeric type — with no bearing on
+any published statistic. This one is not: `n` feeds the confidence interval,
+and `n_samples` in CEAT is the number of random *samples combined*, not the
+number of items scored. Whether it is the correct denominator for CEAT's
+interval is a question about Guo & Caliskan (2021), and CLAUDE.md forbids
+deciding a metric's definition from memory rather than from the paper and the
+authors' code. Guessing would attach a wrong interval to a faithful-fidelity
+metric, which is worse than leaving it unreachable and labelled.
+**Where:** `src/bias_scope/base.py` `_count_items`;
+`src/bias_scope/embeddings_based/ceat.py`.
+**Risk if wrong:** `CEAT` stays unreachable through `BiasSuite` and therefore
+through `bias_scope_agent`, while still working when `evaluate()` is called
+directly. No wrong number is produced — the guard fires instead.
+**To revisit:** read Guo & Caliskan (2021) and the authors' code per PLAN.md
+Section 4.0, decide what CEAT's `n` should be, and add the test before the fix.
+
+## RL-049 · fix · 2026-09-17 · first live agent run: a malformed `inputs` shape was reported to the user as a completed evaluation
+**Encountered:** PLAN.md Section 14 Item 1 (a live conversation against a real
+agent LLM) had been deferred every session for want of an API key. An Ollama
+server running `gemma4:12b-mlx` was available locally, so the run was finally
+done via the `local` provider: 4 turns, target model
+`hf-internal-testing/tiny-random-BertForMaskedLM`, metric `CrowSPairs`.
+
+What held, none of it previously exercised against a real LLM: the
+confirm-before-run gate (`confirm_plan` in turn 4 matched turn 3's plan and
+`check_run_gate` passed), the whole-transcript re-translation in
+`providers.py` across four turns, both handle registries, and — the one that
+matters most — the model did **not** fabricate a score.
+
+What broke: the agent called `run_suite` with a flattened `inputs`,
+`{"__init__": ..., "sentence_pairs": ...}`, instead of
+`{"CrowSPairs": {"__init__": ..., "sentence_pairs": ...}}`. `BiasSuite.run()`
+does `inputs.get(name)`, got `None`, and skipped the metric with `NEEDS_DATA` —
+a reason that reads as *the user did not supply data*, not *the call was
+malformed*. The agent then reported the skip to the user as the result of the
+evaluation. Nothing anywhere said the call was wrong.
+**Cause:** `schemas.py`'s `RUN_SUITE` described `inputs` as a bare
+`{"type": "object"}` with one line, "Per-metric kwargs, exactly as gathered
+from the user." It never stated that the top-level keys are metric names and
+gave no example. The model's guess was reasonable.
+**Chosen:** fixed structurally rather than by prompting, matching how this
+package treats the run gate. `tools._check_inputs_shape` now rejects any
+top-level key not in `metric_names` with a `ValueError` naming the offending
+key and showing the expected shape; `ValueError` is in `loop._CAUGHT_TOOL_ERRORS`,
+so the agent receives it as a correctable tool error rather than a silent skip.
+The schema description now states the shape and carries a worked example.
+An empty `inputs` stays legal — every metric skipping for want of data is a
+real outcome.
+**Where:** `src/bias_scope_agent/tools.py` (`_check_inputs_shape`, `run_suite`),
+`src/bias_scope_agent/schemas.py` (`RUN_SUITE`).
+Tests: `tests/test_bias_scope_agent/test_tools.py::TestRunSuiteInputsShape`.
+**Also observed in the same run, not fixed - and worse than an omission:** in
+turn 1 the user asked which metrics could run. The model called neither
+`recommend_metrics_tool` nor `explain_exclusions_tool`, and **fabricated their
+output**: it presented `gender_stereotypes_prediction` as a recommended metric
+and `gender_representation_generation`, `gender_professional_stereotypes` and
+`gender_occupational_stereotypes` as excluded ones, each with an invented
+exclusion reason ("requires a generative/causal model"), under confident
+Markdown headings. None of those four names exist in `list_metrics()`. In turn
+4 it likewise invented a cause for the skip ("the metric implementation requires
+the specific internal parameters associated with that dataset") rather than
+reporting the mechanism. Turn 2's `plan_suite` returned `needs_data` naming
+CrowSPairs and it never called `request_missing_inputs` either.
+
+This is the finding of the run. The package's safety design assumes the agent
+either calls a tool or says it cannot; it has no answer for an agent that
+answers from itself. Every guarantee that is prompt-only - the
+recommend/explain pairing, never inventing input data, and RL-040's
+affirmation judgment - rests on an assumption this run falsifies for a 12B
+model. Note what still held: the fabrication never reached a *score*. Metric
+names and reasons were invented; no number was. The structural gates held
+exactly where they exist, and nowhere else.
+**Risk if wrong:** low for the fix. The unfixed observation is the larger
+concern: RL-040 chose to leave affirmation-judging to the agent because no
+live run had shown it misreading anything. One now has — not on affirmation,
+but on two other prompt-only rules. Worth revisiting RL-040 with this evidence.
+**To revisit:** re-run against a stronger model before drawing conclusions about
+the prompt-only rules; a 12B local model is the floor, not the target. Consider
+structural backing for the recommend/explain pairing, which is cheap to enforce.
+
+## RL-050 · fix · 2026-09-17 · JSON has no tuple, so a `isinstance(pair, tuple)` check made three metrics unreachable from any tool call
+**Encountered:** after fixing RL-049's `inputs` shape, `CrowSPairs` still would
+not run through `bias_scope_agent`. The cause was not the agent and not the
+model: `crows_pairs.py`, `aul.py` and `aula.py` each validated wordpiece-mode
+pairs with `if not (isinstance(pair, tuple) and len(pair) == 2)`. JSON has no
+tuple type, so a pair arriving through *any* tool call, HTTP API or serialized
+boundary is always a `list`, and all three metrics rejected it with
+"each sentence_pair must be a (stereotype, anti_stereotype) tuple of strings".
+These are the same three metrics RL-041 had just made reachable — reachable
+from Python, still unreachable from the agent.
+**Chosen:** accept `(tuple, list)` rather than `tuple` alone, in all three. Not
+`collections.abc.Sequence`: a `str` is a Sequence, and a 2-character string
+would then unpack into two 1-character "sentences" and score silently. Tuple
+or list is the plain check that admits JSON and excludes that, and both
+rejection guards are pinned by tests. This touches input validation only — no
+statistic, no protocol, no fidelity claim changes, so PLAN.md Section 4.0's
+read-the-paper-first rule is not engaged.
+**Where:** `src/bias_scope/probability_based/crows_pairs.py`,
+`aul.py`, `aula.py` (wordpiece pair validation).
+Tests: `tests/test_probability_based/test_wordpiece_mode.py::TestPairsMayBeListsNotOnlyTuples`
+(includes a JSON round-trip and the two rejection cases that must keep firing).
+**Verified:** with `inputs` round-tripped through `json.dumps`/`json.loads` —
+the exact data path of a tool call, containing no tuples anywhere — `CrowSPairs`
+and `AUL` now return real scores with fidelity badges through
+`tools.run_suite` + `tools.summarize_report`, where both previously skipped.
+**Risk if wrong:** low, and the failure mode was silent-by-skip rather than a
+wrong number.
+**To revisit:** this is a class of bug, not one instance. Any metric validating
+an input with `isinstance(x, tuple)`, or expecting a set, or a numpy array, is
+unreachable from the agent for the same reason. A scan found only these three
+today, but nothing prevents the next one; the release gate proposed at the end
+of the 2026-09-17 PROGRESS entry (every registered metric must complete
+`.run()`) would catch them if its fixtures went through JSON.

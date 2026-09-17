@@ -362,10 +362,14 @@ class AULA(ProbabilityMetric):
 
         bias_indicators = []
         for pair in sentence_pairs:
-            if not (isinstance(pair, tuple) and len(pair) == 2):
+            # tuple or list, not str: JSON has no tuple, so a pair arriving
+            # through a tool call is always a list (RL-050). A 2-character
+            # string would otherwise unpack into two 1-character "sentences".
+            if not (isinstance(pair, (tuple, list)) and len(pair) == 2):
                 raise ValueError(
                     "In wordpiece mode, each sentence_pair must be a "
-                    "(stereotype, anti_stereotype) tuple of strings."
+                    "(stereotype, anti_stereotype) pair of strings, "
+                    "given as a tuple or a list."
                 )
             s_more, s_less = pair
             if not (isinstance(s_more, str) and isinstance(s_less, str)):

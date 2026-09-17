@@ -141,7 +141,14 @@ RUN_SUITE: Dict[str, Any] = {
             "metric_names": {"type": "array", "items": {"type": "string"}},
             "inputs": {
                 "type": "object",
-                "description": "Per-metric kwargs, exactly as gathered from the user.",
+                "description": (
+                    "Per-metric kwargs, keyed by metric name - one entry per metric "
+                    "in metric_names, exactly as gathered from the user. A flat dict "
+                    "of parameters is rejected. Put constructor arguments under a "
+                    'nested "__init__" key. Example: {"CrowSPairs": {"__init__": '
+                    '{"model_name": "bert-base-uncased"}, "sentence_pairs": '
+                    '[["he is a doctor", "she is a doctor"]]}}'
+                ),
             },
             "axis": {"type": "string", "default": "gender"},
             "language": {"type": "string", "default": "en"},

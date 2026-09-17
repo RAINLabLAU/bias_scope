@@ -1264,3 +1264,123 @@ pytest -q tests/test_bias_scope_agent/ tests/integration/test_bias_scope_agent_t
   this branch into `agent-implementation` in the main folder via `git`
   (unlike file edits, git operations against that folder are not blocked),
   then delete the throwaway branch.
+
+## 2026-09-17 — environment repair and a registry finding (no source change)
+
+Session was a walkthrough of `bias_scope_agent`'s architecture, which turned
+into an environment repair when `import bias_scope` proved to fail outright in
+the repo's own `.venv`.
+
+- Repaired `.venv` with `uv`: installed the missing **core** dependency
+  `requests>=2.28.0`, reinstalled editable (0.1.0 -> **0.1.1**, so protocol
+  blocks now record the right `library_version`), then installed `[all]`.
+- Full suite afterwards: **1930 passed, 3 skipped, 5 deselected, 2 xfailed**.
+  `ruff check src tests` clean. Every failure seen before the repair (10 in
+  the agent suite, 5 collection errors project-wide) was environmental.
+- **Finding (RL-047):** `list_metrics()` silently omits metrics whose optional
+  dependency is absent — 48 metrics core-only, 54 with `[datasets]`, 55 with
+  `[all]`. `BiasSuite.plan()` then raises `ValueError: unknown metric
+  'BBQMetric'` for a metric that is registered and correct but not installed,
+  and the agent relays that wording to the user as fact.
+- **Correction:** an earlier draft of RL-047 claimed the agent's BBQ-referencing
+  tests had rotted against a removed metric. That was wrong and has been struck
+  from the entry — the tests are correct and pass with `[datasets]` installed.
+- RL-041 re-confirmed by direct reproduction: `CEAT`, `AUL`, `AULA`,
+  `CrowSPairs` are unreachable through `BiasSuite` (and so through the agent)
+  because `_extract_score` rejects their `<name>_score` key.
+
+Then, on request, fixed two of the reachability defects (tests written first).
+
+**RL-041 resolved for CrowSPairs / AUL / AULA.** Two independent defects, both
+in the `evaluate()` -> `run()` contract, neither in any metric's statistic:
+- `base.py` `_split_result` accepted only `bias_score`/`score`/`value`/
+  `effect_size`. Now falls back to exactly one `<name>_score` key; two remain
+  ambiguous and still raise, since a guessed score is a fabrication.
+- `base.py` `_count_items` required `isinstance(value, int)`, but CrowS-Pairs
+  reports `num_pairs: 2.0` — a count computed through numpy. A whole-number
+  float is now accepted; 2.5 and 0.0 still raise.
+Verified on a real `HuggingFaceBackend`: all three return a score with `n=2`
+through `BiasSuite`, where all three were previously recorded as skipped.
+
+**RL-047 fixed.** `BiasSuite.plan()` said `unknown metric 'BBQMetric'` for a
+metric that is registered and correct but whose extra is not installed.
+`prompts_based` now exposes `PROMPT_METRIC_NAMES` (every prompt metric,
+installed or not) and `suite._missing_metric_message` uses it to name the
+install command instead.
+
+**RL-048 opened, deliberately not fixed.** `CEAT` is still unreachable: it
+reports `n_samples`, its permutation-sample count, which is not an items-scored
+count. `n` feeds the confidence interval, so whether `n_samples` belongs there
+is a question about Guo & Caliskan (2021), not plumbing — CLAUDE.md forbids
+settling it from memory. Left labelled rather than guessed.
+
+Gates: **1938 passed, 3 skipped, 2 xfailed**; `ruff check src tests` clean.
+Files changed: `src/bias_scope/base.py`, `src/bias_scope/suite.py`,
+`src/bias_scope/prompts_based/__init__.py`, `tests/test_run.py`,
+`tests/test_framework.py`.
+
+**Still open, found by a static screen of all 55 metrics:** 12 metrics key
+their headline number as `<name>_score`. The new fallback covers the 9 with
+exactly one such key; `FGB`, `PGB` and `StereoSetMetric` report several and
+stay (correctly) ambiguous. There is no release gate asserting that every
+registered metric can complete `.run()` — `tests/test_metadata.py`'s
+`TestReleaseGates` covers fidelity only. That missing gate is why these
+defects reached a release at all; worth adding before 0.2.0.
+
+### Later the same day — PLAN.md Section 14 Item 1 finally done: the first live agent run
+
+Item 1 (a real conversation against a real agent LLM) had been deferred every
+session for want of an API key. An Ollama server running `gemma4:12b-mlx` was
+available locally, so the run was done through the `local` provider: 4 turns,
+target `hf-internal-testing/tiny-random-BertForMaskedLM`, metric `CrowSPairs`.
+It cost nothing and needed no key. **Every provider in this package had, until
+today, been built and unit-tested without one real API call ever being made.**
+
+**Held on first contact, none of it previously exercised against a real LLM:**
+the confirm-before-run gate (turn 4's `confirm_plan` matched turn 3's plan,
+`check_run_gate` passed, and the model correctly confirmed the *newer* plan_id
+rather than the stale one), `providers.py`'s whole-transcript re-translation
+across four turns, both handle registries, and `inspect_model`'s guess
+(`encoder`, `has_lm_head`, confidence `high`) on a real Hub lookup.
+
+**Broke — two defects, both now fixed, tests first:**
+- **RL-049**: the agent sent `run_suite` a *flattened* `inputs`
+  (`{"sentence_pairs": ...}` rather than `{"CrowSPairs": {"sentence_pairs": ...}}`).
+  `BiasSuite.run()` looked up the metric name, found nothing, and skipped it
+  with a reason that reads like the user's omission. The agent reported that
+  skip to the user as the evaluation result. Cause: `RUN_SUITE`'s schema
+  described `inputs` as a bare `{"type": "object"}` with one line that never
+  said the keys are metric names. Fixed structurally — `_check_inputs_shape`
+  rejects an unrecognised top-level key with a `ValueError` (which
+  `loop._CAUGHT_TOOL_ERRORS` returns to the agent as a correctable tool error),
+  and the schema now carries a worked example.
+- **RL-050**: even with the right shape, `CrowSPairs` still would not run.
+  `crows_pairs.py`, `aul.py` and `aula.py` validated pairs with
+  `isinstance(pair, tuple)`. **JSON has no tuple type**, so a pair arriving
+  through any tool call is always a list — making all three unreachable from
+  the agent regardless of the model's competence, and unreachable from any
+  future HTTP API for the same reason. Now accept tuple or list (not
+  `Sequence`, which would admit a 2-character string). Verified with `inputs`
+  round-tripped through `json.dumps`/`json.loads`: `CrowSPairs` and `AUL` now
+  return real scores with fidelity badges where both previously skipped.
+
+**The finding worth the most attention, not fixed.** In turn 1 the user asked
+which metrics could run. The model called neither `recommend_metrics_tool` nor
+`explain_exclusions_tool` and **fabricated their output** — four metric names
+that do not exist (`gender_stereotypes_prediction`,
+`gender_representation_generation`, `gender_professional_stereotypes`,
+`gender_occupational_stereotypes`), each with an invented exclusion reason,
+under confident Markdown headings. In turn 4 it invented a cause for the skip.
+The package's safety design assumes the agent either calls a tool or says it
+cannot; it has no answer for an agent that answers from itself. Every
+prompt-only guarantee rests on an assumption this run falsifies for a 12B
+model — including RL-040's decision to leave affirmation-judging to the agent,
+which was taken explicitly because no live run had shown a model misreading
+anything. One now has.
+
+What still held: **the fabrication never reached a score.** Names and reasons
+were invented; no number was. Scores can only arrive through `run_suite` and
+`summarize_report`, both structural. The gates held exactly where they exist
+and nowhere else — which is the clearest argument yet for widening them.
+
+Gates: **1947 passed, 3 skipped, 2 xfailed**; `ruff check src tests` clean.
