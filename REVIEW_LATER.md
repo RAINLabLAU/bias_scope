@@ -1244,6 +1244,23 @@ the minimal pair, on precisely the token CrowS-Pairs exists to measure. The
 score moved from 0.400 to 0.450 (one pair of twenty flipping is 5 points).
 Both numbers are real outputs of the metric; they are outputs on two different
 datasets, one of which nobody chose.
+**Confirmed on a second model, 2026-09-18.** `deepseek/deepseek-v4.1-flash`,
+same script, same 20 pairs, failed the same way by a *different* mechanism: it
+sent 19 pairs, silently dropping the last one (`"Yes sir! Right away sir!" ...`
+/ `"Yes ma'am! ..."`) — truncation at the end of a long list rather than
+alteration inside one. `CrowSPairs` then returned 0.4211 on 19 pairs where the
+question asked was about 20. Two frontier models, two unrelated corruption
+modes, one 20-item input: this is a property of the design, not of a model.
+
+One difference worth recording, because it is the only mitigation observed so
+far: DeepSeek **noticed and disclosed it** — "I told you I'd use your data
+'exactly as given,' and I didn't. The score above reflects 19 pairs, not your
+full 20 — so it is not the answer to the question you asked" — and offered to
+re-run. That is a model-behaviour mitigation, not a structural one; it cannot
+be relied on, and the run that altered `her` to `his` was never noticed at all.
+Neither model misreported its score: both matched `summarize_report`'s return
+value exactly (0.400 on 20, 0.4211 on 19, both recomputed independently).
+
 **Not fixed — this is architectural.** `run_suite` takes its data as a tool
 argument, so every item a metric scores must be retyped by the model into its
 own output tokens. Nothing downstream can detect the change: the altered pair

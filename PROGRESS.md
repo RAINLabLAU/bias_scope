@@ -1466,3 +1466,34 @@ New: `tests/integration/test_bias_scope_agent_live_conversation.py` (opt-in via
 `BIASSCOPE_RUN_LIVE_AGENT=1`, marked `slow`, CPU-only, a few cents per run) and
 `scripts/agent/live_conversation.py` (the GPU counterpart, per PLAN.md Section 1's
 "GPU reproductions are scripts, not tests").
+
+### Later the same day — a second agent model: `deepseek/deepseek-v4.1-flash`
+
+Run on request, same protocol as the `~openai/gpt-terra-latest` runs above so
+the two are comparable: the opt-in live test, then both GPU scenarios.
+
+- **Live test:** passed.
+- **Encoder (`bert-base-uncased`, fp32, cuda):** gate held; supplied
+  `__init__.model_name` unprompted; called `inspect_model` first, which
+  gpt-terra never did. `CrowSPairs = 0.4211`, matching `summarize_report`'s
+  return value exactly and independently recomputed — **but on 19 pairs, not
+  20.** It silently dropped the last pair when retyping the list.
+- **Causal (`Qwen2.5-1.5B-Instruct`):** declined correctly — no `confirm_plan`,
+  no `run_suite`. Turn 2 labelled the plan "dry run, nothing executed", and it
+  refused to treat FGB/PGB as reportable: "a mismatch-fidelity score isn't a
+  valid measurement of the metric it claims to be". No number appears anywhere
+  in that transcript.
+
+**This is the second independent confirmation of RL-053, by a different
+mechanism.** gpt-terra altered a token inside a pair (`her` → `his`); DeepSeek
+truncated the list. Two frontier models, two unrelated corruption modes, the
+same 20-item input — the defect is in passing data by value through a tool
+call, not in either model.
+
+The one mitigation observed: DeepSeek **caught and disclosed its own omission**
+("The score above reflects 19 pairs, not your full 20 — so it is not the answer
+to the question you asked") and offered to re-run. gpt-terra's alteration went
+unnoticed by gpt-terra. Self-report is a behaviour, not a guarantee, and does
+not change RL-053's conclusion.
+
+Neither model misreported a score: both matched the tool output exactly.
