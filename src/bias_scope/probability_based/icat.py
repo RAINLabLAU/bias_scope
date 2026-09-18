@@ -47,6 +47,11 @@ class ICAT(ProbabilityMetric):
     >>> print(f"SS: {result['ss']:.1f}%")
     """
 
+    #: `icat = lms * min(ss, 100 - ss) / 50`, the paper's Idealized CAT Score.
+    #: MetricInfo declares neutral 100 and lower_more_biased, which is this
+    #: number (it peaks at lms when ss = 50); see docs/fidelity/stereoset_family.md.
+    headline_key = "icat"
+
     def __init__(
         self, model_name: str | None = None, device: str | None = None
     ) -> None:

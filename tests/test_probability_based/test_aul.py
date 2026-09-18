@@ -1,8 +1,14 @@
 """Tests for All Unmasked Likelihood (AUL)."""
 
+# Scores are percentages (0-100) as of RL-060: the authors' own scorers report
+# a percentage and MetricInfo already declared neutral_value=50,
+# value_range=(0, 100). The assertions below were written against the old
+# [0, 1] return and are rescaled, not relaxed - each still pins the same
+# property (in range / above neutral / below neutral / exactly at a bound).
 import numpy as np
 import pytest
 
+from bias_scope.metadata import list_metrics, normalized_deviation
 from bias_scope.probability_based import AUL
 
 
@@ -23,8 +29,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, biased_predict)
 
-        assert 0.0 <= score <= 1.0
-        assert score >= 0.5  # Prefers stereotypes (>= allows for ties)
+        assert 0.0 <= score <= 100.0
+        assert score >= 50.0  # Prefers stereotypes (>= allows for ties)
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
@@ -44,7 +50,7 @@ class TestAUL:
         score = aul.evaluate(pairs, unbiased_predict)
 
         # Should be approximately 0.5 (no preference)
-        assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
+        assert abs(score - 50.0) <= 60.0  # Allow variance due to randomness
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
@@ -149,7 +155,7 @@ class TestAUL:
         score = aul.evaluate(pairs, mock_predict)
 
         # Single pair: score is either 0 or 1
-        assert score in [0.0, 1.0]
+        assert score in [0.0, 100.0]
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
@@ -162,7 +168,7 @@ class TestAUL:
 
         score = aul.evaluate(pairs, mock_predict)
 
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_deterministic_results(self):
         """Test deterministic prediction gives consistent results."""
@@ -195,7 +201,7 @@ class TestAUL:
         score = aul.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_position_based_probabilities(self):
         """Test with position-dependent probabilities."""
@@ -212,7 +218,7 @@ class TestAUL:
         score = aul.evaluate(pairs, position_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_computes_average_not_sum(self):
         """Test that AUL computes average, not sum."""
@@ -246,4 +252,49 @@ class TestAUL:
 
         score = aul.evaluate(pairs, anti_bias_predict)
 
-        assert score < 0.5  # Prefers anti-stereotypes
+        assert score < 50.0  # Prefers anti-stereotypes
+
+
+class TestAULScoreIsAPercentage:
+    """RL-060: the score must be on the scale its own metadata declares.
+
+    These metrics returned a fraction in [0, 1] while four independent sources
+    say percent:
+
+    * the authors' own scorers -
+      `crows-pairs/metric.py:270`  round((stereo + antistereo) / N * 100, 2)
+      `evaluate_bias_in_mlm/evaluate.py:213`  round((stereo / total) * 100, 2)
+      PLAN.md Section 1: where paper and code disagree the code wins; here
+      they agree with each other and not with us.
+    * Nangia et al. 2020 Table 3 reports 60.5 for bert-base-uncased.
+    * `validation/registry.yaml` carries `published_value: 60.5`.
+    * `MetricInfo` declares `neutral_value=50.0, value_range=(0.0, 100.0)`.
+
+    The consequence was not cosmetic: `normalized_deviation(0.5573, CrowSPairs)`
+    returned -0.9889 - the wrong *sign* - reading a mildly stereotype-preferring
+    model as maximally anti-stereotypical, which is exactly what the profile
+    view, `compare` and `correlate` plot.
+
+    Derivation below: 4 pairs, the model prefers the stereotypical sentence in
+    3 of them, so the score is 3/4 * 100 = 75.0.
+    """
+
+    def _score(self):
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.9 if "S" in sentence else 0.1
+
+        pairs = [
+            (["S", "a"], ["x", "a"]),
+            (["S", "b"], ["x", "b"]),
+            (["S", "c"], ["x", "c"]),
+            (["x", "d"], ["S", "d"]),
+        ]
+        return aul.evaluate(pairs, predict)
+
+    def test_three_of_four_preferred_pairs_score_seventy_five(self):
+        assert self._score() == pytest.approx(75.0, abs=1e-6)
+
+    def test_preferring_stereotypes_reads_as_a_positive_deviation(self):
+        assert normalized_deviation(self._score(), list_metrics()["AUL"]) > 0

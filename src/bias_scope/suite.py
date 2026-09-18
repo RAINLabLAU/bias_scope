@@ -167,10 +167,18 @@ class BiasSuite:
                 skipped[name] = "class not importable in this environment"
                 continue
 
-            kwargs = inputs.get(name)
-            if kwargs is None:
+            supplied = inputs.get(name)
+            if supplied is None:
                 skipped[name] = NEEDS_DATA
                 continue
+
+            # A shallow copy, because the pop below would otherwise strip
+            # "__init__" out of the caller's own dict: running the same inputs
+            # twice then constructs the metric differently the second time, and
+            # a caller recording `inputs` finds its record altered after the
+            # fact (REVIEW_LATER RL-054). The values are not copied - they may
+            # be large arrays and are not modified here.
+            kwargs = dict(supplied)
 
             try:
                 metric = cls(**kwargs.pop("__init__", {}))

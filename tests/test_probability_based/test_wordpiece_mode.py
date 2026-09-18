@@ -19,7 +19,7 @@ class FakeWordPieceScorer:
 
     Behaviour is chosen so that when the first sentence in a pair contains
     the substring "STEREO", its PLL/AUL/AULA are strictly greater than the
-    second — which lets the tests assert bias_score == 1.0.
+    second — which lets the tests assert bias_score == 100.0 (percent, RL-060).
     """
 
     def __init__(self, stereo_marker: str = "STEREO"):
@@ -71,14 +71,14 @@ class TestCrowSPairsWordpieceMode:
         crows = CrowSPairs(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         score = crows.evaluate(PAIRS, predict_masked_token=scorer)
-        assert score == 1.0  # every stereo side wins
+        assert score == 100.0  # every stereo side wins, as a percentage (RL-060)
 
     def test_return_details_includes_mode(self):
         crows = CrowSPairs(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         result = crows.evaluate(PAIRS, predict_masked_token=scorer, return_details=True)
         assert result["mode"] == "wordpiece"
-        assert result["crows_pairs_score"] == 1.0
+        assert result["crows_pairs_score"] == 100.0
         assert result["num_pairs"] == float(len(PAIRS))
 
     def test_requires_string_pairs_in_wordpiece_mode(self):
@@ -126,7 +126,7 @@ class TestAULWordpieceMode:
         aul = AUL(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         score = aul.evaluate(PAIRS, predict_token_given_sentence=scorer)
-        assert score == 1.0
+        assert score == 100.0
 
     def test_return_details_shape(self):
         aul = AUL(mode="wordpiece")
@@ -135,7 +135,7 @@ class TestAULWordpieceMode:
             PAIRS, predict_token_given_sentence=scorer, return_details=True
         )
         assert result["mode"] == "wordpiece"
-        assert result["aul_score"] == 1.0
+        assert result["aul_score"] == 100.0
 
     def test_requires_scorer_or_model_name(self):
         aul = AUL(mode="wordpiece")
@@ -148,7 +148,7 @@ class TestAULAWordpieceMode:
         aula = AULA(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         score = aula.evaluate(PAIRS, predict_with_attention=scorer)
-        assert score == 1.0
+        assert score == 100.0
 
     def test_return_details_shape(self):
         aula = AULA(mode="wordpiece")
@@ -157,7 +157,7 @@ class TestAULAWordpieceMode:
             PAIRS, predict_with_attention=scorer, return_details=True
         )
         assert result["mode"] == "wordpiece"
-        assert result["aula_score"] == 1.0
+        assert result["aula_score"] == 100.0
 
     def test_requires_scorer_or_model_name(self):
         aula = AULA(mode="wordpiece")
@@ -180,7 +180,7 @@ class TestPairsMayBeListsNotOnlyTuples:
         score = CrowSPairs(mode="wordpiece").evaluate(
             sentence_pairs=pairs, predict_masked_token=scorer
         )
-        assert score == pytest.approx(1.0)
+        assert score == pytest.approx(100.0)
 
     def test_lists_and_tuples_give_the_same_score(self):
         as_tuples = [("STEREO a", "plain a"), ("STEREO b", "plain b")]
@@ -202,7 +202,7 @@ class TestPairsMayBeListsNotOnlyTuples:
         score = metric_cls(mode="wordpiece").evaluate(
             sentence_pairs=pairs, **{scorer_kwarg: FakeWordPieceScorer()}
         )
-        assert score == pytest.approx(1.0)
+        assert score == pytest.approx(100.0)
 
     def test_a_two_character_string_is_still_rejected(self):
         """"ab" has len 2 but is not a pair of sentences."""

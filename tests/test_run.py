@@ -10,7 +10,7 @@ from dataclasses import replace
 import pytest
 
 from bias_scope.base import BiasScopeError, GeneratedTextMetric
-from bias_scope.metadata import MetricInfo
+from bias_scope.metadata import MetricInfo, list_metrics
 from bias_scope.result import BiasResult, from_dict
 
 INFO = MetricInfo(
@@ -303,3 +303,54 @@ class TestWholeNumberItemCounts:
 
         with pytest.raises(BiasScopeError, match="n must be positive"):
             Empty().run()
+
+
+class TestHeadlineKeyDeclaration:
+    """RL-061: a metric whose result has several numbers may name its headline.
+
+    `_split_result` guessed from the shape of the dict: four documented names,
+    else exactly one `<name>_score` key. `CAT` returns `{lms, ss, n_examples,
+    num_target_terms}` and `ICAT` returns `{icat, lms, ss, n_examples}`, so
+    neither matched and both raised - they were unreachable through `run()`,
+    and therefore through `BiasSuite` and the agent, exactly like CrowSPairs
+    before RL-041.
+
+    Guessing is not an option here (a guessed score is the fabrication PLAN.md
+    Section 1 forbids), and the right answer is not in the dict's shape - it is
+    in the paper. `docs/fidelity/stereoset_family.md` and the metrics' own
+    `MetricInfo` say which number is the bias score: CAT's is `ss`, the
+    stereotype score, whose neutral value is 50; ICAT's is `icat`, neutral 100
+    and lower-is-more-biased, matching `icat = lms * min(ss, 100 - ss) / 50`.
+    `lms` is a language-modelling quality score and is not a bias score at all.
+    So the metric declares its headline instead of the base class inferring it.
+    """
+
+    def test_a_declared_headline_key_is_used(self):
+        class Declared(GeneratedTextMetric):
+            headline_key = "ss"
+            info = list_metrics()["CAT"]
+
+            def evaluate(self, return_details=False):
+                return {"lms": 80.0, "ss": 62.0, "n_examples": 5}
+
+        assert Declared().run().score == 62.0
+
+    def test_a_declared_key_that_is_absent_still_raises(self):
+        class Missing(GeneratedTextMetric):
+            headline_key = "nope"
+            info = list_metrics()["CAT"]
+
+            def evaluate(self, return_details=False):
+                return {"lms": 80.0, "ss": 62.0, "n_examples": 5}
+
+        with pytest.raises(BiasScopeError, match="nope"):
+            Missing().run()
+
+    def test_metrics_without_a_declaration_are_unaffected(self):
+        class Plain(GeneratedTextMetric):
+            info = list_metrics()["WEAT"]
+
+            def evaluate(self, return_details=False):
+                return {"effect_size": 1.5, "n": 4}
+
+        assert Plain().run().score == 1.5

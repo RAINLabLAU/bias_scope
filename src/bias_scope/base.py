@@ -30,6 +30,12 @@ class BiasMetric(ABC):
     ...         return 0.5
     """
 
+    #: The key in `evaluate()`'s result holding the bias score, for metrics
+    #: whose result carries several numbers and whose headline cannot be
+    #: inferred from the dict's shape. Empty means "infer it" (RL-061).
+    headline_key: ClassVar[str] = ""
+
+
     def __repr__(self) -> str:
         """Return a scikit-learn-style representation of the metric config."""
         try:
@@ -146,7 +152,7 @@ class BiasMetric(ABC):
         seed_everything(seed)
 
         raw = self._call_evaluate(*args, **kwargs)
-        score, details = self._split_result(raw)
+        score, details = self._split_result(raw, self.headline_key)
         per_item = self._extract_per_item(details)
         n = self._count_items(details, per_item)
 
@@ -184,7 +190,7 @@ class BiasMetric(ABC):
         return self.evaluate(*args, **kwargs)
 
     @staticmethod
-    def _split_result(raw: Any) -> Tuple[float, Dict[str, Any]]:
+    def _split_result(raw: Any, headline_key: str = "") -> Tuple[float, Dict[str, Any]]:
         """Pull the headline score and the details dict out of what came back."""
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
             return float(raw), {}
@@ -192,6 +198,19 @@ class BiasMetric(ABC):
             raise BiasScopeError(
                 f"evaluate() returned {type(raw).__name__}; run() needs a float "
                 "or a dict"
+            )
+
+        # A metric whose result carries several numbers names its own headline
+        # (see `headline_key`). CAT returns lms and ss; only the paper says
+        # which is the bias score, so the metric states it rather than letting
+        # this function infer it from the dict's shape (RL-061).
+        if headline_key:
+            value = raw.get(headline_key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value), raw
+            raise BiasScopeError(
+                f"declared headline_key {headline_key!r} is not a number in "
+                f"evaluate()'s result; found keys {sorted(raw)}"
             )
 
         # Metrics use different names for their headline number. Try the
@@ -237,8 +256,15 @@ class BiasMetric(ABC):
         """`n` is the number of items actually scored."""
         if per_item is not None:
             return len(per_item)
+        # "n_samples" is CEAT's: Guo & Caliskan draw N samples, each giving one
+        # effect size and one variance, then pool them with `df = N - 1`
+        # (third_party/code/CEAT/code/ceat.py:205-243). The degrees of freedom
+        # say plainly that N is the number of observations the random-effects
+        # model pools, so it is the count `n` carries (REVIEW_LATER RL-048).
+        # "n_examples" is CAT's and ICAT's: the number of StereoSet test cases
+        # actually scored, which is what `n` means (RL-061).
         for key in ("n", "num_items", "num_pairs", "num_rows_evaluated",
-                    "num_prompts", "num_generations"):
+                    "num_prompts", "num_generations", "n_samples", "n_examples"):
             value = details.get(key)
             # A count computed through numpy or a division arrives as a whole
             # float (CrowS-Pairs reports `num_pairs: 2.0`). That is a count;

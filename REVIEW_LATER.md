@@ -1039,6 +1039,15 @@ directly. No wrong number is produced — the guard fires instead.
 **To revisit:** read Guo & Caliskan (2021) and the authors' code per PLAN.md
 Section 4.0, decide what CEAT's `n` should be, and add the test before the fix.
 
+**RESOLVED 2026-09-18.** The authors' own code answers the question the entry
+left open. `third_party/code/CEAT/code/ceat.py:205` `ceat_meta(..., N=10000)`
+draws N samples, each producing one effect size and one variance (`e_lst`,
+`v_lst`), and line 243 computes the Q statistic with `df = N - 1`. The degrees
+of freedom say explicitly that N is the number of observations the
+random-effects model pools, so `n_samples` is the count `n` carries.
+`_count_items` now accepts it, and CEAT completes `run()`.
+Test: `tests/test_embeddings/test_ceat.py::TestCeatIsReachableThroughRun`.
+
 ## RL-049 · fix · 2026-09-17 · first live agent run: a malformed `inputs` shape was reported to the user as a completed evaluation
 **Encountered:** PLAN.md Section 14 Item 1 (a live conversation against a real
 agent LLM) had been deferred every session for want of an API key. An Ollama
@@ -1320,6 +1329,12 @@ second run either fails or (worse) runs a differently-constructed metric.
 regression test asserting `inputs` is unchanged after `run()`, which is the
 kind of property no current test covers.
 
+**FIXED 2026-09-18.** `BiasSuite.run` now takes a shallow copy of each
+metric's kwargs before popping `__init__`, so the caller's dict is untouched
+and the same inputs can be run twice. Values are not copied - they may be
+large arrays and are not modified.
+Tests: `tests/test_framework.py::TestRunDoesNotMutateTheCallersInputs`.
+
 ## RL-055 · verify · 2026-09-18 · text the model writes alongside a tool call never reaches the user, so a plan can be confirmed without ever being shown
 **Encountered:** reading back the DeepSeek encoder transcript. Turn 2's reply
 is 315 characters long and says *"I've shown you the plan above. **I have not
@@ -1521,3 +1536,45 @@ restate the metadata in fractions), then sweep every metric whose
 `value_range` is `(0, 100)` for the same mismatch, and add the check that would
 have caught it: a test asserting each metric's score on a fixed input falls on
 the expected side of its own `neutral_value`.
+
+**FIXED 2026-09-18.** All six return sites in `crows_pairs.py`, `aul.py` and
+`aula.py` now multiply by 100, matching the authors' own scorers
+(`crows-pairs/metric.py:270`, `evaluate_bias_in_mlm/evaluate.py:213`), the
+papers' reported values, `validation/registry.yaml` and these metrics' own
+`MetricInfo`. On bert-base-uncased the first 60 gender pairs now give
+CrowSPairs 60.00 (`normalized_deviation` +0.20, the correct sign; it was
+-0.99), AUL 46.67, AULA 45.00 - and 60.00 is directly comparable to Nangia's
+published 60.5 for the first time. Nineteen existing assertions were
+rescaled, not relaxed: each still pins the same property.
+Tests: `TestCrowSPairsScoreIsAPercentage`, `TestAULScoreIsAPercentage`,
+`TestAULAScoreIsAPercentage`.
+
+## RL-061 · fix · 2026-09-18 · CAT and ICAT were unreachable through `run()`, because the base class had to guess which of their numbers was the score
+**Encountered:** wiring StereoSet into the dataset providers. Both metrics
+completed `evaluate()` and then failed in `run()` with *"cannot find a headline
+score ... found numeric keys ['lms', 'ss', 'n_examples', 'num_target_terms']"*.
+`_split_result` inferred the headline from the dict's shape - four documented
+names, else exactly one `<name>_score` key - and neither matched. Same class of
+defect as RL-041, and the same consequence: unreachable through `BiasSuite` and
+therefore through the agent.
+**Chosen:** the metric declares its own headline (`headline_key`), because the
+answer is in the paper, not in the shape of the dict, and guessing a score is
+the fabrication PLAN.md Section 1 forbids. CAT's is **`ss`**, the stereotype
+score - `lms` measures language-modelling quality and is not a bias score at
+all - and its `MetricInfo` (neutral 50, range 0-100, higher_more_biased)
+describes exactly `ss`. ICAT's is **`icat`**, whose `MetricInfo` (neutral 100,
+lower_more_biased) matches `icat = lms * min(ss, 100 - ss) / 50`. Both are
+stated in `docs/fidelity/stereoset_family.md`. `_count_items` also now accepts
+`n_examples`, the number of test cases actually scored.
+**Where:** `src/bias_scope/base.py` (`headline_key`, `_split_result`,
+`_count_items`), `cat.py`, `icat.py`.
+Tests: `tests/test_run.py::TestHeadlineKeyDeclaration` (including that a
+declared-but-absent key still raises, and that undeclared metrics are
+unaffected).
+**Verified:** on bert-base-uncased over 40 StereoSet gender items, CAT (ss)
+67.50 and ICAT 54.44 with lms 83.75 - and 83.75 * min(67.5, 32.5) / 50 =
+54.4375, so the two agree with the paper's formula.
+**Risk if wrong:** low; the declaration is explicit and per-metric.
+**To revisit:** `FGB`, `PGB` and `StereoSetMetric` report several numbers and
+are still (correctly) ambiguous. They should each declare a `headline_key`
+once someone has read their papers for which number is the bias score.

@@ -53,6 +53,12 @@ class CAT(ProbabilityMetric):
     >>> print(f"Stereotype Score: {result['ss']:.1f}%")
     """
 
+    #: `ss`, the stereotype score. CAT reports two numbers - `lms` measures
+    #: language-modelling quality, not bias - and only the paper says which is
+    #: the bias score. This metric's own MetricInfo (neutral 50, range 0-100,
+    #: higher_more_biased) describes `ss`; see docs/fidelity/stereoset_family.md.
+    headline_key = "ss"
+
     def __init__(
         self, model_name: str | None = None, device: str | None = None
     ) -> None:

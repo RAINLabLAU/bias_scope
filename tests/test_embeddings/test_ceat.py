@@ -343,3 +343,38 @@ class TestCEAT:
         # Wrong number of attribute groups
         with pytest.raises(ValueError, match="exactly 2 elements"):
             ceat.evaluate((target, target), (attr,))
+
+
+class TestCeatIsReachableThroughRun:
+    """RL-048: CEAT completed `evaluate()` but never `run()`.
+
+    `run()` raised "n must be positive, got 0" for every input, because
+    `_count_items` recognised no key in CEAT's details. CEAT reports
+    `n_samples`, and the open question was whether that is an items-scored
+    count or merely a permutation budget - a question about Guo & Caliskan
+    (2021), not about plumbing, so it was left labelled rather than guessed.
+
+    The authors' own code answers it. `ceat.py:205 ceat_meta(..., N=10000)`
+    draws N samples, each yielding one effect size and one variance
+    (`e_lst`, `v_lst`), and then computes the Q statistic with
+    `df = N - 1` (`ceat.py:243`). N is the number of observations the
+    random-effects meta-analysis pools - the degrees of freedom say so
+    explicitly - so it is the count `n` is meant to carry.
+    """
+
+    def _result(self):
+        rng = np.random.default_rng(0)
+        return CEAT().run(
+            target_embeddings=(rng.normal(size=(20, 16)), rng.normal(size=(20, 16))),
+            attribute_embeddings=(rng.normal(size=(20, 16)), rng.normal(size=(20, 16))),
+            n_samples=25,
+            random_seed=42,
+        )
+
+    def test_run_completes_and_reports_the_sample_count_as_n(self):
+        assert self._result().n == 25
+
+    def test_the_score_is_finite(self):
+        import math
+
+        assert math.isfinite(self._result().score)

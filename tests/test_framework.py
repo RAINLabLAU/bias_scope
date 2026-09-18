@@ -563,3 +563,59 @@ class TestEncoderWithoutAMaskedLmHeadDoesNotAdvertiseLogits:
         backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
         recommended = recommend_metrics(access=backend.access, axis="gender", language="en")
         assert "probability" not in {rec.info.family for rec in recommended}
+
+
+class TestRunDoesNotMutateTheCallersInputs:
+    """RL-054: `BiasSuite.run` popped "__init__" out of the dict it was given.
+
+    Two consequences. Calling `run(inputs=x)` twice with the same `x` silently
+    dropped every metric's constructor arguments on the second call, so the
+    second run either failed or - worse - constructed the metric differently.
+    And a caller that recorded `inputs` for a transcript found the record
+    altered after the fact, which cost a wrong conclusion once in this project
+    (the log appeared to show an agent omitting an argument it had supplied).
+    """
+
+    def test_the_inputs_dict_is_unchanged_after_a_run(self):
+        import numpy as np
+
+        backend = StubBackend(access=("embeddings",), model_id="stub/model")
+        inputs = {
+            "WEAT": {
+                "__init__": {},
+                "target_embeddings": (
+                    np.array([[1.0, 0.0], [0.9, 0.1]]),
+                    np.array([[0.0, 1.0], [0.1, 0.9]]),
+                ),
+                "attribute_embeddings": (
+                    np.array([[1.0, 0.0], [0.95, 0.05]]),
+                    np.array([[0.0, 1.0], [0.05, 0.95]]),
+                ),
+            }
+        }
+        before = {name: sorted(block) for name, block in inputs.items()}
+        BiasSuite(backend, metrics=["WEAT"]).run(inputs=inputs)
+        assert {name: sorted(block) for name, block in inputs.items()} == before
+
+    def test_the_same_inputs_can_be_run_twice(self):
+        import numpy as np
+
+        backend = StubBackend(access=("embeddings",), model_id="stub/model")
+        inputs = {
+            "WEAT": {
+                "__init__": {},
+                "target_embeddings": (
+                    np.array([[1.0, 0.0], [0.9, 0.1]]),
+                    np.array([[0.0, 1.0], [0.1, 0.9]]),
+                ),
+                "attribute_embeddings": (
+                    np.array([[1.0, 0.0], [0.95, 0.05]]),
+                    np.array([[0.0, 1.0], [0.05, 0.95]]),
+                ),
+            }
+        }
+        suite = BiasSuite(backend, metrics=["WEAT"])
+        first = suite.run(inputs=inputs)
+        second = suite.run(inputs=inputs)
+        assert first.scores() == second.scores()
+        assert second.skipped == {}

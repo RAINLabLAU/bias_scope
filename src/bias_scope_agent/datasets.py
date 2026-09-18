@@ -36,6 +36,7 @@ _THIRD_PARTY = Path("third_party/code")
 
 _CROWS_RELATIVE = "crows-pairs/data/crows_pairs_anonymized.csv"
 _SENT_BIAS_TESTS = "sent-bias/tests"
+_STEREOSET_DEV = "StereoSet/data/dev.json"
 
 # CrowS-Pairs' own `bias_type` spellings, for the axis names this library uses.
 _CROWS_AXIS = {
@@ -91,6 +92,17 @@ DATASETS: Dict[str, DatasetSpec] = {
         metrics=("CrowSPairs", "AUL", "AULA"),
         axes=tuple(_CROWS_AXIS),
         source=_CROWS_RELATIVE,
+    ),
+    "stereoset": DatasetSpec(
+        name="stereoset",
+        description=(
+            "Nadeem et al. 2021 StereoSet, the authors' own dev.json, "
+            "intrasentence split. Each item is a context with one blank and "
+            "three single-word fills (stereotype, anti-stereotype, unrelated)."
+        ),
+        metrics=("CAT", "ICAT"),
+        axes=("gender", "race", "religion", "profession"),
+        source=_STEREOSET_DEV,
     ),
     "weat": DatasetSpec(
         name="weat",
@@ -184,6 +196,78 @@ def _association_test(root: Path, axis: str, by_axis: Dict[str, str], hint: str)
     return _require(root / _SENT_BIAS_TESTS / f"{test}.jsonl", hint.upper())
 
 
+def _stereoset_cases(root: Path, axis: str, limit: Optional[int]) -> Tuple[List[Dict], int]:
+    """CAT's test-case shape, from StereoSet's own intrasentence items.
+
+    CAT takes a tokenized context containing `[MASK]` and one candidate *word*
+    per label. StereoSet writes the blank as the literal token `BLANK` and
+    gives a full sentence per label, so the fill is recovered by stripping the
+    context's fixed prefix and suffix from each sentence.
+
+    Items whose fill is more than one word, or whose blank is glued to
+    punctuation, cannot be expressed in that shape and are skipped rather than
+    truncated - 26 of the 255 gender items in dev.json. The count of skipped
+    items is reported in the provenance, never silently dropped.
+    """
+    path = _require(root / _STEREOSET_DEV, "CAT")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    label_key = {"stereotype": "stereotype", "anti-stereotype": "anti_stereotype",
+                 "unrelated": "meaningless"}
+    cases: List[Dict] = []
+    skipped = 0
+    for item in data["data"]["intrasentence"]:
+        if item["bias_type"] != axis:
+            continue
+        context = item["context"]
+        # Pad the substitution so a blank glued to punctuation ("BLANK.")
+        # tokenizes as ["[MASK]", "."] instead of being skipped. The fill is
+        # still recovered from the original context, so nothing else shifts.
+        tokens = context.replace("BLANK", " [MASK] ").split()
+        if context.count("BLANK") != 1 or tokens.count("[MASK]") != 1:
+            skipped += 1
+            continue
+        prefix, suffix = context.split("BLANK")
+        case: Dict[str, Any] = {"context": tokens}
+        for sentence in item["sentences"]:
+            text = sentence["sentence"]
+            if not (text.startswith(prefix) and text.endswith(suffix)):
+                break
+            fill = text[len(prefix): len(text) - len(suffix)] if suffix else text[len(prefix):]
+            if len(fill.split()) != 1:
+                break
+            case[label_key[sentence["gold_label"]]] = fill.strip()
+        if len(case) != 4:
+            skipped += 1
+            continue
+        cases.append(case)
+    if limit is not None:
+        cases = cases[:limit]
+    return cases, skipped
+
+
+def _build_stereoset(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
+    cases, skipped = _stereoset_cases(root, axis, limit)
+    if not cases:
+        raise ValueError(
+            f"stereoset has no usable intrasentence items for axis {axis!r}; "
+            f"available axes: gender, race, religion, profession"
+        )
+    inputs = {
+        name: {"__init__": _init_kwargs(name, backend, allowed), "test_cases": cases}
+        for name in metrics
+    }
+    path = root / _STEREOSET_DEV
+    provenance = {
+        "source": str(path),
+        "sha256": _sha256(path),
+        "test_cases": len(cases),
+        "skipped_multi_word_or_glued_blank": skipped,
+        "axis": axis,
+        "note": "intrasentence split; BLANK rendered as [MASK], fills recovered by diff",
+    }
+    return inputs, provenance
+
+
 def _build_crows(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
     pairs = _crows_pairs(root, axis, limit)
     inputs = {
@@ -230,6 +314,7 @@ def _build_association(
 
 _BUILDERS: Dict[str, Callable[..., Tuple[Dict, Dict]]] = {
     "crows_pairs": _build_crows,
+    "stereoset": _build_stereoset,
     "weat": lambda b, m, a, lim, r, al: _build_association(
         b, m, a, lim, r, al, _WEAT_BY_AXIS, "weat"
     ),
