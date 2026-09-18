@@ -7,12 +7,14 @@ LLM-facing tool schema never mentions it.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Sequence
 
 from bias_scope.backends import HuggingFaceBackend, LiteLLMBackend
 from bias_scope.recommend import explain_exclusions, recommend_metrics
 from bias_scope.report import FIDELITY_BADGE, Report, to_html, to_markdown
 from bias_scope.suite import BiasSuite
+from bias_scope_agent.datasets import available_datasets, build_inputs
 from bias_scope_agent.introspection import _UNIMPORTABLE, metrics_needing_data
 from bias_scope_agent.session import AgentSession
 
@@ -198,18 +200,88 @@ def _check_required_inputs(metric_names: Sequence[str], inputs: Dict[str, Any]) 
     )
 
 
+def list_datasets(session: AgentSession, metric_names: Optional[Sequence[str]] = None) -> Any:
+    """Datasets the harness can load itself, and which metrics each one feeds."""
+    del session  # stateless; takes session only to match the dispatch signature
+    return available_datasets(metric_names)
+
+
+def prepare_inputs(
+    session: AgentSession,
+    backend_handle: str,
+    dataset: str,
+    metric_names: Sequence[str],
+    axis: str = "gender",
+    limit: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Load a named dataset server-side and return a handle plus provenance.
+
+    The data itself is deliberately not returned. That is the whole mechanism:
+    if evaluation data never enters the transcript, the model cannot paraphrase,
+    truncate or "correct" it, which two live runs showed it otherwise does
+    (REVIEW_LATER.md RL-053).
+    """
+    backend = session.backends.get(backend_handle)
+    inputs, provenance = build_inputs(backend, dataset, metric_names, axis=axis, limit=limit)
+    return {"inputs_handle": session.inputs.register(inputs), "provenance": provenance}
+
+
+def _resolve_input_handles(session: AgentSession, handles: Sequence[str]) -> Dict[str, Any]:
+    """Merge several prepared-input handles into one inputs object.
+
+    A metric set spanning several datasets yields one handle per dataset, and
+    running them as separate calls would produce separate reports and separate
+    partial summaries (REVIEW_LATER RL-059). Two handles claiming the same
+    metric are refused rather than silently last-wins: they would disagree
+    about what that metric scored.
+    """
+    merged: Dict[str, Any] = {}
+    for handle in handles:
+        block = deepcopy(session.inputs.get(handle))
+        clash = sorted(set(block) & set(merged))
+        if clash:
+            raise ValueError(
+                f"two prepared handles both supply {clash}; they would disagree about "
+                f"what was scored. Prepare each metric's data once."
+            )
+        merged |= block
+    return merged
+
+
 def run_suite(
     session: AgentSession,
     backend_handle: str,
     metric_names: Sequence[str],
-    inputs: Dict[str, Dict[str, Any]],
+    inputs: Optional[Dict[str, Dict[str, Any]]] = None,
+    inputs_handle: Optional[str] = None,
+    inputs_handles: Optional[Sequence[str]] = None,
     axis: str = "gender",
     language: str = "en",
     seed: int = 42,
 ) -> str:
     """Runs the suite and returns a report_handle. No gate logic here - the
     confirm-before-run gate is enforced by the tool dispatcher (loop.py),
-    not this function, so this stays directly unit-testable."""
+    not this function, so this stays directly unit-testable.
+
+    Data arrives either by value (`inputs`) or by reference (`inputs_handle`
+    from prepare_inputs). Prefer the handle: see datasets.py.
+    """
+    handles = list(inputs_handles or [])
+    if inputs_handle is not None:
+        handles.append(inputs_handle)
+    if inputs is not None and handles:
+        raise ValueError(
+            "pass inputs or prepared handles, not both - they would disagree about "
+            "what was scored. Prefer the handles, which cannot be corrupted in transit."
+        )
+    if handles:
+        inputs = _resolve_input_handles(session, handles)
+    if inputs is None:
+        raise ValueError(
+            "run_suite needs data: either inputs_handles (from prepare_inputs, "
+            "preferred - pass every handle in one call so the evaluation is one "
+            "report) or an inputs object keyed by metric name."
+        )
     _check_inputs_shape(metric_names, inputs)
     _check_required_inputs(metric_names, inputs)
     backend = session.backends.get(backend_handle)

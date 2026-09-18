@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 
@@ -46,7 +48,9 @@ class TestConstructBackend:
             session, kind="huggingface", model_id="sshleifer/tiny-gpt2", backend_kind="causal"
         )
         backend = session.backends.get(handle)
-        assert backend.access == ("embeddings", "logits", "completions")
+        # `logits` deliberately absent: it means masked-token logits here, and
+        # a causal LM provides none (RL-057, and see backends.py's comment).
+        assert backend.access == ("embeddings", "completions")
 
     def test_litellm_does_not_require_backend_kind(self):
         session = AgentSession()
@@ -313,4 +317,113 @@ class TestRunSuiteRefusesToProduceAnEmptyResult:
         with pytest.raises(ValueError, match="no metric produced a score"):
             tools.run_suite(
                 session, handle, metric_names=["WEAT"], inputs={"WEAT": {"bogus_param": 1}}
+            )
+
+
+class TestDataByReference:
+    """RL-053's fix: the agent names data, the harness loads it.
+
+    The point is not convenience. Passing metric data as a tool argument means
+    every item passes through the model's output tokens, and two live runs
+    showed that silently corrupting it - an altered pronoun in one, a dropped
+    pair in the other, both producing honest scores on data nobody chose.
+    These tests pin the property that makes that impossible: the raw data must
+    never appear in anything the agent can see.
+    """
+
+    def test_list_datasets_names_which_metrics_each_one_feeds(self):
+        rows = tools.list_datasets(AgentSession())
+        by_name = {row["dataset"]: row for row in rows}
+        assert "CrowSPairs" in by_name["crows_pairs"]["metrics"]
+        assert "WEAT" in by_name["weat"]["metrics"]
+
+    def test_prepare_inputs_returns_provenance_and_never_the_data(self):
+        session, handle = make_session_with_backend(access=("embeddings", "logits"))
+        result = tools.prepare_inputs(
+            session, handle, dataset="crows_pairs", metric_names=["CrowSPairs"], axis="gender",
+            limit=4,
+        )
+        assert result["inputs_handle"]
+        assert result["provenance"]["pairs"] == 4
+        assert result["provenance"]["sha256"]
+        # The whole point: no sentence text anywhere in what the agent sees.
+        assert "sentence_pairs" not in json.dumps(result)
+
+    def test_run_suite_without_data_says_which_route_to_use(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        with pytest.raises(ValueError, match="inputs_handle"):
+            tools.run_suite(session, handle, metric_names=["WEAT"])
+
+    def test_run_suite_rejects_both_inputs_and_a_handle(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        prepared = tools.prepare_inputs(
+            session, handle, dataset="weat", metric_names=["WEAT"], axis="gender"
+        )
+        with pytest.raises(ValueError, match="not both"):
+            tools.run_suite(
+                session, handle, metric_names=["WEAT"],
+                inputs={"WEAT": dict(_WEAT_INPUTS)},
+                inputs_handle=prepared["inputs_handle"],
+            )
+
+    def test_a_dataset_that_does_not_serve_the_metric_is_refused(self):
+        session, handle = make_session_with_backend(access=("embeddings", "logits"))
+        with pytest.raises(ValueError, match="does not serve"):
+            tools.prepare_inputs(
+                session, handle, dataset="crows_pairs", metric_names=["WEAT"], axis="gender"
+            )
+
+    def test_an_axis_no_test_measures_is_refused_rather_than_substituted(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        with pytest.raises(ValueError, match="religion"):
+            tools.prepare_inputs(
+                session, handle, dataset="weat", metric_names=["WEAT"], axis="religion"
+            )
+
+
+class TestSeveralPreparedHandlesInOneRun:
+    """RL-059: a metric set spanning several datasets must still be one report.
+
+    Each prepare_inputs call covers one dataset, so a five-metric evaluation
+    across CrowS-Pairs, WEAT and SEAT yields three handles. Running them as
+    three separate run_suite calls produces three reports and three partial
+    summaries, which is exactly what the user did not ask for. Accepting
+    several handles in one call keeps "the evaluation" a single object.
+    """
+
+    def _two_handles(self):
+        session, handle = make_session_with_backend(access=("embeddings", "logits"))
+        crows = tools.prepare_inputs(
+            session, handle, dataset="crows_pairs", metric_names=["CrowSPairs"],
+            axis="gender", limit=2,
+        )
+        weat = tools.prepare_inputs(
+            session, handle, dataset="weat", metric_names=["WEAT"], axis="gender"
+        )
+        return session, handle, crows["inputs_handle"], weat["inputs_handle"]
+
+    def test_handles_are_merged_into_one_inputs_object(self):
+        session, handle, crows, weat = self._two_handles()
+        merged = tools._resolve_input_handles(session, [crows, weat])
+        assert set(merged) == {"CrowSPairs", "WEAT"}
+
+    def test_two_handles_claiming_the_same_metric_are_refused(self):
+        session, handle = make_session_with_backend(access=("embeddings", "logits"))
+        first = tools.prepare_inputs(
+            session, handle, dataset="crows_pairs", metric_names=["AUL"], axis="gender", limit=1
+        )
+        second = tools.prepare_inputs(
+            session, handle, dataset="crows_pairs", metric_names=["AUL"], axis="race", limit=1
+        )
+        with pytest.raises(ValueError, match="AUL"):
+            tools._resolve_input_handles(
+                session, [first["inputs_handle"], second["inputs_handle"]]
+            )
+
+    def test_run_suite_accepts_the_plural_argument(self):
+        session, handle, crows, weat = self._two_handles()
+        with pytest.raises(ValueError, match="not both"):
+            tools.run_suite(
+                session, handle, metric_names=["WEAT"],
+                inputs={"WEAT": dict(_WEAT_INPUTS)}, inputs_handles=[weat],
             )

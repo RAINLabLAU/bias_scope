@@ -388,3 +388,60 @@ class TestRecordedFactsReachLaterTurns:
         loop.run_turn("hello")
         first_turn_system_prompt = client.messages.calls[0]["system"]
         assert "model_kind" not in first_turn_system_prompt
+
+
+class TestTextWrittenAlongsideAToolCallReachesTheUser:
+    """RL-055: `run_turn` returned only the *final* response's text.
+
+    Any prose the model wrote in the same message as a tool call was appended
+    to `self.messages` and then dropped, and `cli.py` prints only the return
+    value - so it never reached the user. Observed live: a real agent rendered
+    the plan alongside its `plan_suite` call, then said "I've shown you the
+    plan above. Please reply confirming" in a 315-character turn that contained
+    no plan. The scripted user confirmed a plan that was never displayed.
+
+    That matters because the confirm-before-run gate rests on three premises -
+    a plan was shown, a turn boundary passed, confirm_plan was called. The last
+    two are enforced in session.py. This defect made the first one routinely
+    false, so the gate could be satisfied with nothing ever shown.
+    """
+
+    def _client_that_narrates_then_calls_a_tool(self) -> FakeClient:
+        return FakeClient(
+            [
+                FakeResponse(
+                    content=[
+                        text_block("HERE IS THE PLAN THE USER MUST REVIEW"),
+                        tool_use("record_fact", {"key": "k", "value": "v"}, "call-1"),
+                    ],
+                    stop_reason="tool_use",
+                ),
+                FakeResponse(
+                    content=[text_block("I've shown you the plan above.")],
+                    stop_reason="end_turn",
+                ),
+            ]
+        )
+
+    def test_intermediate_text_is_returned_not_discarded(self):
+        loop = AgentLoop(
+            AgentConfig(), AgentSession(), client=self._client_that_narrates_then_calls_a_tool()
+        )
+        returned = loop.run_turn("go")
+        assert "HERE IS THE PLAN THE USER MUST REVIEW" in returned
+        assert "I've shown you the plan above." in returned
+
+    def test_the_final_text_still_comes_last(self):
+        loop = AgentLoop(
+            AgentConfig(), AgentSession(), client=self._client_that_narrates_then_calls_a_tool()
+        )
+        returned = loop.run_turn("go")
+        assert returned.index("HERE IS THE PLAN") < returned.index("I've shown you")
+
+    def test_a_turn_with_no_tool_calls_is_unchanged(self):
+        client = FakeClient(
+            [FakeResponse(content=[text_block("just an answer")], stop_reason="end_turn")]
+        )
+        assert AgentLoop(AgentConfig(), AgentSession(), client=client).run_turn("go") == (
+            "just an answer"
+        )

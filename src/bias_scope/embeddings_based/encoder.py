@@ -59,7 +59,10 @@ def _embed_cls(
         ).to(device)
         with torch.no_grad():
             hs = model(**enc).last_hidden_state
-        cls_vecs = hs[:, 0, :].cpu().numpy()
+        # .float() first: PLAN.md Section 1 mandates BF16 for causal LMs, and
+        # numpy has no bfloat16, so .numpy() alone raises
+        # "Got unsupported ScalarType BFloat16" (REVIEW_LATER RL-056).
+        cls_vecs = hs[:, 0, :].float().cpu().numpy()
         out_chunks.append(cls_vecs)
     embeddings = np.concatenate(out_chunks, axis=0)
     if normalize_embeddings:

@@ -1497,3 +1497,54 @@ unnoticed by gpt-terra. Self-report is a behaviour, not a guarantee, and does
 not change RL-053's conclusion.
 
 Neither model misreported a score: both matched the tool output exactly.
+
+## 2026-09-18 (continued) — making a real multi-model evaluation possible
+
+Goal for this stretch: the agent evaluates the *recommended* metrics on a
+causal, an encoder and an embedding model, and reports a summary of the bias
+results, with no invented numbers. Six defects stood between here and there.
+All were found by running the thing, all fixed test-first.
+
+**RL-053 fixed — data by reference.** The blocker. `run_suite` took its data as
+a tool argument, so every scored item passed through the agent's output tokens;
+two models had already corrupted a 20-pair list that way, and embeddings arrays
+cannot survive that path at all. New `src/bias_scope_agent/datasets.py`: the
+agent calls `list_datasets` and `prepare_inputs`, the harness loads the
+authors' own vendored files server-side, and only a handle plus provenance
+(path, sha256, counts) crosses the boundary. Providers declare which metrics
+they serve, which also closes two wrong-dataset traps: `LMB` and
+`PairwiseLikelihoodPreference` are not fed CrowS-Pairs (they need
+equal-token-length pairs), and no WEAT test is substituted for an axis
+Caliskan never measured.
+
+**RL-055 fixed — the plan reached the user.** `run_turn` returned only the
+final response's text, so prose written alongside a tool call was discarded.
+It now joins every round's text.
+
+**RL-056 fixed — bf16 embeddings.** `_embed_cls` did `.cpu().numpy()` on
+BFloat16 hidden states. Every embedding metric was broken on the dtype PLAN.md
+*requires* for causal LMs. SEAT on Qwen2.5-1.5B went from `TypeError` to 0.3193.
+
+**RL-057 fixed — causal models were offered masked-LM metrics.** A causal
+backend declared `logits`, so all 11 probability metrics were recommended and
+all 11 failed with "Unrecognized configuration class". Every consumer of
+`logits` in this library is a masked-token scorer; a causal LM has none. Causal
+backends now declare `("embeddings", "completions")`.
+
+**RL-058 fixed — the worst one.** `sentence-transformers/all-MiniLM-L6-v2` has
+architectures `["BertModel"]`: no LM head. Loading it through
+`AutoModelForMaskedLM` does not fail - transformers newly initializes the head
+and warns - so `CrowSPairs` returned **0.4000** computed from random weights,
+in range, non-NaN, badged `faithful`, indistinguishable from a real score. An
+encoder now advertises `logits` only when its config says it has a masked-LM
+head; an unreadable config stays optimistic but records `lm_head_verified`.
+
+**RL-059 fixed — the gate blocked the very thing it was for.** `check_run_gate`
+required the run's metric set to *equal* a confirmed plan's. A five-metric
+evaluation spans three datasets, so each run is necessarily narrower, and every
+one was refused. The gate now accepts a subset of an approved plan (approving
+more than you run is not an escalation; an unapproved metric and an empty set
+are still refused), and `run_suite` takes several prepared handles at once so
+the evaluation stays one report.
+
+Gates: **2001 passed, 6 deselected, 2 xfailed**; `ruff check src tests` clean.

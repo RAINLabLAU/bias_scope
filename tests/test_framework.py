@@ -492,3 +492,74 @@ class TestReportFormats:
         target = tmp_path / "nested" / "report.html"
         to_html(self._report(), target)
         assert target.exists() and target.read_text().startswith("<!doctype html>")
+
+
+class TestCausalBackendDoesNotAdvertiseMaskedLmLogits:
+    """RL-057: a causal HF backend declared `logits`, so all 11 probability
+    metrics were recommended for it and every one of them then failed.
+
+    Every consumer of `logits` in this library is a masked-LM scorer:
+    scorers.py builds `AutoModelForMaskedLM` (BertPLLScorer,
+    WordPieceBertScorer), cbs.py and topk_fill_divergence.py load it directly,
+    and LPBS/DisCoMetric require a caller-supplied masked-token predictor.
+    A causal LM has next-token logits and no masked-token prediction, so
+    `AutoModelForMaskedLM.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")` raises
+    "Unrecognized configuration class". Advertising `logits` for a causal
+    backend was therefore a promise nothing could keep - confirmed live on
+    CrowSPairs, AUL, AULA, LMB and PairwiseLikelihoodPreference.
+    """
+
+    def test_causal_backend_offers_embeddings_and_completions_only(self):
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        assert backend.access == ("embeddings", "completions")
+
+    def test_encoder_backend_still_offers_logits(self):
+        backend = HuggingFaceBackend("prajjwal1/bert-tiny", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+
+    def test_no_probability_metric_is_recommended_for_a_causal_backend(self):
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        recommended = recommend_metrics(access=backend.access, axis="gender", language="en")
+        families = {rec.info.family for rec in recommended}
+        assert "probability" not in families, sorted(families)
+
+
+class TestEncoderWithoutAMaskedLmHeadDoesNotAdvertiseLogits:
+    """RL-058: a checkpoint with no LM head scored with a random one.
+
+    `sentence-transformers/all-MiniLM-L6-v2` has architectures ['BertModel'] -
+    no masked-LM head at all. Loading it through `AutoModelForMaskedLM` does
+    not fail: transformers newly initializes the missing `cls.predictions.*`
+    weights and warns. Every masked-LM metric then returned a number computed
+    from randomly initialized weights, and CrowSPairs on that model produced a
+    plausible-looking 0.4000. Nothing downstream can tell such a score from a
+    real one, which makes it the worst kind of wrong.
+    """
+
+    def test_logits_is_withheld_when_the_checkpoint_has_no_lm_head(self, monkeypatch):
+        monkeypatch.setattr(
+            "bias_scope.backends._has_masked_lm_head", lambda model_id: False
+        )
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+    def test_logits_is_offered_when_the_checkpoint_has_one(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: True)
+        assert HuggingFaceBackend("bert-base-uncased", kind="encoder").access == (
+            "embeddings",
+            "logits",
+        )
+
+    def test_an_unreadable_config_keeps_the_previous_behaviour(self, monkeypatch):
+        # Offline, or a local path with no config: stay optimistic rather than
+        # silently disabling half the library, and record that it is unverified.
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: None)
+        backend = HuggingFaceBackend("whatever", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is False
+
+    def test_no_masked_lm_metric_is_recommended_without_a_head(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: False)
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        recommended = recommend_metrics(access=backend.access, axis="gender", language="en")
+        assert "probability" not in {rec.info.family for rec in recommended}

@@ -18,7 +18,10 @@ live embedding-model download (this repo's own embedding tests mock the
 encoder for the same reason - see tests/test_embeddings/test_embedding_helper.py).
 """
 
+from pathlib import Path
+
 import numpy as np
+import pytest
 from tests.conftest import TINY_ENCODER_ID
 
 from bias_scope.metadata import list_metrics
@@ -120,3 +123,71 @@ def test_supplying_exactly_what_the_plan_asks_for_is_enough_to_run():
     assert report.skipped == {}, f"CrowSPairs was skipped: {report.skipped}"
     assert [r.metric for r in report.results] == ["CrowSPairs"]
     assert report.results[0].n == len(_PAIRS)
+
+
+# --- Data by reference (RL-053): the harness loads the data, not the agent ---
+
+_THIRD_PARTY_PRESENT = Path("third_party/code/crows-pairs/data/crows_pairs_anonymized.csv").exists()
+
+
+@pytest.mark.skipif(
+    not _THIRD_PARTY_PRESENT,
+    reason="third_party/ is git-ignored; run scripts/sources/fetch_sources.py to restore it",
+)
+def test_prepared_inputs_run_end_to_end_without_data_crossing_the_boundary():
+    """The whole chain on real CrowS-Pairs data the agent never sees.
+
+    `prepare_inputs` returns a handle and provenance; `run_suite` resolves the
+    handle server-side. What the metric scores is byte-identical to the
+    authors' CSV, which is the property two live runs showed is otherwise
+    unenforceable (REVIEW_LATER.md RL-053).
+    """
+    session = AgentSession()
+    backend_handle = tools.construct_backend(
+        session, kind="huggingface", model_id=TINY_ENCODER_ID, backend_kind="encoder"
+    )
+    prepared = tools.prepare_inputs(
+        session,
+        backend_handle,
+        dataset="crows_pairs",
+        metric_names=["CrowSPairs"],
+        axis="gender",
+        limit=3,
+    )
+    assert prepared["provenance"]["pairs"] == 3
+
+    plan = tools.plan_suite(session, backend_handle, metric_names=["CrowSPairs"])
+    session.advance_turn()
+    tools.confirm_plan(session, plan["plan_id"])
+    report_handle = tools.run_suite(
+        session,
+        backend_handle,
+        metric_names=["CrowSPairs"],
+        inputs_handle=prepared["inputs_handle"],
+    )
+    report = session.reports.get(report_handle)
+    assert report.skipped == {}, report.skipped
+    assert report.results[0].n == 3
+
+
+@pytest.mark.skipif(not _THIRD_PARTY_PRESENT, reason="third_party/ is git-ignored")
+def test_a_prepared_handle_is_reusable_because_run_suite_copies_it():
+    """BiasSuite.run pops "__init__" out of the dict it is given (RL-054), so a
+    handle used twice would lose its constructor arguments on the second run."""
+    session = AgentSession()
+    backend_handle = tools.construct_backend(
+        session, kind="huggingface", model_id=TINY_ENCODER_ID, backend_kind="encoder"
+    )
+    prepared = tools.prepare_inputs(
+        session, backend_handle, dataset="crows_pairs", metric_names=["CrowSPairs"],
+        axis="gender", limit=2,
+    )
+    plan = tools.plan_suite(session, backend_handle, metric_names=["CrowSPairs"])
+    session.advance_turn()
+    tools.confirm_plan(session, plan["plan_id"])
+    for _ in range(2):
+        handle = tools.run_suite(
+            session, backend_handle, metric_names=["CrowSPairs"],
+            inputs_handle=prepared["inputs_handle"],
+        )
+        assert session.reports.get(handle).skipped == {}

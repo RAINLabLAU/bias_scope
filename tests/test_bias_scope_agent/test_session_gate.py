@@ -84,3 +84,65 @@ class TestSessionRegistries:
         report_handle = session.reports.register("fake-report")
         assert session.backends.get(backend_handle) == "fake-backend"
         assert session.reports.get(report_handle) == "fake-report"
+
+
+class TestRunningFewerMetricsThanWereApproved:
+    """RL-059: the gate matched the metric set exactly, which blocked a
+    multi-dataset evaluation from ever running.
+
+    Observed live: the agent planned five metrics across three datasets, the
+    user confirmed, and then each `run_suite` call - necessarily one per
+    dataset, since a prepared handle covers only its own metrics - was refused
+    because {CrowSPairs, AUL, AULA} is not equal to the approved set of five.
+    The agent diagnosed it correctly and asked for three fresh confirmations,
+    which is the right behaviour and also a dead end: the same split recurs
+    every time.
+
+    Running a *subset* of an approved plan is not an escalation - the user
+    approved strictly more than what runs - so the gate now accepts it. A
+    metric that was never approved is still refused, which is the property
+    that matters.
+    """
+
+    def _confirmed_plan(self, metrics):
+        session = AgentSession()
+        plan_id = session.record_plan("backend-1", metrics, "gender", "en")
+        session.advance_turn()
+        session.confirm_plan(plan_id)
+        return session
+
+    def test_a_subset_of_the_approved_metrics_is_allowed(self):
+        session = self._confirmed_plan(["CrowSPairs", "AUL", "AULA", "WEAT", "SEAT"])
+        session.check_run_gate("backend-1", ["CrowSPairs", "AUL", "AULA"], "gender", "en")
+        session.check_run_gate("backend-1", ["WEAT"], "gender", "en")
+        session.check_run_gate("backend-1", ["SEAT"], "gender", "en")
+
+    def test_the_full_approved_set_is_still_allowed(self):
+        session = self._confirmed_plan(["WEAT", "SEAT"])
+        session.check_run_gate("backend-1", ["SEAT", "WEAT"], "gender", "en")
+
+    def test_a_metric_that_was_never_approved_is_still_refused(self):
+        session = self._confirmed_plan(["WEAT", "SEAT"])
+        with pytest.raises(GateError):
+            session.check_run_gate("backend-1", ["WEAT", "CrowSPairs"], "gender", "en")
+
+    def test_a_different_backend_is_still_refused(self):
+        session = self._confirmed_plan(["WEAT"])
+        with pytest.raises(GateError):
+            session.check_run_gate("backend-2", ["WEAT"], "gender", "en")
+
+    def test_a_different_axis_is_still_refused(self):
+        session = self._confirmed_plan(["WEAT"])
+        with pytest.raises(GateError):
+            session.check_run_gate("backend-1", ["WEAT"], "race", "en")
+
+    def test_an_unconfirmed_plan_still_blocks_a_subset(self):
+        session = AgentSession()
+        session.record_plan("backend-1", ["WEAT", "SEAT"], "gender", "en")
+        with pytest.raises(GateError):
+            session.check_run_gate("backend-1", ["WEAT"], "gender", "en")
+
+    def test_an_empty_metric_set_is_refused_rather_than_trivially_a_subset(self):
+        session = self._confirmed_plan(["WEAT"])
+        with pytest.raises(GateError):
+            session.check_run_gate("backend-1", [], "gender", "en")

@@ -21,6 +21,31 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+# Architecture suffixes that carry a masked-language-model head. A checkpoint
+# without one still loads through AutoModelForMaskedLM - transformers newly
+# initializes the missing head and only warns - so every masked-LM metric would
+# return a number computed from random weights (REVIEW_LATER RL-058).
+_MASKED_LM_ARCHITECTURES = ("ForMaskedLM", "ForPreTraining")
+
+
+def _has_masked_lm_head(model_id: str) -> Optional[bool]:
+    """True/False from the checkpoint's config, or None if it cannot be read.
+
+    None means "unknown" (offline, a local directory without a config, a repo
+    that lists no architectures), not "no": staying optimistic there preserves
+    the previous behaviour rather than silently disabling half the library.
+    """
+    try:
+        from transformers import AutoConfig
+
+        architectures = AutoConfig.from_pretrained(model_id).architectures
+    except Exception:
+        return None
+    if not architectures:
+        return None
+    return any(name.endswith(_MASKED_LM_ARCHITECTURES) for name in architectures)
+
+
 
 class Backend(ABC):
     """A model, and an honest statement of what can be asked of it."""
@@ -86,11 +111,28 @@ class HuggingFaceBackend(Backend):
         self.kind = kind
         self.dtype = dtype
         self.device = device
-        self.access = (
-            ("embeddings", "logits", "completions")
-            if kind == "causal"
-            else ("embeddings", "logits")
-        )
+        # `logits` here means *masked-token* logits, which is the only kind
+        # anything in this library consumes: every metric declaring `logits`
+        # scores through a masked-LM scorer (scorers.py's BertPLLScorer and
+        # WordPieceBertScorer build AutoModelForMaskedLM; cbs.py and
+        # topk_fill_divergence.py load it directly; LPBS and DisCoMetric take a
+        # caller-supplied masked-token predictor). A causal LM has next-token
+        # logits and no masked-token prediction, so advertising `logits` for it
+        # got all 11 probability metrics recommended and every one of them
+        # failed with "Unrecognized configuration class" (REVIEW_LATER RL-057).
+        # If a causal-logits metric is ever added, split this into two access
+        # modes rather than widening this one back.
+        # An encoder offers `logits` only if its checkpoint actually has a
+        # masked-LM head; see _has_masked_lm_head. `lm_head_verified` records
+        # whether that could be established, so an unreadable config is
+        # distinguishable from a confirmed head.
+        self.lm_head_verified = False
+        if kind == "causal":
+            self.access = ("embeddings", "completions")
+        else:
+            has_head = _has_masked_lm_head(model_id)
+            self.lm_head_verified = has_head is True
+            self.access = ("embeddings",) if has_head is False else ("embeddings", "logits")
         self._model = None
         self._tokenizer = None
 

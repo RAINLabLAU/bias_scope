@@ -43,18 +43,32 @@ class AgentLoop:
         self.messages: List[Dict[str, Any]] = []
 
     def run_turn(self, user_text: str, *, max_tool_rounds: int = 8) -> str:
+        """Run one user turn to completion and return everything the model said.
+
+        Every round's text is collected, not just the last response's. A model
+        routinely writes prose in the same message as a tool call - the plan it
+        is asking the user to confirm, most importantly - and returning only
+        the final response dropped all of it, since cli.py prints nothing else.
+        A live run confirmed a plan that had never been displayed as a result
+        (REVIEW_LATER.md RL-055).
+        """
         self.session.advance_turn()
         self.messages.append({"role": "user", "content": user_text})
+        said: List[str] = []
         for _ in range(max_tool_rounds):
             response = self.client.create(
                 system=render_system_prompt(self.session), messages=self.messages
             )
             self.messages.append({"role": "assistant", "content": response.content})
+            text = _text_of(response.content).strip()
+            if text:
+                said.append(text)
             if response.stop_reason != "tool_use":
-                return _text_of(response.content)
+                return "\n\n".join(said)
             results = self._dispatch_tools(response.content)
             self.messages.append({"role": "user", "content": results})
-        return "(stopped after too many tool calls in one turn)"
+        said.append("(stopped after too many tool calls in one turn)")
+        return "\n\n".join(said)
 
     def _dispatch_one(self, block: Any) -> Any:
         if block.name == "inspect_model":

@@ -1261,7 +1261,27 @@ be relied on, and the run that altered `her` to `his` was never noticed at all.
 Neither model misreported its score: both matched `summarize_report`'s return
 value exactly (0.400 on 20, 0.4211 on 19, both recomputed independently).
 
-**Not fixed — this is architectural.** `run_suite` takes its data as a tool
+**FIXED 2026-09-18 by `src/bias_scope_agent/datasets.py`.** The agent now
+*names* a dataset (`list_datasets`, `prepare_inputs`) and the harness loads it
+server-side, returning an opaque `inputs_handle` plus provenance (source path,
+sha256, item counts) and nothing else. `run_suite` accepts the handle and
+resolves it in-process, so what a metric scores is byte-identical to the file on
+disk and cannot be paraphrased, truncated or "corrected" in transit. Passing
+data by value is still possible for items no dataset covers, and the two routes
+are mutually exclusive so they can never disagree about what was scored.
+Providers declare which metrics they serve, which is also where two wrong-dataset
+traps are closed: `LMB` and `PairwiseLikelihoodPreference` are not served
+CrowS-Pairs data (they require equal-token-length pairs), and no WEAT test is
+substituted for an axis Caliskan never measured.
+
+**What the original entry got right, and what remains.** The diagnosis below
+stands - and note the fix was *forced* by it, not merely suggested: embeddings
+arrays cannot pass through an LLM's output tokens at all, so a multi-metric
+evaluation was impossible until data moved by reference. What remains is that
+nothing prevents a caller from still passing data by value, and no check can
+tell whether by-value data was faithful to its source.
+
+**Original diagnosis — `run_suite` takes its data as a tool
 argument, so every item a metric scores must be retyped by the model into its
 own output tokens. Nothing downstream can detect the change: the altered pair
 is well-formed English and scores perfectly happily. The round-trip check in
@@ -1336,3 +1356,120 @@ a test asserting that text emitted alongside a tool call appears in
 `run_turn`'s return value. Worth also considering whether `confirm_plan` should
 require that the plan's rendering was actually emitted - that would make the
 gate's first premise structural like the other two.
+
+## RL-056 · fix · 2026-09-18 · embedding metrics were unreachable on bf16 models — the dtype PLAN.md mandates for causal LMs
+**Encountered:** `SEAT` on `Qwen/Qwen2.5-1.5B-Instruct` (bf16) died with
+`TypeError: Got unsupported ScalarType BFloat16`. The CLS-pooling path did
+`hs[:, 0, :].cpu().numpy()`, and numpy has no bfloat16. PLAN.md Section 1
+*requires* BF16 for causal LMs, so every embedding metric was broken on exactly
+the dtype the plan mandates; only fp32 encoders ever exercised this path.
+**Chosen:** `.float()` before `.cpu().numpy()`. No statistic changes - the cast
+is from bfloat16 to float32, which is lossless (bfloat16's mantissa is a strict
+subset), so this cannot move a score that previously worked.
+**Where:** `src/bias_scope/embeddings_based/encoder.py` `_embed_cls`.
+Test: `tests/test_embeddings/test_cls_pooling.py::TestEmbedClsBf16`.
+**Verified:** SEAT now returns 0.3193 on Qwen2.5-1.5B-Instruct where it raised.
+**Risk if wrong:** low.
+**To revisit:** the mean-pooling path goes through sentence-transformers, which
+casts internally; only the CLS path was exposed. Worth a sweep for other
+`.numpy()` calls if more dtypes are added.
+
+## RL-057 · decide · 2026-09-18 · a causal backend advertised `logits`, so all 11 probability metrics were recommended and all 11 failed
+**Encountered:** planning a gender evaluation on `Qwen2.5-1.5B-Instruct`
+recommended `CrowSPairs`, `AUL`, `AULA`, `CAT`, `ICAT`, `CBS`, `DisCoMetric`,
+`LPBS`, `LMB`, `PairwiseLikelihoodPreference` and `TopKFillDivergence`. Every
+one failed with `ValueError: Unrecognized configuration class ... for
+AutoModelForMaskedLM`. `HuggingFaceBackend` declared `("embeddings", "logits",
+"completions")` for causal models, and `recommend_metrics` matched the 11
+metrics whose `access` is `("logits",)`.
+**Cause:** `logits` means two different things. Every consumer of it in this
+library is a *masked-token* scorer: `scorers.py`'s `BertPLLScorer` and
+`WordPieceBertScorer` build `AutoModelForMaskedLM`, `cbs.py` and
+`topk_fill_divergence.py` load it directly, and `LPBS`/`DisCoMetric` require a
+caller-supplied masked-token predictor. Nothing consumes a causal LM's
+next-token logits.
+**Chosen:** a causal `HuggingFaceBackend` now declares
+`("embeddings", "completions")`. One line, and it makes `recommend_metrics`
+truthful for a whole class of models. The alternative - splitting `ACCESS_MODES`
+into `mlm_logits` and `causal_logits` - is the semantically right fix but
+touches `MetricInfo` for 11 metrics plus every test referencing `"logits"`,
+for no behavioural gain today, since there is no causal-logits metric to
+distinguish. `backends.py` carries a comment saying to split the mode rather
+than widen this one back if such a metric is ever added.
+**Where:** `src/bias_scope/backends.py` `HuggingFaceBackend.__init__`.
+Tests: `tests/test_framework.py::TestCausalBackendDoesNotAdvertiseMaskedLmLogits`.
+One existing assertion (`test_huggingface_returns_a_resolvable_handle`) encoded
+the old access tuple and was updated with the reason.
+**Risk if wrong:** a caller who *wants* a probability metric on a causal model
+now finds it unrecommended rather than failing at run time. That is the point,
+but it is a visible behaviour change for anyone who relied on the failure.
+**To revisit:** the access vocabulary. `logits` silently means masked-LM logits
+everywhere in this library, and nothing says so except `backends.py`'s comment.
+
+## RL-058 · fix · 2026-09-18 · a checkpoint with no LM head scored with a randomly initialized one, and nothing said so
+**Encountered:** `sentence-transformers/all-MiniLM-L6-v2` has
+`architectures: ["BertModel"]` - no masked-LM head. It nonetheless declared
+`logits`, was recommended all 11 probability metrics, and `CrowSPairs` returned
+**0.4000** on it. Loading such a checkpoint through `AutoModelForMaskedLM` does
+not fail: transformers newly initializes `cls.predictions.*` and emits a
+warning that bias_scope never reads. The score was computed from random weights
+and is indistinguishable, downstream, from a real one - no NaN, in range, a
+plausible value, a `faithful` fidelity badge.
+**Chosen:** an encoder backend consults the checkpoint's config and declares
+`logits` only when its architecture ends in `ForMaskedLM` or `ForPreTraining`.
+An unreadable config (offline, a local directory, a repo listing no
+architectures) keeps the previous optimistic behaviour but records
+`lm_head_verified = False`, so "confirmed head" and "could not check" are
+distinguishable rather than conflated.
+**Where:** `src/bias_scope/backends.py` `_has_masked_lm_head`,
+`HuggingFaceBackend.__init__`.
+Tests: `tests/test_framework.py::TestEncoderWithoutAMaskedLmHeadDoesNotAdvertiseLogits`.
+**Verified:** the same model now offers `("embeddings",)` and is recommended no
+probability metric.
+**Risk if wrong:** this guards *recommendation*, not execution. A caller who
+constructs `CrowSPairs(model_name="...")` directly still gets a random-head
+score with only a transformers warning. That is the deeper fix and it belongs
+in `scorers.py`.
+**To revisit:** make the scorers themselves refuse a checkpoint whose LM head
+was newly initialized. transformers reports this; the information is there and
+is currently discarded. Until then, the only defence is not recommending it.
+
+## RL-059 · fix · 2026-09-18 · the confirm-before-run gate made a multi-dataset evaluation impossible
+**Encountered:** the first live run of a five-metric evaluation across three
+datasets. The agent did everything right - `list_datasets`, three
+`prepare_inputs` calls, one `plan_suite` over all five metrics, shown to the
+user, confirmed in the next turn - and then every `run_suite` call was refused.
+A prepared handle covers only its own dataset's metrics, so the three runs were
+`{CrowSPairs, AUL, AULA}`, `{WEAT}` and `{SEAT}`, and `check_run_gate` compared
+`tuple(sorted(metric_names))` for *equality* against the confirmed plan's five.
+The agent diagnosed this precisely ("the executor matches a run against an
+exact (backend, metric set, axis, language) tuple ... my three dataset passes
+are narrower metric sets than the one you approved") and asked for three fresh
+confirmations - correct behaviour, and a dead end, because the same split
+recurs on every attempt.
+**Chosen:** two changes.
+1. The gate accepts a metric set that is a **subset** of a confirmed plan's,
+   for the same backend, axis and language. Running fewer metrics than the user
+   approved is not an escalation; they approved strictly more. An empty set is
+   refused rather than treated as a trivially-satisfied subset, and a metric
+   that was never approved is still refused - which is the property the gate
+   exists to hold.
+2. `run_suite` takes `inputs_handles` (plural) and merges them, so a five-metric
+   evaluation spanning three datasets is *one* call, *one* report and *one*
+   summary. Two handles claiming the same metric are refused rather than
+   last-wins: they would disagree about what that metric scored.
+**Where:** `src/bias_scope_agent/session.py` `check_run_gate`;
+`src/bias_scope_agent/tools.py` `_resolve_input_handles`, `run_suite`;
+`schemas.py` `RUN_SUITE`; `system_prompt.py`.
+Tests: `test_session_gate.py::TestRunningFewerMetricsThanWereApproved` (7 cases,
+including every refusal that must keep firing),
+`test_tools.py::TestSeveralPreparedHandlesInOneRun`.
+**Risk if wrong:** the gate is now weaker in one specific way - a plan approved
+for five metrics authorises any non-empty subset of those five, indefinitely,
+for that backend and axis. It cannot authorise a metric the user never saw, a
+different model, or a different axis. Worth a maintainer's eye: the alternative
+reading is that a user approving a five-metric run has not necessarily approved
+a one-metric run, which seems a stretch but is not absurd.
+**To revisit:** the plan record has no expiry. A plan confirmed in turn 2
+authorises a matching subset in turn 40, long after the conversation moved on.
+That was already true for exact matches and is now true for more calls.

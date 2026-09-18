@@ -161,3 +161,40 @@ class TestSeatCeatPoolingPropagation:
         w = WEAT(pooling="cls")
         assert w.pooling == "cls"
         assert WEAT().pooling == "mean"
+
+
+class TestEmbedClsBf16:
+    """A bf16 model's hidden states are BFloat16, which numpy cannot represent.
+
+    Found by a live agent run (REVIEW_LATER RL-056): SEAT on a bf16 causal LM
+    died with `TypeError: Got unsupported ScalarType BFloat16` from
+    `.cpu().numpy()`. PLAN.md Section 1 mandates BF16 for causal LMs, so every
+    embedding metric was unreachable on exactly the dtype the plan requires.
+    """
+
+    def test_bf16_hidden_states_are_cast_before_numpy(self):
+        import torch
+
+        tok, mdl = _fake_encoder(hidden_size=4)
+
+        def call_bf16(**kwargs):
+            n = kwargs["input_ids"].shape[0]
+            hidden = torch.zeros((n, 4, 4), dtype=torch.bfloat16)
+            hidden[:, 0, :] = torch.arange(n).to(torch.bfloat16).unsqueeze(-1).repeat(1, 4)
+            out = MagicMock()
+            out.last_hidden_state = hidden
+            return out
+
+        mdl.side_effect = call_bf16
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        with patch("transformers.AutoTokenizer") as auto_tok, patch(
+            "transformers.AutoModel"
+        ) as auto_mdl:
+            auto_tok.from_pretrained.return_value = tok
+            auto_mdl.from_pretrained.return_value = mdl
+            out = embed(["a", "b"], model_name="fake", pooling="cls")
+        assert out.dtype == np.float64
+        assert np.allclose(out[0], 0.0)
+        assert np.allclose(out[1], 1.0)

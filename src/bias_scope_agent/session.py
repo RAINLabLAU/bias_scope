@@ -16,7 +16,7 @@ REVIEW_LATER.md RL-040).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 from uuid import uuid4
 
 from bias_scope.backends import Backend
@@ -50,6 +50,9 @@ class AgentSession:
     def __init__(self) -> None:
         self.backends: HandleRegistry[Backend] = HandleRegistry()
         self.reports: HandleRegistry[Report] = HandleRegistry()
+        # Prepared metric inputs, kept server-side so evaluation data never
+        # crosses the tool-call boundary (datasets.py, REVIEW_LATER RL-053).
+        self.inputs: HandleRegistry[Dict[str, Any]] = HandleRegistry()
         self.facts: Dict[str, str] = {}
         self.turn: int = 0
         self._plans: Dict[str, PlanRecord] = {}
@@ -87,13 +90,27 @@ class AgentSession:
     def check_run_gate(
         self, backend_handle: str, metric_names: Sequence[str], axis: str, language: str
     ) -> None:
-        key = (backend_handle, tuple(sorted(metric_names)), axis, language)
+        wanted = set(metric_names)
         for record in self._plans.values():
-            record_key = (record.backend_handle, record.metric_names, record.axis, record.language)
-            if record_key == key and record.confirmed:
+            if not record.confirmed:
+                continue
+            same_target = (
+                record.backend_handle == backend_handle
+                and record.axis == axis
+                and record.language == language
+            )
+            # A subset, not an exact match: the user approved at least these
+            # metrics, so running fewer is not an escalation. An exact match was
+            # required until RL-059, which made a multi-dataset evaluation
+            # impossible - each prepared inputs handle covers only its own
+            # metrics, so every run_suite call is necessarily narrower than the
+            # plan that was approved. An empty set is refused rather than
+            # treated as a trivially-satisfied subset.
+            if same_target and wanted and wanted <= set(record.metric_names):
                 return
         raise GateError(
-            "run_suite is blocked: no confirmed plan matches this backend, metric set, "
+            "run_suite is blocked: no confirmed plan covers this backend, metric set, "
             "axis and language. Call plan_suite, show its result to the user, wait for "
-            "their reply, then call confirm_plan."
+            "their reply, then call confirm_plan. Running a subset of an approved plan "
+            "is allowed; running a metric that was never approved is not."
         )

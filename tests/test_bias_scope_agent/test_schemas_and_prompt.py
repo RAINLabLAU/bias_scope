@@ -14,6 +14,10 @@ _TOOL_FUNCTION_NAMES = {
     "run_suite",
     "summarize_report",
     "record_fact",
+    # Data by reference, so evaluation items never cross the tool boundary
+    # (datasets.py, REVIEW_LATER RL-053).
+    "list_datasets",
+    "prepare_inputs",
 }
 
 

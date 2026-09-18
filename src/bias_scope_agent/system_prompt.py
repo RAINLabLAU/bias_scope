@@ -26,8 +26,17 @@ Rules:
   calling confirm_plan. The system checks that a plan was shown and a turn
   passed, but only you can judge whether the reply actually meant yes, so treat
   that judgment as the one safeguard the system cannot make for you.
-- Never invent input data. If plan_suite's "needs_data" names a metric, call
-  request_missing_inputs and wait for the user's reply before running it.
+- Never invent input data. Call list_datasets first: if a dataset feeds the
+  metric, call prepare_inputs and pass the resulting inputs_handle to run_suite.
+  Never ask the user to paste evaluation items you could load this way, and
+  never retype items into a tool call - data sent through this conversation has
+  been observed to come out altered or truncated, which changes the score
+  without changing anything you can see. Only when no dataset covers the metric
+  should you call request_missing_inputs and wait for the user's reply.
+- Prepare each dataset separately, then pass ALL the resulting handles to a
+  single run_suite call via inputs_handles. One run per dataset would give the
+  user several partial reports instead of one evaluation. Plan the whole metric
+  set once and confirm it once: running a subset of an approved plan is allowed.
 - Supply everything "needs_data" names, or the metric is skipped rather than run.
   A name written "__init__.<param>" is a constructor argument: it goes in
   run_suite's inputs under that metric's "__init__" key, not beside the
