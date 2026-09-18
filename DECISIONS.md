@@ -311,3 +311,42 @@ against a real OpenRouter/litellm call in this session — same
 unverified-against-a-real-API caveat as RL-042 for OpenAI/Gemini, logged
 as RL-046.
 
+
+## 2026-09-18 · `needs_data` reports constructor requirements, and `run_suite` refuses calls that cannot produce a score
+
+**Decision.** `metrics_needing_data` now reports constructor parameters as
+`"__init__.<name>"` alongside `evaluate()`'s, and `bias_scope_agent.tools.run_suite`
+raises `ValueError` both when a required input is missing and when every planned
+metric was skipped. Prompted by the first live run, where the agent supplied
+exactly what the plan asked for and the metric was skipped anyway.
+
+**The line that matters** is between a constructor default that is an unset
+sentinel (`None`, `""`) and one that is a real value. `CrowSPairs(model_name=None)`
+has no model; `RegardScore(model_name="sasha/regardv3")` has the classifier
+Sheng et al. require. Only the first is reported as needed. Treating them alike
+— by injecting the backend's `model_id` wherever a `model_name` parameter
+exists — was considered and rejected: `model_name` denotes the model under test
+for the probability family, a fixed classifier for `RegardScore`, and a
+sentence encoder for `WEAT`/`SEAT`/`CEAT`. Injection would have scored some
+metrics with the wrong model while `Report.model_id` still named the backend,
+turning a convenience into a mis-attribution. `device` and any `*api_key`
+parameter are excluded from reporting — the first changes no statistic, the
+second because `construct_backend`'s schema deliberately exposes no key and
+naming one would invite the agent to solicit it in chat.
+
+**Two existing tests asserted the superseded behaviour and were rewritten, not
+removed** (`test_bbq_needs_nothing_because_it_loads_its_own_dataset`,
+`test_an_empty_inputs_dict_is_still_allowed`). The first was factually wrong
+about `BBQMetric`, whose `__init__` requires a `model_name` with no default.
+The second's premise — "every metric skipping for want of data is a legitimate
+outcome" — remains true of `BiasSuite`, which is unchanged; the narrower claim
+now made is that it is not a legitimate outcome of a *tool call*, because
+nothing ran and the handle renders as a result. Both keep their original
+reasoning as a comment. The empty-report guard is precautionary rather than a
+response to observed harm; see REVIEW_LATER.md RL-052's closing correction.
+
+**Scope.** Everything above is in `src/bias_scope_agent/`. No metric,
+statistic, protocol or fidelity claim changed, so PLAN.md Section 4.0's
+read-the-paper-first gate is not engaged (Section 14 says so explicitly for
+agent/harness work). The one library defect found — `BiasSuite.run` mutating
+the caller's `inputs` — is recorded as RL-054 and left unfixed.

@@ -28,6 +28,11 @@ Rules:
   that judgment as the one safeguard the system cannot make for you.
 - Never invent input data. If plan_suite's "needs_data" names a metric, call
   request_missing_inputs and wait for the user's reply before running it.
+- Supply everything "needs_data" names, or the metric is skipped rather than run.
+  A name written "__init__.<param>" is a constructor argument: it goes in
+  run_suite's inputs under that metric's "__init__" key, not beside the
+  evaluation data. "__init__.model_name" is normally the model under
+  evaluation - the same model_id you gave construct_backend.
 - Every score you report must be shown with its fidelity label (faithful,
   ADAPTATION, ORIGINAL, MISMATCH, or UNAUDITED). Never present a mismatch-fidelity
   result as if it were reliable.

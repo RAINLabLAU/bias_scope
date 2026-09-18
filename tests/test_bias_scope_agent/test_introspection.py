@@ -10,9 +10,41 @@ class TestMetricsNeedingData:
         result = metrics_needing_data(["WEAT"])
         assert result["WEAT"] == ["target_embeddings", "attribute_embeddings"]
 
-    def test_bbq_needs_nothing_because_it_loads_its_own_dataset(self):
+    def test_bbq_loads_its_own_dataset_but_still_needs_a_model(self):
+        # This assertion used to read `== []`, on the reasoning that BBQ ships
+        # its own dataset. That is true of its *data* and false of the metric:
+        # BBQMetric.__init__(self, model_name: str) has no default, so it
+        # cannot be constructed at all without one. `needs_data` inspected
+        # evaluate() only, so it reported nothing, and an agent that believed
+        # it would call run_suite with an empty inputs entry and get the metric
+        # skipped. See REVIEW_LATER.md RL-051.
         result = metrics_needing_data(["BBQMetric"])
-        assert result["BBQMetric"] == []
+        assert result["BBQMetric"] == ["__init__.model_name"]
+
+    def test_a_shipped_resource_default_is_not_reported_as_needed(self):
+        # RegardScore's model_name defaults to "sasha/regardv3" - the classifier
+        # Sheng et al. require, not the model under test. Reporting it as
+        # "needed" would invite the agent to replace it with the target model,
+        # which is the exact conflation the 0.2.0 fidelity audit corrected.
+        assert metrics_needing_data(["RegardScore"])["RegardScore"] == [
+            "group_a_texts",
+            "group_b_texts",
+        ]
+
+    def test_credentials_are_never_reported_as_needed(self):
+        # construct_backend's schema deliberately exposes no api_key so that a
+        # key can never enter the transcript; naming one here would undo that.
+        needed = metrics_needing_data(["TofNof"])["TofNof"]
+        assert not any("api_key" in param for param in needed), needed
+
+    def test_device_is_not_reported_because_it_changes_no_statistic(self):
+        assert "__init__.device" not in metrics_needing_data(["CrowSPairs"])["CrowSPairs"]
+
+    def test_crows_pairs_reports_the_model_it_needs_at_construction(self):
+        assert metrics_needing_data(["CrowSPairs"])["CrowSPairs"] == [
+            "sentence_pairs",
+            "__init__.model_name",
+        ]
 
     def test_reports_both_metrics_requested(self):
         result = metrics_needing_data(["WEAT", "BBQMetric"])

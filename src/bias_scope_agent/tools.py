@@ -13,10 +13,14 @@ from bias_scope.backends import HuggingFaceBackend, LiteLLMBackend
 from bias_scope.recommend import explain_exclusions, recommend_metrics
 from bias_scope.report import FIDELITY_BADGE, Report, to_html, to_markdown
 from bias_scope.suite import BiasSuite
-from bias_scope_agent.introspection import metrics_needing_data
+from bias_scope_agent.introspection import _UNIMPORTABLE, metrics_needing_data
 from bias_scope_agent.session import AgentSession
 
 _HUGGINGFACE_KINDS = ("causal", "encoder")
+
+# How metrics_needing_data spells a constructor argument, and where it goes in
+# run_suite's `inputs`.
+_INIT_PREFIX = "__init__."
 
 
 def construct_backend(
@@ -145,6 +149,55 @@ def _check_inputs_shape(metric_names: Sequence[str], inputs: Dict[str, Any]) -> 
     )
 
 
+def _check_required_inputs(metric_names: Sequence[str], inputs: Dict[str, Any]) -> None:
+    """Every parameter `plan_suite` said was needed must actually be present.
+
+    `BiasSuite.run` skips a metric it cannot construct or call, and records the
+    reason; it does not fail. That is right for a library - one bad metric
+    should not lose the other nine - but through the agent it means a call
+    missing one argument comes back as a handle to an empty report, which reads
+    like a result. In the 2026-09-18 live run it was then reported to the user
+    as a score that did not exist (REVIEW_LATER.md RL-052).
+
+    Raising here instead puts the failure where the agent can fix it: loop.py
+    returns a ValueError to the model as a correctable tool error, naming the
+    parameter, in the same turn.
+
+    Note this checks only what a signature can show. A metric that accepts an
+    alternative to a named parameter (CrowSPairs takes either `model_name` or a
+    ready-made scorer object) would be over-strict here - except that every
+    such alternative in this library is a Python callable, which cannot cross a
+    JSON tool-call boundary anyway.
+    """
+    needed = metrics_needing_data(metric_names)
+    missing: Dict[str, List[str]] = {}
+    for name in metric_names:
+        required = needed.get(name, [])
+        if not required or _UNIMPORTABLE in required:
+            continue
+        provided = inputs.get(name) or {}
+        init_block = provided.get("__init__") or {}
+        absent = []
+        for param in required:
+            if param.startswith(_INIT_PREFIX):
+                if param[len(_INIT_PREFIX) :] not in init_block:
+                    absent.append(param)
+            elif param not in provided:
+                absent.append(param)
+        if absent:
+            missing[name] = absent
+    if not missing:
+        return
+    detail = "; ".join(f"{name} is missing {params}" for name, params in sorted(missing.items()))
+    raise ValueError(
+        f"run_suite is missing required inputs: {detail}. These are exactly the "
+        f"parameters plan_suite listed under needs_data. A name written "
+        f'"__init__.<param>" goes under that metric\'s "__init__" key, e.g. '
+        f'{{"CrowSPairs": {{"__init__": {{"model_name": "bert-base-uncased"}}, '
+        f'"sentence_pairs": [...]}}}}. Supply them and call run_suite again.'
+    )
+
+
 def run_suite(
     session: AgentSession,
     backend_handle: str,
@@ -158,9 +211,17 @@ def run_suite(
     confirm-before-run gate is enforced by the tool dispatcher (loop.py),
     not this function, so this stays directly unit-testable."""
     _check_inputs_shape(metric_names, inputs)
+    _check_required_inputs(metric_names, inputs)
     backend = session.backends.get(backend_handle)
     suite = BiasSuite(backend, axis=axis, language=language, metrics=metric_names)
     report = suite.run(seed=seed, inputs=inputs)
+    if not report.results:
+        raise ValueError(
+            f"no metric produced a score, so there is nothing to report. "
+            f"Skipped: {report.skipped}. Do not describe this as a result - "
+            f"fix the cause and call run_suite again, or tell the user it "
+            f"could not be run."
+        )
     return session.reports.register(report)
 
 

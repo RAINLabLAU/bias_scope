@@ -932,6 +932,11 @@ proves unhelpful often enough in practice (e.g. via Item 1's eventual live
 conversation testing) to not be worth the added code path.
 
 ## RL-046 · verify · 2026-09-17 · bias_scope_agent / OpenRouter and litellm providers untested against real APIs
+**RESOLVED for `openrouter` on 2026-09-18:** `OpenRouterProvider` has now driven
+three live conversations against a real key (see PROGRESS.md 2026-09-18 and
+`results/verification/agent_live/`). Tool-call translation, the whole-transcript
+re-translation across turns, and error round-tripping all held. `LiteLLMProvider`
+is still unexercised against a real key; the rest of this entry stands for it.
 **Encountered:** `OpenRouterProvider` and `LiteLLMProvider` (added by direct
 request, `providers.py`) were built and unit-tested against hand-built
 fakes matching each dependency's documented shape (OpenRouter's own
@@ -1131,3 +1136,149 @@ unreachable from the agent for the same reason. A scan found only these three
 today, but nothing prevents the next one; the release gate proposed at the end
 of the 2026-09-17 PROGRESS entry (every registered metric must complete
 `.run()`) would catch them if its fixtures went through JSON.
+
+## RL-051 · blocked · 2026-09-18 · `~typesafe/jev-latest` is not a chat model and cannot drive the agent loop
+**Encountered:** a live OpenRouter key was supplied with the instruction to use
+`~typesafe/jev-latest` as the agent LLM. The slug resolves (it is
+`typesafe/jev-1.13-20260917`, provider "TypeSafe"), but it is absent from the
+445 models `GET /api/v1/models` returns for this key, and a normal request is
+refused: *"~typesafe/jev-latest is a decisions model and cannot be used with
+the chat/completions endpoint. Use the /api/alpha/decisions endpoint instead."*
+That endpoint takes `state` + `questions` and answers each question as one of
+three fixed types — `noul` (a probability), `choice` (one option key, with
+probabilities and a confidence) or `score` (an index into a legend). Probed
+all three; each returns only those structured fields.
+**Chosen:** `~openai/gpt-terra-latest` for the live runs, recorded in every
+artifact under `agent_model`. `AgentLoop` needs a model that emits assistant
+text *and* `tool_calls` carrying arbitrary JSON arguments (`construct_backend(
+model_id="bert-base-uncased", dtype="fp32", device="cuda")`). A decisions API
+emits no free text and no arguments at all, so no adapter could bridge it —
+this is a shape mismatch, not a missing translation. `~anthropic/claude-*` was
+excluded by the maintainer during the session. A non-Claude, tool-calling,
+listed alias was the nearest defensible substitute.
+**Where:** no code change; `providers.py` is untouched and correct.
+**Verified:** the substitute emits `tool_calls` (preflight probe) and completed
+three live conversations. The jev endpoint's request and response shapes were
+established by direct probing, not documentation.
+**Risk if wrong:** low, and confined to attribution — every artifact names the
+model actually used.
+**To revisit:** jev is a *judge* by construction, and `bias_scope` has
+judge-based metrics (`TofNof`, the TrustLLM family) whose `judge_model` it
+could plausibly serve. That is a different integration from the agent loop and
+was not attempted here. Note `choice` returned a key from `criteria`, not from
+`options`, which is worth understanding before relying on it.
+
+## RL-052 · fix · 2026-09-18 · `needs_data` inspected `evaluate()` only, so metrics that take their model at construction were reported as needing nothing
+**Encountered:** the first live run planned `CrowSPairs` on `bert-base-uncased`
+and the metric was skipped: *"TypeError: wordpiece mode requires either
+model_name= at __init__ or a WordPieceBertScorer passed as
+predict_masked_token=."* The agent had supplied exactly what `plan_suite` told
+it to. `metrics_needing_data` built its answer from `inspect.signature(
+cls.evaluate)` alone, so for CrowSPairs it said `["sentence_pairs"]` and never
+mentioned the model the metric needs at construction. `BBQMetric`, whose
+`__init__(self, model_name: str)` has no default at all, was reported as
+needing *nothing* — a test asserted that, on the reasoning that BBQ ships its
+own dataset, which is true of its data and false of the metric.
+**Chosen:** three changes, all in `bias_scope_agent`, none touching a statistic.
+1. `_required_init_params` reports constructor parameters as
+   `"__init__.<name>"`. A parameter counts as needed when it has no default, or
+   when its default is an unset sentinel (`None` or `""`). A *real* default is
+   left alone — this is the line that keeps `RegardScore(model_name=
+   "sasha/regardv3")` off the list, since that names the classifier Sheng et
+   al. require and replacing it with the model under test is the exact
+   conflation the 0.2.0 audit corrected. `device` is excluded (placement, no
+   effect on any statistic) and so is anything matching `*api_key`, because
+   `construct_backend`'s schema deliberately exposes no key and naming one here
+   would invite the agent to ask the user to paste one into the chat.
+2. `run_suite` now rejects a call missing anything `needs_data` named, with a
+   `ValueError` that names the metric and the parameters. `loop.py` hands that
+   back to the agent as a correctable tool error in the same turn.
+3. `run_suite` also refuses to return a handle when *every* planned metric was
+   skipped: nothing ran, so there is no result, and a handle to an empty report
+   renders as a "result" whose entire content is an error message.
+**Rejected:** injecting the backend's `model_id` into any metric whose
+`__init__` accepts `model_name`. `model_name` is not one concept — for
+`CrowSPairs` it is the model under test, for `RegardScore` the required
+classifier, for `WEAT`/`SEAT`/`CEAT` the sentence encoder. Silent injection
+would have scored some metrics with the wrong model while `Report.model_id`
+still named the backend, which is a mis-attribution, not a convenience.
+**Where:** `src/bias_scope_agent/introspection.py` (`_required_init_params`,
+`_is_credential`, `metrics_needing_data`), `src/bias_scope_agent/tools.py`
+(`_check_required_inputs`, `run_suite`), `src/bias_scope_agent/system_prompt.py`
+(one rule explaining the `__init__.` notation).
+Tests: `tests/test_bias_scope_agent/test_introspection.py::TestMetricsNeedingData`
+(five new cases, including the RegardScore and credential ones),
+`test_tools.py::TestRunSuiteRefusesToProduceAnEmptyResult`,
+`tests/integration/test_bias_scope_agent_tiny_model.py::test_supplying_exactly_what_the_plan_asks_for_is_enough_to_run`
+(builds `inputs` mechanically from the plan, so it cannot start passing
+something the plan never asked for).
+**Two existing tests were changed, not deleted,** because they asserted the
+superseded contract: `test_bbq_needs_nothing_because_it_loads_its_own_dataset`
+(factually wrong about the metric) and
+`test_an_empty_inputs_dict_is_still_allowed` (whose premise, "every metric
+skipping for want of data is a legitimate outcome", is true for `BiasSuite`
+and not for a tool call). Both keep their original intent as a comment.
+**Verified:** `CrowSPairs` now completes through `plan_suite` → `run_suite` on
+a real `HuggingFaceBackend`, and the live agent supplied
+`__init__.model_name` unprompted once `needs_data` named it.
+**Risk if wrong:** the completeness check could be over-strict for a metric
+offering an alternative to a named parameter. Every such alternative in this
+library today is a Python callable, which cannot cross a JSON tool boundary, so
+there is no reachable false positive — but a future metric with a
+JSON-passable alternative would need an exemption.
+**To revisit:** a correction to the record. An intermediate draft of this entry
+claimed the agent had *fabricated* the 0.40 score after being told the metric
+was skipped, and cited that as a frontier model defeating both structural
+gates. **That was wrong, and the cause was the recording script, not the
+agent** — see RL-053. The score was real. The skip was real too, which is why
+these guards stay; but they are precautionary, not a response to an observed
+fabrication.
+
+## RL-053 · verify · 2026-09-18 · every metric input passes through the agent LLM's output tokens, and one was silently altered on exactly the token being measured
+**Encountered:** `scripts/agent/live_conversation.py` compares the sentence
+pairs that reach `run_suite` against the authors' own CSV. On one run all 20
+were byte-identical; on the next, 19 were. In pair 1 the agent rewrote the
+less-stereotypical sentence's *"one of the best engineers in **her** field"* as
+*"...in **his** field"* — "correcting" the pronoun, and in doing so destroying
+the minimal pair, on precisely the token CrowS-Pairs exists to measure. The
+score moved from 0.400 to 0.450 (one pair of twenty flipping is 5 points).
+Both numbers are real outputs of the metric; they are outputs on two different
+datasets, one of which nobody chose.
+**Not fixed — this is architectural.** `run_suite` takes its data as a tool
+argument, so every item a metric scores must be retyped by the model into its
+own output tokens. Nothing downstream can detect the change: the altered pair
+is well-formed English and scores perfectly happily. The round-trip check in
+the script only works because it has the source CSV to compare against, which
+a real user would not.
+**Where:** `src/bias_scope_agent/schemas.py` `RUN_SUITE.inputs`;
+`src/bias_scope_agent/tools.py` `run_suite`.
+**Risk if wrong:** high, and quiet. This is the failure mode the library's
+whole protocol/hash apparatus exists to prevent — `protocol_hash` pins the
+dataset revision, and then the data reaches the metric through a paraphrase.
+Any agent-produced number is, strictly, a number on an unverifiable input.
+**To revisit:** the fix is to stop passing data *by value*. A tool that takes a
+reference the harness resolves server-side (a dataset id + split + filter, or a
+path under a whitelisted directory) would let the agent *name* data it cannot
+retype, and would make an agent run reproducible in the sense the rest of the
+library means it. Until then, no agent-mediated score should be recorded in
+`results/validation/`, and `results/verification/agent_live/` artifacts should
+be read as harness evidence, not measurements.
+
+## RL-054 · verify · 2026-09-18 · `BiasSuite.run` mutates the caller's `inputs` dict
+**Encountered:** while recording a live transcript. `suite.run()` does
+`kwargs.pop("__init__", {})` on the dict it is handed, so the caller's own
+`inputs` loses each metric's constructor block as a side effect of running.
+This cost a wrong conclusion: the transcript recorder stored `block.input` by
+reference, and by serialization time the `__init__` block had been popped out,
+making the log show an agent omitting an argument it had in fact supplied
+(see RL-052's closing note).
+**Chosen:** not fixed, and deliberately so — this is `src/bias_scope/`, and the
+observed harm was to a recording script, which now deep-copies. The library
+consequence is nonetheless real: calling `suite.run(inputs=x)` twice with the
+same `x` silently drops the constructor arguments on the second call, so the
+second run either fails or (worse) runs a differently-constructed metric.
+**Where:** `src/bias_scope/suite.py`, in `BiasSuite.run`'s metric loop.
+**Risk if wrong:** low as long as callers build `inputs` fresh each time.
+**To revisit:** one line — copy the per-metric kwargs before popping. Worth a
+regression test asserting `inputs` is unchanged after `run()`, which is the
+kind of property no current test covers.

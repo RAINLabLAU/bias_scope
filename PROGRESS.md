@@ -1384,3 +1384,85 @@ were invented; no number was. Scores can only arrive through `run_suite` and
 and nowhere else — which is the clearest argument yet for widening them.
 
 Gates: **1947 passed, 3 skipped, 2 xfailed**; `ruff check src tests` clean.
+
+## 2026-09-18 — PLAN.md Section 14 Item 1 closed: the first live run against a paid API, on GPU
+
+A supervisor-supplied OpenRouter key made Item 1 — deferred every session since
+the agent was built — finally runnable. Three live conversations were recorded,
+driving a real target model on the RTX A4500.
+
+**Agent LLM.** The requested model, `~typesafe/jev-latest`, **cannot drive this
+agent** and no adapter could make it: it is a *decisions* model reachable only
+at `/api/alpha/decisions`, taking `state` + `questions` and answering each as a
+`noul` (probability), `choice` (option key) or `score` (legend index). It emits
+no free text and no tool-call arguments. `~openai/gpt-terra-latest` was
+substituted (Claude models excluded by request). Full probe record: RL-051.
+
+**Target model.** `bert-base-uncased`, encoder, fp32, `device="cuda"` —
+confirmed resident on the GPU (`cuda:0`, 418.7 MiB, `torch.float32`). Data was
+the authors' own `crows_pairs_anonymized.csv`, gender subset, first 20 pairs.
+
+**Result:** `CrowSPairs = 0.400`, n=20, fidelity `faithful`, verified by
+computing the metric directly on the same pairs outside the agent. **This is
+not a Tier-1 reproduction** — 20 pairs is not Nangia's 1508 — and is recorded
+under `results/verification/agent_live/`, not `results/validation/`. The
+retained transcript stores `summarize_report`'s own return value
+(`[faithful] CrowSPairs: 0.4`) next to the agent's prose, so "did the reported
+number come from the tool" is answerable from the artifact rather than by
+trusting the narrative. Four encoder runs were made in all; the two whose
+artifacts predate timestamped filenames were overwritten, including the
+0.450 / 19-of-20 run described below — its numbers are recorded here and in
+RL-053, not in a file.
+
+**Held on first real contact:** the confirm-before-run gate in both directions
+(turn 3 confirmed and ran; in the causal scenario the user declined and the
+model called neither `confirm_plan` nor `run_suite`); `providers.py`'s
+whole-transcript re-translation across three turns; `OpenRouterProvider`
+against a real key (RL-046 resolved for it). Notably, the 2026-09-17
+fabrication finding **did not recur**: the model called
+`recommend_metrics_tool` and `explain_exclusions_tool` for real, repeatedly,
+rather than inventing their output.
+
+**Broke — RL-052, fixed test-first.** `metrics_needing_data` built its answer
+from `inspect.signature(cls.evaluate)` alone, so it never mentioned a model a
+metric takes at *construction*. `plan_suite` told the agent CrowSPairs needed
+`sentence_pairs`; the agent supplied exactly that; `BiasSuite` skipped the
+metric with a `TypeError`. `BBQMetric`, which cannot be constructed without a
+`model_name`, was reported as needing nothing at all — and a test asserted it.
+Constructor requirements are now reported as `"__init__.<param>"`, with a
+deliberate line between an unset sentinel (`None`/`""` → needed) and a real
+default (`RegardScore(model_name="sasha/regardv3")` → *not* needed, because
+that names the classifier the paper requires, not the model under test).
+`run_suite` now rejects an incomplete call, and refuses to hand back a handle
+to a report in which nothing ran. Blanket injection of the backend's model into
+any `model_name` parameter was considered and rejected: the name means three
+different things across families, and silent injection would mis-attribute.
+
+**The finding worth the most attention — RL-053, not fixed, architectural.**
+The run script compares the pairs that reach `run_suite` against the source
+CSV. On one run 19 of 20 survived: the agent rewrote *"one of the best
+engineers in **her** field"* as *"...in **his** field"*, destroying the minimal
+pair on exactly the token CrowS-Pairs measures. The score moved 0.400 → 0.450.
+Both are honest outputs of the metric — on two different datasets, one of which
+nobody chose. This is inherent to passing data *by value* through a tool call:
+every item a metric scores is retyped by the model, and a well-formed
+paraphrase is undetectable downstream. It makes the library's protocol-hashing
+apparatus moot at the agent boundary. The fix is to pass data *by reference*
+(dataset id + split, or a whitelisted path the harness resolves) so the agent
+names data it cannot retype.
+
+**A correction, recorded because it nearly reached this file as a finding.**
+An intermediate reading of the first transcript concluded the agent had
+fabricated the 0.40 score after being told the metric was skipped — which would
+have falsified the 2026-09-17 claim that "the fabrication never reached a
+score". It was wrong. `BiasSuite.run` pops `"__init__"` out of the dict it is
+given (RL-054), and the recorder had stored that dict by reference, so the
+constructor arguments the agent *did* send were gone by the time the transcript
+was serialized. Replaying the mutated log reproduced a skip that never happened
+live. The recorder now deep-copies; the agent's number was correct all along.
+
+Gates: **1959 passed, 6 deselected, 2 xfailed**; `ruff check src tests` clean.
+New: `tests/integration/test_bias_scope_agent_live_conversation.py` (opt-in via
+`BIASSCOPE_RUN_LIVE_AGENT=1`, marked `slow`, CPU-only, a few cents per run) and
+`scripts/agent/live_conversation.py` (the GPU counterpart, per PLAN.md Section 1's
+"GPU reproductions are scripts, not tests").

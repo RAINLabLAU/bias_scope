@@ -62,8 +62,63 @@ def _required_params(cls: type) -> List[str]:
     return required
 
 
+# Constructor defaults that mean "nobody has supplied this yet", as opposed to
+# a real default the metric deliberately ships. The distinction matters: for
+# CrowSPairs, `model_name=None` means the metric has no model to score with and
+# will raise at evaluate() time; for RegardScore, `model_name="sasha/regardv3"`
+# names the *classifier the paper requires*, which must never be replaced by
+# the model under test. See REVIEW_LATER.md RL-051.
+_UNSET_DEFAULTS = (None, "")
+
+# Never reported as "needed". `device` is placement only - it changes no
+# statistic and every metric that takes it works without it. `api_key` is
+# excluded for a stronger reason: construct_backend's schema deliberately does
+# not expose one (schemas.py), so that a target model's credentials can never
+# enter the conversation transcript. Naming it here would invite the agent to
+# ask the user to paste a key into the chat, undoing that. Keys come from the
+# provider's own environment variable; system_prompt.py says so.
+_OPTIONAL_INIT_PARAMS = frozenset({"device"})
+
+
+def _is_credential(param_name: str) -> bool:
+    """True for a constructor parameter that carries a secret.
+
+    A suffix rule rather than a fixed list, so a metric added later with e.g.
+    `grader_api_key` is covered without anyone remembering to update this.
+    """
+    return param_name.endswith("api_key")
+
+
+def _required_init_params(cls: type) -> List[str]:
+    """Constructor parameters the caller must still supply, as "__init__.<name>".
+
+    `metrics_needing_data` used to inspect `evaluate()` only. A metric whose
+    model is supplied at construction (the whole probability family) therefore
+    reported that it needed nothing but its sentences, and the agent - having
+    been told exactly that - called `run_suite` without an `__init__` block,
+    and `BiasSuite` skipped the metric. A live run did precisely this
+    (REVIEW_LATER.md RL-051).
+    """
+    required = []
+    for param_name, param in inspect.signature(cls.__init__).parameters.items():
+        if param_name == "self" or param_name in _OPTIONAL_INIT_PARAMS:
+            continue
+        if _is_credential(param_name):
+            continue
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            continue
+        if param.default is param.empty or param.default in _UNSET_DEFAULTS:
+            required.append(f"__init__.{param_name}")
+    return required
+
+
 def metrics_needing_data(metric_names: Sequence[str]) -> Dict[str, List[str]]:
-    """metric name -> evaluate() params with no default (excl. self/*args/**kwargs).
+    """metric name -> the parameters the caller must supply.
+
+    Two kinds, both named in one flat list: `evaluate()` parameters with no
+    default, and constructor parameters still unsupplied, spelled
+    "__init__.<name>" to match where they go in `run_suite`'s `inputs`
+    (`{"CrowSPairs": {"__init__": {"model_name": ...}, "sentence_pairs": ...}}`).
 
     An empty list means the metric needs nothing from the caller (it loads
     its own dataset, e.g. BBQMetric). A metric that can't be imported is
@@ -76,7 +131,7 @@ def metrics_needing_data(metric_names: Sequence[str]) -> Dict[str, List[str]]:
         if cls is None:
             result[name] = [_UNIMPORTABLE]
         else:
-            result[name] = _required_params(cls)
+            result[name] = _required_params(cls) + _required_init_params(cls)
     return result
 
 
