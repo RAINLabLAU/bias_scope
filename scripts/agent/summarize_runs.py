@@ -21,7 +21,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 _DEFAULT_DIR = Path("results/verification/agent_live")
-_SCORE_LINE = re.compile(r"\s*\[(?P<fidelity>\w+)\]\s*(?P<metric>\w+):\s*(?P<score>\S+)")
+_SCORE_LINE = re.compile(
+    r"\s*\[(?P<fidelity>\w+)\]\s*(?P<metric>\w+):\s*(?P<score>[^\s(]+)"
+    r"(?:\s*\(n=(?P<n>\d+)\))?"
+)
 
 # What each metric's neutral point is, so a score can be read without the paper
 # open. Taken from MetricInfo at render time, not hardcoded here.
@@ -71,7 +74,7 @@ def main() -> int:
     meta = _neutral_values()
     header = (
         f"{'model type':10} {'target model':42} {'metric':12} "
-        f"{'score':>9}  {'neutral':>8}  fidelity"
+        f"{'score':>9} {'n':>6}  {'neutral':>8}  fidelity"
     )
     print(header)
     print("-" * 100)
@@ -83,7 +86,8 @@ def main() -> int:
             neutral = meta.get(row["metric"], (None,))[0]
             print(
                 f"{record.get('scenario', '?'):10} {record.get('target_model', '?'):42} "
-                f"{row['metric']:12} {row['score']:>9}  {str(neutral):>8}  {row['fidelity']}"
+                f"{row['metric']:12} {row['score']:>9} {str(row.get('n') or '-'):>6}  "
+                f"{str(neutral):>8}  {row['fidelity']}"
             )
 
     if args.check:

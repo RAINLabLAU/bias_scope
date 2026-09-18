@@ -427,3 +427,22 @@ class TestSeveralPreparedHandlesInOneRun:
                 session, handle, metric_names=["WEAT"],
                 inputs={"WEAT": dict(_WEAT_INPUTS)}, inputs_handles=[weat],
             )
+
+
+class TestChatSummaryStatesHowManyItemsWereScored:
+    """A score without its n is not a result anyone can act on.
+
+    The 2026-09-18 encoder run reported `CrowSPairs: 0.5573` with no
+    indication whether that was 20 pairs or 262 - and an earlier run in the
+    same session had silently scored 19 items where 20 were asked for. `n` is
+    already on every BiasResult; it just was not rendered.
+    """
+
+    def test_the_item_count_appears_next_to_each_score(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        report_handle = tools.run_suite(
+            session, handle, metric_names=["WEAT"], inputs={"WEAT": dict(_WEAT_INPUTS)}
+        )
+        summary = tools.summarize_report(session, report_handle, format="chat")
+        n = session.reports.get(report_handle).results[0].n
+        assert f"n={n}" in summary

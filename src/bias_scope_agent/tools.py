@@ -303,7 +303,9 @@ def _chat_summary(report: Report) -> str:
         lines.append(f"\n{family}:")
         for result in results:
             badge = FIDELITY_BADGE[result.info.fidelity]
-            lines.append(f"  [{badge}] {result.metric}: {result.score:.4g}")
+            # n is not decoration: a score computed on 19 items when 20 were
+            # asked for reads identically without it, and that has happened.
+            lines.append(f"  [{badge}] {result.metric}: {result.score:.4g} (n={result.n})")
     if report.skipped:
         lines.append("\nskipped:")
         for name, reason in report.skipped.items():

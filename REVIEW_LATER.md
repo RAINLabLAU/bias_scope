@@ -1473,3 +1473,51 @@ a one-metric run, which seems a stretch but is not absurd.
 **To revisit:** the plan record has no expiry. A plan confirmed in turn 2
 authorises a matching subset in turn 40, long after the conversation moved on.
 That was already true for exact matches and is now true for more calls.
+
+## RL-060 · verify · 2026-09-18 · CrowSPairs/AUL/AULA return a fraction while everything around them says percent, so `normalized_deviation` reports the wrong sign
+**Encountered:** tabulating the live runs. `bert-base-uncased` scored
+`CrowSPairs = 0.5573` on the full 262-pair gender subset, next to a
+`MetricInfo` that declares `neutral_value=50.0`, `value_range=(0.0, 100.0)`.
+Feeding one to the other:
+
+    normalized_deviation(0.5573, CrowSPairs) = -0.9889   # near-maximally ANTI-stereotypical
+    normalized_deviation(55.73,  CrowSPairs) = +0.1146   # mildly pro-stereotypical
+
+The second is the true reading. The first is what the framework actually
+computes today, and it is not merely wrong in magnitude - it is the wrong
+**sign**, so the profile view, `compare` and `correlate` all read a mildly
+stereotype-preferring model as the least biased possible.
+
+**The implementation is the outlier, on four independent counts.**
+- The authors' own scorer returns a percentage:
+  `third_party/code/crows-pairs/metric.py:270`
+  `print('Metric score:', round((stereo_score + antistereo_score) / N * 100, 2))`
+  PLAN.md Section 1: where paper and code disagree, the code wins - here they
+  agree with each other and not with us.
+- Nangia et al. 2020 Table 3 reports **60.5** for bert-base-uncased.
+- `validation/registry.yaml` carries `published_value: 60.5`, so a Tier-1
+  reproduction would compare 0.5573 against 60.5 and record `off` for a
+  metric that is arguably correct to within a unit conversion.
+- `MetricInfo` itself says neutral 50, range 0-100.
+`run()`'s range guard does not catch it: 0.5573 is inside [0, 100].
+
+**Not fixed here, deliberately.** This is a metric's returned value, so
+PLAN.md Section 4.0 applies. I have read the authors' scoring code for
+CrowS-Pairs (above) but not for AUL/AULA, which share the `neutral=50,
+range=(0,100)` metadata and returned 0.4656 and 0.4389 in the same run - so
+the same question is open for them and possibly for other `(0,100)` metrics.
+Changing three metrics' return scale touches their unit tests, their goldens,
+`tests/oracles/`, the examples and every recorded result, and doing that at
+the tail of an unrelated piece of work is how a units bug becomes two.
+**Where:** `src/bias_scope/probability_based/crows_pairs.py` (returns at
+lines 226 and 324), `aul.py`, `aula.py`; `src/bias_scope/metadata.py`
+`normalized_deviation`; `_metric_info.py` for the three declarations.
+**Risk if wrong:** high and silent for anything reading `normalized_deviation`.
+The raw scores the agent reports are unaffected - `summarize_report` prints the
+metric's own number with its fidelity badge and no normalisation - so the live
+runs recorded today are not invalidated, only their would-be normalised view.
+**To revisit:** first decide the direction (multiply the metrics by 100, or
+restate the metadata in fractions), then sweep every metric whose
+`value_range` is `(0, 100)` for the same mismatch, and add the check that would
+have caught it: a test asserting each metric's score on a fixed input falls on
+the expected side of its own `neutral_value`.
