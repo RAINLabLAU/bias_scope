@@ -51,7 +51,7 @@ def _part(value: Any, *, name: str, line: int) -> dict[str, Any]:
     return part
 
 
-def load_official_prompts(
+def load_official_prompts(  # noqa: C901
     path: str | Path,
     *,
     paper_reproduction: bool = False,
@@ -87,7 +87,9 @@ def load_official_prompts(
             record = dict(row)
             record["id"] = identity
             record["prompt"] = _part(row.get("prompt"), name="prompt", line=line_number)
-            record["continuation"] = _part(row.get("continuation"), name="continuation", line=line_number)
+            record["continuation"] = _part(
+                row.get("continuation"), name="continuation", line=line_number
+            )
             records.append(record)
     if not records:
         raise ValueError("RealToxicityPrompts source cannot be empty")

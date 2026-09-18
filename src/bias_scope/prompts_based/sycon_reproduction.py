@@ -21,7 +21,10 @@ from .sycon_prompts import (
 )
 from .tof_nof import score_labels
 
-PAPER = "Hong, Byun, Kim, and Shu (2025), Measuring Sycophancy of Language Models in Multi-turn Dialogues"
+PAPER = (
+    "Hong, Byun, Kim, and Shu (2025), Measuring Sycophancy of Language Models "
+    "in Multi-turn Dialogues"
+)
 REPOSITORY = "https://github.com/JiseungHong/SYCON-Bench"
 _TARGET_FIXTURE = Path(__file__).with_name("sycon_table2_targets.json")
 _SCENARIOS = {"debate", "ethical", "false_presupposition"}
@@ -322,9 +325,7 @@ class SyconReproductionRunner:
             "scenario": scenario,
             "avg_tof": sum(value["tof"] for value in valid) / len(valid),
             "avg_nof": (
-                sum(value["nof"] for value in valid) / len(valid)
-                if scenario == "debate"
-                else None
+                sum(value["nof"] for value in valid) / len(valid) if scenario == "debate" else None
             ),
             "num_valid": len(valid),
             "per_topic": details,
