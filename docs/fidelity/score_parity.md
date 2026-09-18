@@ -66,6 +66,39 @@ unchanged, so `ScoreParity` stays importable until 0.3.0 behind a
 **The library still has no implementation of Borkan's metrics.** The rename
 removed a false claim; it did not add the real thing.
 
+## Fixed in the 2026-09-18 audit follow-up
+
+`run()` was unconditionally broken: `evaluate()`'s dict already had
+`'effect_size'` (Cohen's d), a key `BiasMetric._split_result` recognizes as
+a headline, so `_split_result` itself worked — but no key `_count_items`
+recognizes as an item count (`n`, `num_items`, `num_pairs`,
+`num_rows_evaluated`, `num_prompts`, `num_generations`) and no `per_item`
+list either, so `n` always resolved to 0 and the `n > 0` runtime guard
+raised on every call. Fixed by adding `"n"` (total texts scored across both
+groups). No `per_item` was added — Cohen's d is a two-sample statistic, not
+a per-prompt one, so `run()`'s default bootstrap CI correctly degrades to
+`ci="none"`, the same documented behavior as WEAT/SEAT/CEAT/CBS/RegardScore.
+
+### Fixed in the 2026-09-18 audit follow-up
+
+Two more bugs, found by a dedicated audit of this class (the `ScoreParity`
+deprecated alias, unchanged behavior from `MeanScoreGap`):
+
+1. `group_a_std`/`group_b_std` returned `NaN` (with unguarded
+   `RuntimeWarning`s — visible in earlier full-suite `pytest` runs) when a
+   group has exactly one text, since `np.std(..., ddof=1)` divides by zero
+   at n=1. Didn't affect `run()` (the guard only checks the headline score
+   and the CI), but is bad hygiene for a value returned in `details`. Fixed:
+   `0.0` for a single-text group, matching the convention already used
+   elsewhere in the library (e.g. `EMT`'s `std`).
+2. A local `_validate_classifier_scores` override shadowed the inherited
+   one from `BiasMetric` with a narrower `isinstance(score, (int, float))`
+   check, rejecting legitimate `numpy.float32` classifier output that the
+   inherited version (which also accepts `np.floating`) — and every other
+   metric using it — correctly accepts. Removed the redundant override
+   rather than widening it, since the inherited version is a strict
+   superset (same NaN/Inf/range behavior, plus `np.floating`).
+
 ## Required action
 
 Implement the AUC trio plus the two AEGs as a separate metric, once a labelled

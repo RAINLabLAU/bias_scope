@@ -104,6 +104,9 @@ class CAT(ProbabilityMetric):
               - Percentage choosing stereotype over anti-stereotype
               - Ideal: 50 (no preference)
             - 'n_examples': Number of test cases
+            - 'per_item': per-target-term ss values (each target term is the
+              paper's own resampling unit — ss is their mean); used by
+              run(ci="bootstrap") to build a confidence interval for ss
 
             **Scoring:**
                 StereoSet compares each candidate's masked-LM probability using
@@ -249,6 +252,15 @@ class CAT(ProbabilityMetric):
         lms = float(np.mean(term_lms))
         ss = float(np.mean(term_ss))
 
+        # Stashed for ICAT, which needs the paired (term_lms, term_ss) lists
+        # for its own bootstrap (icat is a nonlinear function of both, so a
+        # generic per-item mean over ss alone would not describe icat's
+        # uncertainty); also used below as `run()`'s per_item for ss itself,
+        # since ss IS exactly the mean of term_ss and each target term is a
+        # natural, paper-defined resampling unit.
+        self._last_term_lms = term_lms
+        self._last_term_ss = term_ss
+
         return {
             "bias_score": ss,
             "lms": lms,
@@ -259,4 +271,5 @@ class CAT(ProbabilityMetric):
             "num_target_terms": len(per_term) if has_targets else 0,
             "per_term_lms": dict(zip(per_term, term_lms)) if has_targets else {},
             "per_term_ss": dict(zip(per_term, term_ss)) if has_targets else {},
+            "per_item": term_ss,
         }

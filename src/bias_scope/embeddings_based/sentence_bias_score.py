@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Tuple
 
 import numpy as np
 
@@ -12,6 +12,191 @@ if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.utils import cosine_similarity, to_numpy
+
+#: Dolci, Azzalini & Tanelli 2023, Sec. 3.2: the ten canonical gender word
+#: pairs used to derive the gender direction via PCA. ``derive_gender_direction``
+#: expects embeddings supplied in this order, one array of the first word of
+#: each pair ("female") and one of the second ("male").
+GENDER_WORD_PAIRS: Tuple[Tuple[str, str], ...] = (
+    ("woman", "man"),
+    ("girl", "boy"),
+    ("she", "he"),
+    ("mother", "father"),
+    ("daughter", "son"),
+    ("gal", "guy"),
+    ("female", "male"),
+    ("her", "his"),
+    ("herself", "himself"),
+    ("Mary", "John"),
+)
+
+
+def derive_gender_direction(
+    female_embeddings: np.ndarray, male_embeddings: np.ndarray
+) -> np.ndarray:
+    """Gender direction via PCA of gender word-pair difference vectors.
+
+    Dolci et al. 2023, Sec. 3.2: take ``n`` pairs of gender words (e.g.
+    ``GENDER_WORD_PAIRS``), form each pair's difference vector (female minus
+    male), and take the top principal component of that set of difference
+    vectors as the gender direction.
+
+    "Principal component" here means the top singular vector of the
+    **uncentred** difference-vector matrix (no global mean subtracted first).
+    Gender-pair difference vectors are expected to point in roughly the same
+    direction (that shared direction *is* the gender signal), so subtracting
+    their mean before decomposing would remove exactly the signal being
+    sought and instead surface the residual variation between pairs. This
+    mirrors the origin of the construction, Bolukbasi et al. 2016 (cited by
+    Dolci et al. as the source of the gender-pair-difference idea), whose own
+    per-pair-centred vectors are likewise not re-centred globally before SVD.
+    The paper publishes no reference code and reports only a scree plot
+    (its Fig. 2), which does not disambiguate centred from uncentred; this is
+    a `decide`, not a verified fact (see docs/fidelity/sentence_bias_score.md).
+
+    The paper observes empirically that the resulting direction gives female
+    words a positive cosine and male words a negative one; this is enforced
+    here by orienting the component along the mean difference vector, rather
+    than leaving PCA's arbitrary sign to chance.
+
+    Parameters
+    ----------
+    female_embeddings, male_embeddings : np.ndarray
+        Shape ``(n_pairs, embedding_dim)``. Row ``i`` of each must be the two
+        words of the same gender pair (e.g. row 0 = "woman" and "man").
+
+    Returns
+    -------
+    np.ndarray
+        Unit-norm gender direction, shape ``(embedding_dim,)``.
+
+    Raises
+    ------
+    ValueError
+        If the two inputs are not equal-shaped ``(n_pairs, dim)`` matrices,
+        if fewer than 2 pairs are given, or if the resulting direction has
+        zero or near-zero magnitude.
+    """
+    female_embeddings = to_numpy(female_embeddings)
+    male_embeddings = to_numpy(male_embeddings)
+
+    if (
+        female_embeddings.ndim != 2
+        or male_embeddings.ndim != 2
+        or female_embeddings.shape != male_embeddings.shape
+    ):
+        raise ValueError(
+            "female_embeddings and male_embeddings must both have shape "
+            f"(n_pairs, embedding_dim). Got {female_embeddings.shape} and "
+            f"{male_embeddings.shape}."
+        )
+    if female_embeddings.shape[0] < 2:
+        raise ValueError(
+            "Need at least 2 gender word pairs to run PCA. "
+            f"Got {female_embeddings.shape[0]}."
+        )
+
+    differences = female_embeddings - male_embeddings
+    mean_difference = differences.mean(axis=0)
+    # Uncentred SVD (see the "Principal component" note above): the top
+    # right-singular vector of the difference vectors themselves, not of
+    # their deviation from the mean.
+    _, _, vt = np.linalg.svd(differences, full_matrices=False)
+    component = vt[0]
+
+    if np.dot(component, mean_difference) < 0:
+        component = -component
+
+    norm = np.linalg.norm(component)
+    if norm < 1e-10:
+        raise ValueError(
+            "Derived gender direction has zero or near-zero magnitude; the "
+            "gender word pairs may not encode a consistent direction."
+        )
+    return component / norm
+
+
+def derive_word_importance(hidden_states: np.ndarray) -> np.ndarray:
+    """Word importance via max-pooling selection counts.
+
+    Dolci et al. 2023, Sec. 3.4: a max-pooling sentence encoder builds its
+    fixed-size sentence vector by taking, independently for each of the
+    ``D`` output dimensions, the largest value across all ``T`` time steps
+    (tokens). Word importance is "how many times in the max-pooling phase a
+    word representation is selected", expressed as a percentage of ``D``; the
+    percentages sum to 1.0 over the whole sentence (including tokens later
+    excluded as gender words -- the paper does not renormalise after
+    exclusion, see docs/fidelity/sentence_bias_score.md).
+
+    Parameters
+    ----------
+    hidden_states : np.ndarray
+        Shape ``(n_tokens, embedding_dim)``: the encoder's per-token hidden
+        state *before* max-pooling, one row per token in sentence order.
+
+    Returns
+    -------
+    np.ndarray
+        Shape ``(n_tokens,)``, percentage importance per token, summing to
+        1.0. Ties are broken by ``numpy.argmax`` (the earliest token wins),
+        since the paper does not specify a tie-breaking rule.
+
+    Raises
+    ------
+    ValueError
+        If ``hidden_states`` is not rank-2, is empty, or contains NaN/Inf.
+    """
+    hidden_states = to_numpy(hidden_states)
+    if hidden_states.ndim != 2:
+        raise ValueError(
+            "hidden_states must be a rank-2 matrix with shape (n_tokens, "
+            f"embedding_dim). Got shape {hidden_states.shape}."
+        )
+    if hidden_states.shape[0] == 0 or hidden_states.shape[1] == 0:
+        raise ValueError(
+            "hidden_states must have at least one token and one dimension. "
+            f"Got shape {hidden_states.shape}."
+        )
+    if not np.isfinite(hidden_states).all():
+        raise ValueError("hidden_states contains NaN or Inf values.")
+
+    n_tokens, dim = hidden_states.shape
+    selected_token_per_dim = np.argmax(hidden_states, axis=0)
+    counts = np.bincount(selected_token_per_dim, minlength=n_tokens)
+    return counts.astype(float) / dim
+
+
+def build_gender_words_mask(tokens: Sequence[str], gender_word_list: Sequence[str]) -> np.ndarray:
+    """Build a ``gender_words_mask`` from tokens and a gender-word lexicon.
+
+    Dolci et al. 2023, Sec. 3.3: a token is a gender word (excluded from bias
+    estimation) if it appears in ``L``, matched case-insensitively -- the
+    paper's own list stores lower-cased and capitalised forms explicitly, so
+    this treats the two as equivalent rather than requiring both.
+
+    **BiasScope does not ship Dolci et al.'s 6562-word lexicon** (409 + 388
+    common nouns compiled starting from Bolukbasi et al. 2016 and Zhao et al.
+    2018b, plus 5765 U.S. Social Security given names): the paper does not
+    publish the merged list, and reconstructing it from the two source lists
+    would not reproduce the authors' own curation. Callers must supply
+    ``gender_word_list`` themselves. See docs/fidelity/sentence_bias_score.md
+    and REVIEW_LATER.md.
+
+    Parameters
+    ----------
+    tokens : Sequence[str]
+        The sentence's tokens, in order.
+    gender_word_list : Sequence[str]
+        The gender-word lexicon ``L``, any mix of case/singular/plural forms.
+
+    Returns
+    -------
+    np.ndarray
+        Boolean array, shape ``(len(tokens),)``, ``True`` where the token is
+        in the lexicon.
+    """
+    lexicon = {str(word).lower() for word in gender_word_list}
+    return np.array([str(token).lower() in lexicon for token in tokens], dtype=bool)
 
 
 class SentenceBiasScore(EmbeddingMetric):
@@ -27,8 +212,9 @@ class SentenceBiasScore(EmbeddingMetric):
 
     Reference
     ---------
-    Dolci, M., Azzalini, D., & Tanelli, M. (2023). Sentence-level bias
-    detection in transformer models.
+    Dolci, T., Azzalini, F., & Tanelli, M. (2023). Improving Gender-Related
+    Fairness in Sentence Encoders: A Semantics-Based Approach. Data Science
+    and Engineering, 8, 177-195. https://doi.org/10.1007/s41019-023-00211-0
 
     Examples
     --------
@@ -74,7 +260,7 @@ class SentenceBiasScore(EmbeddingMetric):
         word_importance: np.ndarray | torch.Tensor,
         gender_words_mask: np.ndarray | torch.Tensor,
         return_details: bool = False,
-    ) -> Tuple[float, float] | Dict[str, float]:
+    ) -> Tuple[float, float] | Dict[str, Any]:
         """
         Evaluate gender bias score for a sentence.
 
@@ -187,11 +373,18 @@ class SentenceBiasScore(EmbeddingMetric):
             word_biases, word_importance
         )
         if return_details:
+            absolute_bias = abs(female_bias) + abs(male_bias)
             return {
                 "female_bias": female_bias,
                 "male_bias": male_bias,
-                "absolute_bias": abs(female_bias) + abs(male_bias),
+                "absolute_bias": absolute_bias,
+                # Dolci et al. Eq. 3 (Abs-BiasScore), the paper's own single-value
+                # summary "useful ... when sorting multiple sentences" -- this is
+                # what run() reports as BiasResult.score.
+                "bias_score": absolute_bias,
+                "breakdown": {"female_bias": female_bias, "male_bias": male_bias},
                 "num_words": float(len(word_embeddings)),
+                "n": int(len(word_embeddings)),
             }
         return female_bias, male_bias
 

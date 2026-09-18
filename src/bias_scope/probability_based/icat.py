@@ -131,6 +131,13 @@ class ICAT(ProbabilityMetric):
         ss = float(cat_result["ss"])
         icat = self.combine(lms, ss)
 
+        # Stashed for _interval's paired bootstrap (icat is a nonlinear
+        # function of both term_lms and term_ss, so CAT's own per_item --
+        # ss's per-term values alone -- does not describe icat's
+        # uncertainty; see _interval below).
+        self._last_term_lms = cat._last_term_lms
+        self._last_term_ss = cat._last_term_ss
+
         # Preserve CAT's statistics and expose iCAT as the framework headline.
         result = dict(cat_result)
         result.update(
@@ -141,7 +148,58 @@ class ICAT(ProbabilityMetric):
                 "ss": ss,
             }
         )
+        # CAT's own per_item (ss's per-term values) does not describe icat's
+        # uncertainty -- icat is a nonlinear function of both lms and ss, so
+        # bootstrapping over it alone could produce an interval that does
+        # not bracket icat. _interval (below) builds the correct one instead.
+        result.pop("per_item", None)
         return result
+
+    def _interval(self, score, per_item, n, ci, seed):
+        """Bootstrap icat by resampling target terms, not `evaluate()`'s
+        generic per_item.
+
+        icat = combine(mean(term_lms), mean(term_ss)) is a nonlinear function
+        of two paired per-term statistics, so the base class's percentile
+        bootstrap over a single flat list (which assumes the reported score
+        IS that list's mean) does not apply here. Instead, each target term
+        -- the paper's own resampling unit -- is resampled with its
+        (term_lms, term_ss) pair kept together, icat is recomputed on every
+        resample via the same `combine` formula, and the percentile interval
+        of those icat values is returned.
+        """
+        if ci == "none":
+            return None, "none", None
+        if ci != "bootstrap":
+            return super()._interval(score, per_item, n, ci, seed)
+
+        term_lms = getattr(self, "_last_term_lms", None)
+        term_ss = getattr(self, "_last_term_ss", None)
+        if not term_lms or not term_ss:
+            return None, "none", None
+
+        import numpy as np
+
+        from bias_scope.stats import DEFAULT_RESAMPLES
+
+        lms_arr = np.asarray(term_lms, dtype=float)
+        ss_arr = np.asarray(term_ss, dtype=float)
+        m = lms_arr.size
+
+        if m <= 1:
+            point = self.combine(float(lms_arr.mean()), float(ss_arr.mean()))
+            return (point, point), "bootstrap", None
+
+        rng = np.random.default_rng(seed)
+        indices = rng.integers(0, m, size=(DEFAULT_RESAMPLES, m))
+        estimates = np.array(
+            [
+                self.combine(float(lms_arr[row].mean()), float(ss_arr[row].mean()))
+                for row in indices
+            ]
+        )
+        lo, hi = np.percentile(estimates, [2.5, 97.5])
+        return (float(lo), float(hi)), "bootstrap", None
 
     @staticmethod
     def combine(lms: float, ss: float) -> float:

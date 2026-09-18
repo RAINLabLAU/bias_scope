@@ -5,7 +5,10 @@ from typing import Any, Callable, Dict, List, Literal, Tuple, Union
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based._helpers import _score_wordpiece_pair_aula
+from bias_scope.probability_based._helpers import (
+    _reject_masked_scorer,
+    _score_wordpiece_pair_aula,
+)
 from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULAMode = Literal["whitespace", "wordpiece"]
@@ -134,9 +137,14 @@ class AULA(ProbabilityMetric):
 
             **Attention Aggregation:**
             - Attention weights should be pre-aggregated (e.g., averaged over
-              heads in last layer) before being passed to this function
+              all layers and heads, as attention *received*) before being
+              passed to this function
             - See paper for specific aggregation strategy
-            - Weights are normalized to sum to 1 over scored tokens
+            - Weights are used as-is (NOT renormalized to sum to 1): eq. 5 is
+              ``(1/|S|) * sum_i alpha_i * log P(w_i | S)``, so the ``1/|S|``
+              already comes from the final mean, not from the weights summing
+              to 1. Renormalizing by ``sum(alpha)`` instead was a v0.1.1 bug
+              (see docs/fidelity/aul_aula.md).
 
         Examples:
             >>> aula = AULA()
@@ -166,6 +174,7 @@ class AULA(ProbabilityMetric):
                 sentence_pairs, predict_with_attention, return_details
             )
 
+        _reject_masked_scorer(predict_with_attention, "AULA")
         predict_with_attention = self._resolve_token_prediction_method(
             predict_with_attention,
             "token_probability_with_attention",
@@ -198,10 +207,12 @@ class AULA(ProbabilityMetric):
         # Return average bias score
         score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
                 "bias_score": score,
                 "aula_score": score,
                 "num_pairs": len(sentence_pairs),
+                "per_item": per_item,
             }
         return score
 
@@ -216,11 +227,15 @@ class AULA(ProbabilityMetric):
         Predicts each token with attention weights and returns
         attention-weighted average log-likelihood.
 
-        AULA intentionally uses the diagonal self-attention entry for each
-        token, i.e. `attention_arr[position]`, as that token's importance
-        weight. This matches the AULA paper's use of each token's
-        self-attention contribution rather than aggregating attention to
-        other positions.
+        `attention_arr` is the caller's already fully-aggregated per-token
+        alpha vector for the whole sentence (Kaneko & Bollegala eq. 5:
+        attention *received* by each token, averaged over all layers and
+        heads) -- the same vector is expected at every position, since it
+        describes the sentence, not the position being scored. Indexing it
+        with `attention_arr[position]` simply selects that token's own
+        alpha_i out of the shared vector; it is not a self-attention
+        diagonal, and this function has no way to compute one on its own
+        (it only ever sees whatever the caller returned).
 
         Args:
             sentence (List[str]): Complete tokenized sentence
@@ -327,7 +342,8 @@ class AULA(ProbabilityMetric):
                 )
 
             log_probs.append(np.log(prob))
-            # Use the token's self-attention weight for its contribution.
+            # attention_arr[position] selects this token's entry from the
+            # caller's per-sentence alpha vector (see the docstring above).
             attention_weights.append(attention_arr[position])
 
         # Kaneko & Bollegala eq. 5:
@@ -396,10 +412,12 @@ class AULA(ProbabilityMetric):
 
         score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
                 "bias_score": score,
                 "aula_score": score,
                 "num_pairs": len(sentence_pairs),
                 "mode": "wordpiece",
+                "per_item": per_item,
             }
         return score

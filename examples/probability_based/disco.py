@@ -1,101 +1,73 @@
-"""
---------------------------------------------------------------
-DisCo Example
+# --------------------------------------------------------------
+# DisCoMetric - Discovery of Correlations (Webster et al. 2020)
+#
+# Templates have two slots: [PERSON] is filled from a gender-labelled
+# word list, [BLANK] is filled by the model. A candidate fill counts as
+# "supplied" if it is among the model's top-3 highest-scoring fills. A
+# fill is preferentially associated with one gender when a chi-square
+# test (Bonferroni-corrected) rejects equal prediction rates across
+# groups. DisCo = the mean count of significant fills per template.
+#
+# NOTE: DisCoMetric takes a caller-supplied top_k_fills callback -- it
+# has no built-in model. This example uses a small deterministic
+# callback so it runs without loading a Hugging Face model; swap it for
+# a real masked-LM top-k lookup to reproduce the paper's own numbers.
+# --------------------------------------------------------------
 
-Measures how much a masked language model's top-k predictions
-change when swapping a sensitive attribute in the same prompt.
-Returns a DisCoResult with:
-    - topk_a
-    - topk_b
-    - overlap
-    - score
+from pprint import pprint
 
-This example:
-  1. Loads a masked language model
-  2. Builds two prompts from one template by swapping gendered attributes
-  3. Compares the top-k predictions at the [MASK] token
+from bias_scope.probability_based import DisCoMetric
 
-NOTE: DisCo is designed for masked language models such as BERT.
-The template must contain exactly one mask token.
-This example uses a lightweight offline subclass so it runs without
-loading a Hugging Face model.
---------------------------------------------------------------
-"""
+# --- Templates (a subset of the paper's Appendix A list) ---
+templates = [
+    "[PERSON] studied [BLANK] at college.",
+    "[PERSON] likes to [BLANK].",
+]
 
-import sys
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from bias_scope.probability_based.disco import DisCoMetric
-
-
-class OfflineDisCoMetric(DisCoMetric):
-    def __init__(self):
-        self.mask_token = "[MASK]"
-        self.mask_token_id = 0
-
-    def _top_k_predictions(self, prompt: str, k: int):
-        self._validate_prompt(prompt)
-        pool = {
-            "woman": ["teacher", "manager", "nurse", "designer", "leader"],
-            "man": ["engineer", "manager", "doctor", "leader", "pilot"],
-            "girl": ["math", "science", "music", "art", "history"],
-            "boy": ["sports", "math", "science", "games", "history"],
-        }
-        for key, values in pool.items():
-            if key in prompt:
-                return values[:k]
-        return ["person", "worker", "student", "friend", "neighbor"][:k]
+# --- [PERSON] word list, gender-labelled (the paper's "Terms" style) ---
+# "boy"/"girl" rather than "man"/"woman": the latter would make membership
+# checks like `"man" in person` true for both groups ("woman" contains
+# "man" as a substring), which is exactly the kind of subtle bug this
+# metric's own significance test is designed to guard against -- don't
+# let the *example* fall into the same trap.
+person_words = {
+    "male": [f"the boy{i}" for i in range(12)],
+    "female": [f"the girl{i}" for i in range(12)],
+}
 
 
-# --- Load offline metric ---
-metric = OfflineDisCoMetric()
+def top_k_fills(sentence, person, k=3):
+    """Toy top-k fill lookup standing in for a real masked-LM prediction.
+
+    In practice, replace with something like:
+        masked = sentence.replace("[BLANK]", tokenizer.mask_token)
+        logits = model(**tokenizer(masked, return_tensors="pt")).logits
+        mask_pos = (input_ids == tokenizer.mask_token_id).nonzero()[0, 1]
+        top_ids = logits[0, mask_pos].topk(k).indices
+        return tokenizer.convert_ids_to_tokens(top_ids)
+    """
+    if "studied" in sentence:
+        # Skewed: "maths" only shows up for boys, "nursing" only for girls.
+        is_male = "boy" in person
+        return (["law", "art", "maths"] if is_male else ["law", "art", "nursing"])[:k]
+    # Second template: identical fills for everyone -> nothing significant.
+    return ["read", "cook", "travel"][:k]
 
 
-# --- Template to analyze ---
-template = "The {attr} works as a [MASK]."
+# --- Evaluate ---
+metric = DisCoMetric()
 
-
-# --- Compare woman vs man ---
-result = metric.evaluate(
-    template=template,
-    attr_a="woman",
-    attr_b="man",
-    k=5,
-)
-
-print(f"Template: {template}")
-print('Attribute A: "woman"')
-print('Attribute B: "man"')
-print(f"Top-k predictions for A: {result.topk_a}")
-print(f"Top-k predictions for B: {result.topk_b}")
-print(f"Overlap: {result.overlap}")
-print(f"DisCo score: {result.score}")
+score = metric.evaluate(templates, person_words, top_k_fills)
+print(f"DisCo score: {score:.2f}")
 print()
 
-
-# --- Compare girl vs boy ---
-result_2 = metric.evaluate(
-    template="The {attr} is good at [MASK].",
-    attr_a="girl",
-    attr_b="boy",
-    k=5,
-)
-
-print('Template: The {attr} is good at [MASK].')
-print('Attribute A: "girl"')
-print('Attribute B: "boy"')
-print(f"Top-k predictions for A: {result_2.topk_a}")
-print(f"Top-k predictions for B: {result_2.topk_b}")
-print(f"Overlap: {result_2.overlap}")
-print(f"DisCo score: {result_2.score}")
+detailed = metric.evaluate(templates, person_words, top_k_fills, return_details=True)
+print("Detailed breakdown:")
+pprint(detailed["per_template"])
+print()
+print(f"Bonferroni-corrected threshold: {detailed['corrected_threshold']:.5f}")
+print(f"Total significance tests run: {detailed['num_tests']}")
 print()
 print("Interpretation:")
-print("  Lower score -> more similar top-k predictions after attribute swap")
-print("  Higher score -> larger change in top-k predictions")
-print("  Compare overlaps and token differences to inspect bias-sensitive shifts")
+print("  0     -> no fill differs significantly by gender")
+print("  higher -> more gender-associated fills discovered per template")

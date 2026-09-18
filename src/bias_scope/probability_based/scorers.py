@@ -41,8 +41,12 @@ class BertPLLScorer:
     BERT-style masked language model scorer implementing TokenPredictionScorer.
 
     The scorer mirrors the model_name/device pattern used by CBS and DisCoMetric
-    while exposing one reusable adapter for CrowSPairs, AUL, AULA, CAT, ICAT,
-    LMB, and LPBS.
+    while exposing one reusable adapter for CrowSPairs, CAT, ICAT, LMB, and
+    LPBS. NOT valid for AUL/AULA's whitespace mode: every method here masks
+    the token being scored, which is the opposite of AUL/AULA's unmasked
+    definition (Kaneko & Bollegala 2022). Use ``WordPieceBertScorer`` via
+    ``mode="wordpiece"`` for AUL/AULA instead; passing this scorer to their
+    whitespace mode raises ``ValueError``.
     """
 
     def __init__(
@@ -430,10 +434,13 @@ class WordPieceBertScorer:
     # --- TokenPredictionScorer protocol compatibility ---
 
     def token_probability(self, tokens: List[str], position: int) -> float:
-        """P(whitespace token[position] | rest) — used when this scorer is
-        plugged into ``CrowSPairs.evaluate(predict_masked_token=scorer)`` or
-        ``AUL.evaluate(predict_token_given_sentence=scorer)`` for the
-        whitespace-based algorithm paths."""
+        """P(whitespace token[position] | rest, with that token MASKED) —
+        used when this scorer is plugged into
+        ``CrowSPairs.evaluate(predict_masked_token=scorer)`` for the
+        whitespace-based algorithm path. NOT valid for AUL/AULA: those score
+        every token from the complete UNMASKED sentence
+        (``WordPieceBertScorer.aul_aula``), and AUL/AULA reject this method
+        if passed to their whitespace mode (see ``_reject_masked_scorer``)."""
         enc = self.tokenizer(tokens, is_split_into_words=True, return_tensors="pt")
         word_ids = enc.word_ids(batch_index=0)
         input_ids = enc.input_ids[0].tolist()
@@ -448,7 +455,8 @@ class WordPieceBertScorer:
     def token_probability_with_attention(
         self, tokens: List[str], position: int
     ) -> Dict[str, Any]:
-        """As above plus a per-whitespace-token attention vector."""
+        """As above (masked) plus a per-whitespace-token attention vector.
+        Also NOT valid for AULA's whitespace mode, for the same reason."""
         enc = self.tokenizer(tokens, is_split_into_words=True, return_tensors="pt")
         word_ids = enc.word_ids(batch_index=0)
         input_ids = enc.input_ids[0].tolist()

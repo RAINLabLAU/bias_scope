@@ -5,7 +5,10 @@ from typing import Callable, Dict, List, Literal, Tuple, Union
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based._helpers import _score_wordpiece_pair_aul
+from bias_scope.probability_based._helpers import (
+    _reject_masked_scorer,
+    _score_wordpiece_pair_aul,
+)
 from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULMode = Literal["whitespace", "wordpiece"]
@@ -154,7 +157,7 @@ class AUL(ProbabilityMetric):
             >>>
             >>> aul = AUL()
             >>> score = aul.evaluate(pairs, mock_predict)
-            >>> print(score)  # > 0.5 (prefers stereotypes)
+            >>> print(score)  # 100.0 (prefers stereotypes)
         """
         # Validate input
         if not isinstance(sentence_pairs, list) or len(sentence_pairs) == 0:
@@ -165,6 +168,7 @@ class AUL(ProbabilityMetric):
                 sentence_pairs, predict_token_given_sentence, return_details
             )
 
+        _reject_masked_scorer(predict_token_given_sentence, "AUL")
         predict_token_given_sentence = self._resolve_token_prediction_method(
             predict_token_given_sentence,
             "token_probability",
@@ -198,10 +202,12 @@ class AUL(ProbabilityMetric):
         # Return average bias score
         score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
                 "bias_score": score,
                 "aul_score": score,
                 "num_pairs": len(sentence_pairs),
+                "per_item": per_item,
             }
         return score
 
@@ -278,10 +284,12 @@ class AUL(ProbabilityMetric):
 
         score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
                 "bias_score": score,
                 "aul_score": score,
                 "num_pairs": len(sentence_pairs),
                 "mode": "wordpiece",
+                "per_item": per_item,
             }
         return score

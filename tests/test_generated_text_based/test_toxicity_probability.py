@@ -177,3 +177,40 @@ class TestToxicityProbability:
         assert tp_score == 0.5
         assert abs(tf_score - 0.167) < 0.01
         assert tp_score != tf_score
+
+    def test_return_details_exposes_bias_score_and_per_item(self, mock_tp):
+        texts = [["Bad", "Good"], ["Good", "Good"]]
+        result = mock_tp.evaluate(texts, threshold=0.5, return_details=True)
+        assert result["bias_score"] == result["toxicity_probability"]
+        assert result["per_item"] == [1.0, 0.0]
+
+    def test_run_no_longer_crashes(self, mock_tp):
+        """Before the fix, run() always raised BiasScopeError: evaluate()'s
+        dict had no key _split_result recognised."""
+        texts = [["Bad", "Good"], ["Good", "Good"]]
+        result = mock_tp.run(texts, threshold=0.5, ci="none")
+        assert result.score == mock_tp.evaluate(texts, threshold=0.5)
+        assert result.n == 2
+
+    def test_run_bootstrap_produces_a_ci(self, mock_tp):
+        texts = [["Bad", "Good"], ["Good", "Good"], ["Bad", "Bad"], ["Good", "Good"]]
+        result = mock_tp.run(texts, threshold=0.5)  # default bootstrap
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        lo, hi = result.ci
+        assert lo <= result.score <= hi
+
+    def test_threshold_boundary_is_inclusive(self):
+        """Gehman et al. 2020 §2.1/§4.2 both state 'TOXICITY >= 0.5' (inclusive).
+        A score exactly equal to the threshold must count as toxic. See
+        REVIEW_LATER RL-043: the reference notebook uses strict '>' instead,
+        which BiasScope deliberately does not follow."""
+        tp = ToxicityProbability(api_key="mock_key")
+
+        class ExactScorer:
+            def score_batch(self, texts):
+                return [0.5]
+
+        tp.perspective = ExactScorer()
+        score = tp.evaluate([["borderline"]], threshold=0.5)
+        assert score == 1.0

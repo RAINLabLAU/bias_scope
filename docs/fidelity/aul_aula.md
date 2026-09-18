@@ -97,6 +97,43 @@ remains. One limitation remains:
   the reference. Document the requirement in the class docstring: `αᵢ` must be
   averaged over all layers and all heads.
 
+## Fixed in the 2026-09-15 from-scratch audit
+
+Independently re-verified `WordPieceBertScorer.aul_aula()` against a fresh
+clone of the reference (`evaluate_bias_in_mlm@6b10239974a7`): bit-identical
+(diff = 0.0) for both AUL and AULA on a real `bert-base-uncased` forward pass.
+The canonical `mode="wordpiece"` scoring was already correct. Two gaps in the
+surrounding code were found and fixed:
+
+- **`run()` never produced a confidence interval, for either metric, for any
+  `ci=`.** `evaluate(return_details=True)` computed the per-pair 0/1
+  preference indicators but never exposed them under the `per_item` key
+  `BiasMetric._interval` needs — so `ci="bootstrap"` (the `run()` default)
+  silently fell through to `(None, "none", None)`. Fixed by adding
+  `"per_item"` (the indicators scaled to 0/100, matching `bias_score`'s
+  scale) to both modes' `return_details=True` dict, in both `AUL` and
+  `AULA`. `run(pairs, ci="bootstrap")` now returns a real interval.
+- **A whitespace-mode footgun could silently compute masked PLL instead of
+  AUL/AULA.** `BertPLLScorer`'s class docstring advertised it as a reusable
+  adapter for AUL and AULA, and `WordPieceBertScorer`'s
+  `token_probability`/`token_probability_with_attention` compatibility shim
+  made the same claim — but both always mask the scored position before
+  predicting it, which is the PLL a plain CrowS-Pairs comparison needs, not
+  AUL/AULA's defining unmasked forward pass. Neither `__init__` guard (which
+  only blocks `model_name=` + `mode="whitespace"` together) caught a
+  manually-constructed scorer passed straight to `.evaluate()`. Fixed with a
+  runtime check (`_reject_masked_scorer`) that rejects a `BertPLLScorer` or
+  `WordPieceBertScorer` instance in whitespace mode with a clear error, and
+  corrected both classes' docstrings.
+
+Also corrected two inaccurate comments found in the same pass (no scoring
+change): `AUL.evaluate()`'s worked example claimed a `0.5`-scale output where
+the real scale is `0-100`; `AULA`'s whitespace-mode docstring and one of its
+tests claimed attention weights are "normalized to sum to 1", when the code
+correctly uses them raw (eq. 5's `1/|S|` already comes from the mean, not
+from the weights summing to 1) — the test's own inputs couldn't have told the
+two apart, since it used the same probability at every position.
+
 ## Validation possible
 
 - **Tier 1:** the paper reports AUL and AULA bias scores for BERT, RoBERTa and

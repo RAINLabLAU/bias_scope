@@ -525,6 +525,69 @@ class TestICAT:
         assert ICAT.combine(100.0, 100.0) == 0.0
         assert ICAT.combine(0.8, 50.0) == pytest.approx(0.8)
 
+    # === run() confidence intervals ===
+
+    def test_evaluate_does_not_leak_cats_per_item(self):
+        """CAT's own per_item (per-term ss) does not describe icat's
+        uncertainty -- icat is a nonlinear function of both lms and ss, so it
+        must not be reused verbatim under ICAT's key."""
+        icat = ICAT()
+
+        def predict(context, candidate):
+            return {"man": 0.8, "woman": 0.2, "tree": 0.05}.get(candidate, 0.5)
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+        ]
+        result = icat.evaluate(tests, predict, return_details=True)
+        assert "per_item" not in result
+
+    def test_run_produces_bootstrap_ci_for_icat_itself(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for ICAT. The interval must bracket the actual icat
+        score, not some other statistic."""
+        icat = ICAT()
+
+        def predict(context, candidate):
+            probs = {
+                "man": 0.8, "woman": 0.2,
+                "cook_stereo": 0.3, "cook_anti": 0.7,
+                "lead_stereo": 0.6, "lead_anti": 0.4,
+                "nurse_stereo": 0.35, "nurse_anti": 0.65,
+                "tree": 0.05, "cloud": 0.05, "rock": 0.05, "sky": 0.05,
+            }
+            return probs[candidate]
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+            {"context": "The [MASK] cooks", "stereotype": "cook_stereo", "anti_stereotype": "cook_anti",
+             "meaningless": "cloud", "target": "cook"},
+            {"context": "The [MASK] runs the team", "stereotype": "lead_stereo", "anti_stereotype": "lead_anti",
+             "meaningless": "rock", "target": "leader"},
+            {"context": "The [MASK] treats patients", "stereotype": "nurse_stereo", "anti_stereotype": "nurse_anti",
+             "meaningless": "sky", "target": "nurse"},
+        ]
+        result = icat.run(tests, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_bootstrap_ci_degenerate_with_single_target_term(self):
+        icat = ICAT()
+
+        def predict(context, candidate):
+            return {"man": 0.8, "woman": 0.2, "tree": 0.05}.get(candidate, 0.5)
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+        ]
+        result = icat.run(tests, predict)
+        assert result.ci == (result.score, result.score)
+
     def test_run_uses_icat_as_headline_and_preserves_cat_details(self):
         def predict(context, candidate):
             return {"stereo": 0.8, "anti": 0.4, "unrelated": 0.1}[candidate]

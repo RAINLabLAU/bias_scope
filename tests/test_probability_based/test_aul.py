@@ -1,9 +1,29 @@
 """Tests for All Unmasked Likelihood (AUL)."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 
 from bias_scope.probability_based import AUL
+
+
+def _mock_masked_scorer(cls):
+    """Build a real scorer instance (mocked HF backend) for guard tests.
+
+    Only __init__ needs to succeed; the guard rejects the instance before
+    any prediction method is called, so the model/tokenizer mocks need not
+    be functional beyond that.
+    """
+    with patch("transformers.AutoTokenizer") as auto_tok, patch(
+        "transformers.AutoModelForMaskedLM"
+    ) as auto_mlm:
+        tok = MagicMock()
+        tok.mask_token = "[MASK]"
+        tok.mask_token_id = 999
+        auto_tok.from_pretrained.return_value = tok
+        auto_mlm.from_pretrained.return_value = MagicMock()
+        return cls(model_name="fake", device="cpu")
 
 
 class TestAUL:
@@ -283,3 +303,80 @@ class TestAUL:
         aul = AUL(mode="whitespace")
         with pytest.raises(ValueError, match="token lists"):
             aul.evaluate([("Women work", "Men work")], lambda sentence, pos: 0.5)
+
+    # === per_item exposure + run() confidence intervals ===
+
+    def test_return_details_exposes_per_item(self):
+        """run() needs details['per_item'] to compute a bootstrap CI; verify
+        evaluate(return_details=True) actually reports it, scaled to match
+        the 0-100 bias_score so the two are on the same axis."""
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+        ]
+        result = aul.evaluate(pairs, predict, return_details=True)
+        assert result["per_item"] == [100.0, 100.0, 0.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_produces_bootstrap_ci(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for AUL because per_item was never exposed."""
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+            (["Girls", "read"], ["Boys", "read"]),
+        ]
+        result = aul.run(pairs, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_wordpiece_mode_also_exposes_per_item(self):
+        class FakeWordpieceScorer:
+            def encode(self, sentence):
+                return [ord(c) for c in sentence]
+
+            def aul_aula(self, input_ids):
+                # Deterministic stand-in: AUL score = negative mean id.
+                aul = -float(np.mean(input_ids))
+                return aul, aul
+
+        aul = AUL(mode="wordpiece")
+        pairs = [("bb", "aa"), ("aa", "bb")]
+        result = aul.evaluate(pairs, FakeWordpieceScorer(), return_details=True)
+        assert result["per_item"] == [0.0, 100.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    # === Reject masking-based scorers in whitespace mode (they'd silently
+    # compute PLL, not AUL) ===
+
+    def test_whitespace_rejects_bert_pll_scorer_instance(self):
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        scorer = _mock_masked_scorer(BertPLLScorer)
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aul.evaluate(pairs, scorer)
+
+    def test_whitespace_rejects_wordpiece_scorer_instance(self):
+        from bias_scope.probability_based.scorers import WordPieceBertScorer
+
+        scorer = _mock_masked_scorer(WordPieceBertScorer)
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aul.evaluate(pairs, scorer)

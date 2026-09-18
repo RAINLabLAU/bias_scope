@@ -1,5 +1,8 @@
 """Tests for Score Parity."""
 
+import warnings
+
+import numpy as np
 import pytest
 
 from bias_scope.generated_text_based import MeanScoreGap
@@ -180,16 +183,21 @@ class TestMeanScoreGap:
         assert isinstance(scores, dict)
     
     def test_all_values_are_floats(self, simple_classifier):
-        """Test that all returned values are floats."""
+        """Test that all returned values are floats, except 'n' (an int,
+        per the "n": int(len(...)) convention run() relies on for its
+        n > 0 guard - see base.py::_count_items)."""
         parity = MeanScoreGap(classifier=simple_classifier)
-        
+
         group_a = [["high"]]
         group_b = [["low"]]
-        
+
         scores = parity.evaluate(group_a, group_b)
-        
-        for value in scores.values():
-            assert isinstance(value, float)
+
+        for key, value in scores.items():
+            if key == "n":
+                assert isinstance(value, int)
+            else:
+                assert isinstance(value, float)
     
     def test_difference_consistency(self, simple_classifier):
         """Test that difference matches mean difference."""
@@ -238,11 +246,69 @@ class TestMeanScoreGap:
         """Test that invalid classifier scores raise error."""
         def bad_classifier(texts):
             return [1.5] * len(texts)  # Out of range
-        
+
         parity = MeanScoreGap(classifier=bad_classifier)
-        
+
         group_a = [["test"]]
         group_b = [["test"]]
-        
+
         with pytest.raises(ValueError, match="must be in"):
             parity.evaluate(group_a, group_b)
+
+    def test_n_counts_all_flattened_texts(self, simple_classifier):
+        parity = MeanScoreGap(classifier=simple_classifier)
+
+        group_a = [["high", "high"], ["low"]]
+        group_b = [["high"]]
+
+        scores = parity.evaluate(group_a, group_b)
+        assert scores["n"] == 4
+
+    def test_run_no_longer_crashes(self, simple_classifier):
+        """Before the fix, run() always raised BiasScopeError: evaluate()'s
+        dict had 'effect_size' (a recognised headline), but no 'n'-like key,
+        so the n > 0 guard in _check_guards always failed."""
+        parity = MeanScoreGap(classifier=simple_classifier)
+
+        group_a = [["high", "high"]]
+        group_b = [["low", "low"]]
+
+        result = parity.run(group_a, group_b, ci="none")
+        expected = parity.evaluate(group_a, group_b)
+        assert result.score == pytest.approx(expected["effect_size"])
+        assert result.n == 4
+
+    def test_std_is_zero_not_nan_for_single_text_groups(self, simple_classifier):
+        """np.std(..., ddof=1) divides by zero for a single-text group;
+        group_a_std/group_b_std must be 0.0, not NaN, and must not warn."""
+        parity = MeanScoreGap(classifier=simple_classifier)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            scores = parity.evaluate([["high"]], [["low"]], return_details=True)
+
+        assert scores["group_a_std"] == 0.0
+        assert scores["group_b_std"] == 0.0
+
+    def test_accepts_numpy_float32_classifier_scores(self):
+        """A classifier backed by a numpy array (dtype=float32) must be
+        accepted, matching every other metric's shared validator."""
+        def classifier(texts):
+            return [np.float32(0.5) for _ in texts]
+
+        parity = MeanScoreGap(classifier=classifier)
+        scores = parity.evaluate([["a"]], [["b"]])
+        assert scores["group_a_mean"] == pytest.approx(0.5)
+
+    def test_run_has_no_bootstrap_ci_without_per_item(self, simple_classifier):
+        """MeanScoreGap has no per-item score (Cohen's d is a two-sample
+        statistic, not a per-prompt one), so it degrades to ci='none' the
+        same way WEAT/SEAT/CEAT/CBS/RegardScore do."""
+        parity = MeanScoreGap(classifier=simple_classifier)
+
+        group_a = [["high", "high", "medium"]]
+        group_b = [["low", "low", "medium"]]
+
+        result = parity.run(group_a, group_b)  # default bootstrap
+        assert result.ci is None
+        assert result.ci_method == "none"

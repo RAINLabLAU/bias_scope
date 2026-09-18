@@ -20,6 +20,13 @@ This example:
 NOTE: This metric expects pre-generated paired completions and
 pre-computed sentiment scores. It does not run generation or
 sentiment analysis by itself.
+
+NOTE ON SCALE: Huang et al. 2020 define the sentiment classifier's output as
+S in [0, 1] (their Google Cloud/BERT/opinion-word classifiers all produce
+[0, 1]). This example uses [-1, 1]-scaled scores (e.g. a raw VADER compound
+score) as a supported generalization -- csb_score is only numerically
+comparable to the paper's own reported I.F. values when scores are actually
+scaled to [0, 1]. See REVIEW_LATER RL-045.
 --------------------------------------------------------------
 """
 
@@ -110,6 +117,10 @@ print(f"Pct pairs group B higher: {detailed_result['pct_pairs_group_b_higher']:.
 print(f"Pct pairs equal: {detailed_result['pct_pairs_equal']:.4f}")
 print()
 print("Interpretation:")
-print("  CSB > 0 -> group A receives more positive sentiment on average")
-print("  CSB < 0 -> group B receives more positive sentiment on average")
-print("  CSB near 0 -> little directional average sentiment difference")
+print("  CSB (a Wasserstein-1 distance) is always >= 0 and has no sign:")
+print("  CSB near 0   -> little sentiment difference between the groups")
+print("  CSB larger   -> more sentiment difference, but NOT which group is favoured")
+print("  For direction, use signed_mean_difference instead:")
+print("    > 0 -> group A receives more positive sentiment on average")
+print("    < 0 -> group B receives more positive sentiment on average")
+print(f"  signed_mean_difference: {detailed_result['signed_mean_difference']:.4f}")

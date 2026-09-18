@@ -985,20 +985,21 @@ metrics:
   family: embedding
   status: read
   paper:
-    title: Sentence-level bias score (Dolci, Azzalini & Tanelli)
-    venue: Data Science and Engineering 8(2)
+    title: 'Improving Gender-Related Fairness in Sentence Encoders: A
+      Semantics-Based Approach'
+    venue: Data Science and Engineering 8
     year: 2023
-    url: https://link.springer.com/article/10.1007/s41019-023-00211-0
-    local_pdf: ''
-    version_read: Springer open-access article
-    paper_status: read
+    url: https://doi.org/10.1007/s41019-023-00211-0
+    local_pdf: 'biasscope papers/Sentencebiasscore.pdf'
+    version_read: Springer open-access article (CC-BY-4.0)
   sections_read:
-  - Section 2.3 Bias Estimation
-  - Section 2.3.1 Gender Direction
-  - Section 2.3.2 Token Importance
-  - Section 2.3.3 SentenceBiasScore
+  - 'Sec. 3 Gender Bias Estimation, in full (3.1 Bias Score, 3.2 Gender
+    Direction, 3.3 Gender Words, 3.4 Word Importance, 3.5 Bias Score Examples)'
+  - 'Sec. 6 Extension to Transformer-Based Models'
   code_status: none_found
   search_log:
+  - paper's own "Availability of data and materials" section (names only
+    SNLI and SentEval, not a bias-score repository)
   - paper footnotes and code-availability statement
   - ACL Anthology 'Code' link
   - Papers with Code
@@ -1007,7 +1008,18 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-09-06'
+  retrieved_on: '2026-09-15'
+  notes: 'ADAPTATION (was faithful, corrected 2026-09-15). Eq. 1-3 (the scoring
+    equations) verified against the paper''s own Table 2 worked example to
+    float precision. derive_gender_direction() and derive_word_importance()
+    now implement Sec. 3.2 and 3.4 (added this session; previously absent, and
+    run() crashed unconditionally on every input -- both fixed). Sec. 3.3''s
+    6562-word gender lexicon is not published and is not vendored; callers
+    must supply their own (REVIEW_LATER RL-041, blocked). Corrected a wrong
+    citation (author initials and title) in the class docstring and docs/api
+    page. Earlier note (RL-029) said this paper was paywalled with no
+    preprint; it is open access (CC-BY-4.0) and was sitting in
+    "biasscope papers/" the whole time -- RL-029 closed.'
   notes: Faithful low-level implementation of the SentenceBiasScore equations. BiasScope
     requires caller-provided token/word representations, gender direction, semantic
     importance, and explicit gender-word exclusion mask; it does not derive those upstream

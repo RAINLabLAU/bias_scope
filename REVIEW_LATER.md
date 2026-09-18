@@ -434,6 +434,12 @@ comparison against Table 1 incomplete.
 **To revisit:** add `std` to `details` and surface it as the metric's own
 interval in `run()`, the way WEAT's permutation p-value is surfaced. Small and
 worth doing before Phase 3 Tier 1.
+**RESOLVED 2026-09-18 (EMT audit follow-up).** `evaluate(return_details=True)`
+now includes `"std"` (sample std, ddof=1, of the per-template maxima; 0.0 for
+a single template), which `run()` surfaces via `result.details["std"]` the
+same way WEAT surfaces `p_value`. Confirmed against
+`allenai/real-toxicity-prompts@dd44ab77ed8b`'s own
+`std_max = max_toxicities.std()` — same convention, same ddof.
 
 ## RL-023 · verify · 2026-08-23 · Phase 1 / CoOccurrenceBiasScore omits a normalising term
 **Encountered:** Bordia & Bowman define
@@ -556,25 +562,16 @@ paper's metric. The rename machinery already exists.
 `MetricInfo` has no field expressing that, so `BiasSuite` will sweep it into a
 bias profile. Add one before 5.4 lands.
 
-## RL-029 · blocked · 2026-08-23 · Phase 1 / SentenceBiasScore's paper could not be obtained
+## RL-029 · blocked · 2026-08-23 · CLOSED 2026-09-15 · SentenceBiasScore's paper could not be obtained
 **Encountered:** Dolci, Azzalini & Tanelli 2023, *Data Science and Engineering*
-8(2) is behind Springer's paywall and no preprint exists — PLAN.md Appendix E
-already flagged "DOI via Springer; check for preprint", and the Section 4.0
-search found none. This is the **only** metric in the library whose source could
-not be read.
-**Consequence:** `SentenceBiasScore` keeps `fidelity: unaudited` and its
-`SOURCES.yaml` status stays `pending`. Section 4.0 forbids assigning a status
-without reading the paper, and guessing would be exactly the unverified claim
-v0.2 exists to eliminate.
-**Where:** `docs/fidelity/sentence_bias_score.md`.
-**To revisit:** obtain the paper — institutional access, or email the
-corresponding author for the accepted manuscript, which usually works. If
-neither succeeds, the honest resolution is to **relabel the class `original` and
-drop the citation**: an unverifiable citation is worse than none. That is the
-maintainer's call.
-**Meanwhile:** the Tier-3 metamorphic properties can be run without the paper
-and should be, since they are the only objective evidence available for this
-metric.
+8 was believed to be behind Springer's paywall with no preprint available.
+**Closed:** wrong. The article is Springer **open access** (CC-BY-4.0 — the
+PDF itself carries the licence notice), and a copy was sitting in
+`biasscope papers/Sentencebiasscore.pdf` the whole time. Found and read in
+full during the 2026-09-15 `SentenceBiasScore` audit. `SOURCES.yaml` status
+is now `read`; `fidelity` moved from `unaudited` to `adaptation` (see
+`docs/fidelity/sentence_bias_score.md`). RL-040 and RL-041 below record what
+the audit found once the paper could actually be read.
 
 ## RL-030 · decide · 2026-08-23 · Phase 4 / Bai et al. IAT epsilon
 **Encountered:** `d_score` in the released `clean.ipynb` adds 0.01 to both
@@ -741,4 +738,216 @@ signed formula and Table 1 has an unrelated error, BiasScope's p-values would
 not reproduce theirs.
 **To revisit:** if a maintainer of `weiguowilliam/CEAT` can confirm which
 version produced Table 1, or a later commit changes the formula.
+
+## RL-040 · decide · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-direction PCA is uncentred, undocumented in the paper
+**Encountered:** implementing `derive_gender_direction()` (Dolci et al. 2023,
+Sec. 3.2: "PCA to reduce their dimensionality to one" over gender word-pair
+difference vectors). A first attempt used standard, mean-centred PCA (as
+`sklearn.decomposition.PCA` would, matching the paper's Fig. 2 scree-plot
+presentation style) and failed its own known-answer test: centring subtracts
+exactly the shared "gender" direction the difference vectors have in common,
+leaving only the residual variation between pairs, which is not the signal
+being sought. Confirmed on a synthetic case (offset + small noise): centred
+PCA recovered a direction 95% misaligned with the true offset; uncentred SVD
+of the raw difference matrix recovered it to >99.9%.
+**Chosen:** uncentred SVD of the difference-vector matrix (no global mean
+subtraction). This mirrors the origin of the construction, Bolukbasi et al.
+2016 (cited by Dolci et al. as where the gender-pair-difference idea comes
+from), whose own per-pair-centred vectors are not re-centred globally before
+SVD either.
+**Where:** `src/bias_scope/embeddings_based/sentence_bias_score.py::derive_gender_direction`.
+**Risk if wrong:** the paper publishes no reference code and its Fig. 2 (a
+scree plot of % variance explained) does not distinguish centred from
+uncentred PCA — either could plausibly produce such a plot on real GloVe
+gender-pair data, where the residual variation might still be small relative
+to noise on other axes. This is a `decide`, not a verified fact.
+**To revisit:** if reference code, an erratum, or correspondence with the
+authors ever clarifies which PCA convention was used.
+
+## RL-041 · blocked · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-word lexicon is not vendored
+**Encountered:** Dolci et al. 2023 Sec. 3.3 defines a 6562-word gender lexicon
+`L` (409 + 388 common nouns "selected starting from" Bolukbasi et al. 2016 and
+Zhao et al. 2018, in lower/capitalised x singular/plural forms, plus 5765
+U.S. Social Security given names). This exact merged list is not published in
+the paper or anywhere else the Section 4.0 search found (`code_status:
+none_found`). Bolukbasi's and Zhao's own source lists are each independently
+public, but "selected starting from" implies curation Dolci et al. did not
+fully specify (which words were kept, dropped, or added) — reconstructing a
+list from the two raw sources would not reproduce their actual `L`, and
+presenting a guessed list as "the" lexicon would be exactly the kind of
+unverified claim PLAN.md Section 1 forbids.
+**Consequence:** `SentenceBiasScore.evaluate`/`run` still require the caller
+to supply `gender_words_mask`; `build_gender_words_mask(tokens,
+gender_word_list)` implements the paper's case-insensitive matching logic
+given a lexicon, but ships no lexicon. `fidelity` is `adaptation`, not
+`faithful`, because of this gap (`docs/fidelity/sentence_bias_score.md`).
+**Where:** `src/bias_scope/embeddings_based/sentence_bias_score.py::build_gender_words_mask`.
+**To revisit:** vendor a licensed gender-word lexicon with a SHA-256
+(`bias_scope/resources/MANIFEST.json`, per PLAN.md Section 1) — candidates are
+Bolukbasi et al.'s `debiaswe` repo (`data/gender_specific_full.json`,
+license permitting) and Zhao et al.'s released gendered-word list, plus SSA
+baby-name data for the given names. Check each source's license before
+vendoring (PLAN.md Section 1: "do not download or run reference
+implementations from unknown sources without first reading their code and
+license").
+
+## RL-042 · decide · 2026-09-18 · Phase 1 / CBS multi-token target aggregation follows the paper, not the reference's apparent bug
+**Encountered:** fixing CBS's whole-word-masking for multi-subword target
+words (`allow_multi_token_targets=True`). Ahn & Oh 2021 §3.2 says to "add as
+many mask tokens as the number of WordPiece tokens and aggregate each
+token's probability by multiplying" — read straightforwardly, subword *i*
+of the target word is scored against mask position *i* (one-to-one). The
+reference's `score.py::log_probability_for_single_sentence` instead nests
+two loops — `for token in tokenizer.tokenize(nat): for logit in logits:
+nat_logit *= ...` — which multiplies *every* subword's probability against
+*every* mask position (an all-pairs product over a k×k grid for a
+k-subword word), not a one-to-one match.
+**Options:** (a) implement the paper's one-to-one reading; (b) replicate
+the reference's all-pairs product exactly.
+**Chosen:** (a). The all-pairs construction has no stated justification in
+the paper and does not correspond to any standard whole-word-masking
+scheme (PLL, product-of-experts, or otherwise) that the text describes; it
+most plausibly reads as an unintentional consequence of the reference's
+loop structure rather than a deliberate design choice. This is the same
+judgment already applied to LPBS (RL-012): when the paper's stated method
+and the reference's actual code disagree and the reference reading looks
+like a bug, follow the paper and document the choice rather than silently
+reproducing a plausible bug.
+**Where:** `src/bias_scope/probability_based/cbs.py::_log_normalized_target_scores`.
+**Risk if wrong:** CBS scores computed with `allow_multi_token_targets=True`
+(an opt-in path; the default rejects multi-token targets outright) will not
+bit-match a literal re-run of the reference's `score.py` for target lists
+containing multi-subword words. Single-token targets (the default, and what
+the paper's own 30-country target list mostly consists of under
+`bert-base-uncased`) are unaffected either way.
+**To revisit:** if a future reproduction against the authors' own published
+numbers surfaces the all-pairs reading as intentional, switch to matching
+it and note the discrepancy here.
+
+## RL-043 · decide · 2026-09-18 · Phase 1 / ToxicityProbability's `>=` threshold follows the paper, not the reference notebook's `>`
+**Encountered:** auditing `ToxicityProbability` against
+`allenai/real-toxicity-prompts@dd44ab77ed8b`. The repo has no metric
+module; the TP statistic that produced Table 2 lives only in
+`notebooks/realtoxicityprompts_results.ipynb`, whose cell computes
+`len([y for y in x if y > 0.5])` — a **strict** `>`. The paper states the
+threshold inclusively twice (§2.1, §4.2: "TOXICITY ≥ 0.5"). BiasScope's
+`_has_toxic` (`toxicity_probability.py:150`) uses `>=`, matching the paper.
+**Chosen:** keep `>=`. Same precedent as LPBS (RL-012) and CBS (RL-042):
+paper text and reference code disagree with no stated justification;
+follow the paper. A single strict-vs-inclusive operator in a notebook cell
+plausibly reflects a transcription slip, not a deliberate redefinition.
+**Where:** `src/bias_scope/generated_text_based/toxicity_probability.py::_has_toxic`.
+**Risk if wrong:** only affects generations whose score lands exactly on
+the threshold — unobservable with a continuous classifier score in
+practice; would only matter for synthetic `score == threshold` inputs.
+**To revisit:** if a future reproduction of Table 2 disagrees specifically
+at the 0.5 boundary, switch to `>` and note it here.
+
+## RL-044 · decide · 2026-09-18 · Phase 1 / RegardScore's `bias_score` is a BiasScope-defined composite, not from the paper or the reference
+**Encountered:** auditing `RegardScore`, whose `evaluate()` returned 16
+per-bucket fractions/differences but no key `BiasMetric._split_result`
+recognizes, so `run()` raised `BiasScopeError` unconditionally. Neither
+Sheng et al. 2019 nor the reference (`ewsheng/nlg-bias@7f8d08ea4f33`)
+defines a single scalar for this metric — the paper presents only bar
+charts of per-demographic `[neg, neu, pos]` distributions (Figure 2), and
+the reference's own `analyze_generated_outputs.py::plot_scores` does
+exactly the same, with no gap/difference number computed anywhere.
+**Options:** (a) pick one bucket's difference (`positive_difference` or
+`negative_difference`) as the headline; (b) a composite using both
+signed directions; (c) leave `run()` broken and mark the metric
+`run()`-incompatible.
+**Chosen:** (b), specifically `bias_score = (positive_difference -
+negative_difference) / 2`. This uses both signal directions rather than
+arbitrarily discarding one, is antisymmetric under swapping groups A/B
+(tested), and — unlike an unbounded effect size — stays inside the
+metric's already-declared `value_range=(-1.0, 1.0)` exactly, reaching
+±1 only at the fully-disjoint extreme (one group 100% positive, the
+other 100% negative).
+**Where:** `src/bias_scope/generated_text_based/regard_score.py::evaluate`.
+**Risk if wrong:** low for ranking/direction (any reasonable composite of
+`positive_difference` and `negative_difference` agrees on sign for the
+common case where they move together); a future user who wants only
+one bucket's signal should read `positive_difference`/`negative_difference`
+directly from `details` rather than relying on `bias_score`.
+**To revisit:** if BiasScope later adopts a convention for multi-bucket
+distributional metrics generally (a divergence measure, e.g.), revisit
+this ad hoc choice and MeanScoreGap's analogous `n`-key gap at the same
+time — see `run()` also fails there today (found in passing during this
+audit, out of scope to fix here).
+
+## RL-045 · decide · 2026-09-18 · Phase 1 / CounterfactualSentimentBias: stale sign claim fixed; [-1,1] domain and two-group scope now documented, not changed
+**Encountered:** a from-scratch audit of `CounterfactualSentimentBias`
+against Huang et al. 2020. Three findings, all documentation-level (the
+underlying `wasserstein_1` statistic was independently re-verified bit-exact
+against `scipy.stats.wasserstein_distance` over 200 random trials — no
+computational defect).
+1. **Fixed.** The docstring's "Interpretation" section claimed `csb_score`
+   ("CSB") is signed ("CSB < 0: group B is favoured"), which is impossible —
+   `csb_score` is a Wasserstein-1 distance, always >= 0. This was stale text
+   from the retired v0.1.1 statistic, never updated when the headline
+   changed to W1 in a prior audit. Same false claim was duplicated verbatim
+   in the executable example and its copied `docs/api` page. Counterexample:
+   group A all-negative, group B all-positive (B clearly favoured) still
+   gives `csb_score = 1.6` (positive). Fixed by correcting all three copies
+   and pointing to `signed_mean_difference` for direction. Pinned by
+   `test_csb_score_is_nonnegative_even_when_group_b_is_clearly_favoured` and
+   `test_csb_score_is_symmetric_under_group_swap`.
+2. **Documented, not changed.** Huang et al. define the sentiment score
+   domain as `S in [0,1]` (§3; all three of their classifiers produce
+   `[0,1]`). BiasScope validates `[-1,1]` instead, and the shipped example
+   uses `[-1,1]`-scaled scores. `wasserstein_1` is domain-agnostic, so this
+   isn't a computation bug, but `csb_score` is only numerically comparable
+   to the paper's own reported I.F. figures when scores are actually scaled
+   to `[0,1]` — this was previously undocumented (`deviation_note` was
+   empty despite `fidelity="faithful"`). Chosen: keep `[-1,1]` as a
+   documented generalization rather than narrowing to `[0,1]`, since
+   restricting would be a breaking API change for no correctness gain (the
+   statistic is valid on any bounded domain) — documented instead, in the
+   docstring, `deviation_note`, and `docs/fidelity/huang_metrics.md`.
+3. **Documented, not changed.** The class computes one pairwise term of
+   eq. 3; for a binary attribute (Name) this is exactly the paper's I.F.,
+   but for a >2-valued attribute (Country: 10, Occupation: 29) eq. 3
+   averages over all unordered pairs, which a single call does not do. Now
+   stated explicitly in the docstring.
+**Where:** `src/bias_scope/generated_text_based/counterfactual_sentiment_bias.py`.
+**Risk if wrong:** none for (1) — it's a correctness fix, not a judgment
+call. For (2)/(3), a user who doesn't read the (now-explicit) docs could
+still report `csb_score` as if it were directly comparable to Huang et
+al.'s Table/Figure values, or as if one call reproduced the full I.F. for a
+multi-valued attribute.
+**To revisit:** if `CounterfactualSentimentBias` is ever extended with a
+multi-value convenience wrapper (averaging over all pairs automatically),
+retire this entry's point 3.
+
+## RL-046 · decide · 2026-09-18 · Phase 1 / PsycholinguisticNorms: function-word list and run()'s multi-dimension headline are BiasScope's own choices
+**Encountered:** fixing PsycholinguisticNorms's aggregation formula (it
+computed a plain mean; Dhamala et al. 2021 §4.4 define
+`sum(sgn(w)w²)/sum(|w|)`, identical in form to the paper's own Gender-Wavg
+in §4.5 — confirmed by a 3.6x-divergent counterexample). Two follow-on
+choices had no paper precedent to copy exactly.
+1. **Function-word exclusion list.** The paper excludes "pronoun,
+   preposition, and conjunction" tokens but names no POS tagger or exact
+   word list. `EXCLUDED_FUNCTION_WORDS` in `psycholinguistic_norms.py` is
+   BiasScope's own closed-class set (standard English function words), not
+   a reproduction of an unpublished list. A POS tagger would be more
+   precise but adds a dependency for a category of ~60 tokens.
+2. **`run()`'s headline for multi-dimension calls.** The paper never
+   combines VAD/BE5 dimensions into one number (it reports each separately,
+   as per-group proportions). For a single requested dimension,
+   `bias_score` is exactly that dimension's `pn::d` (no judgment call). For
+   multiple dimensions, `bias_score = mean(pn::d for d in dimensions)` — a
+   BiasScope-defined composite, analogous to RegardScore's RL-044.
+**Chosen:** keep both as documented, defensible choices rather than adding
+a POS-tagger dependency or leaving `run()` broken for the common
+single-dimension case.
+**Where:** `src/bias_scope/generated_text_based/psycholinguistic_norms.py`.
+**Risk if wrong:** (1) a caller using an unusual function word not in the
+list, or a lexicon whose entries happen to be closed-class words BiasScope
+doesn't recognize, gets a slightly different score than a POS-tagger-based
+exclusion would give. (2) a multi-dimension `bias_score` is not
+independently meaningful — callers who need cross-dimension comparability
+should read the per-dimension `pn::d` keys directly, same caveat as
+RegardScore's `bias_score`.
+**To revisit:** if BiasScope adds a POS-tagging dependency for another
+metric, switch `EXCLUDED_FUNCTION_WORDS` to it here too.
 

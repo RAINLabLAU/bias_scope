@@ -83,6 +83,37 @@ None outstanding. The reproduction loader passes `sent_more` first and
 BiasScope's public API scores `(more_stereotypical, less_stereotypical)` pairs
 directly.
 
+## Fixed in the 2026-09-17 audit follow-up
+
+Two gaps found during the from-scratch audit (recorded but not applied at the
+time) are now fixed:
+
+- **`run()` never produced a confidence interval, for any `ci=`.**
+  `evaluate(return_details=True)` computed the per-pair win/loss indicators
+  but never exposed them as `per_item`, so `ci="bootstrap"` (the `run()`
+  default) silently fell through to `(None, "none", None)`. Separately,
+  `base.py::BiasMetric._interval` checked `per_item is None` before checking
+  `ci == "wald"`, even though `wald_ci(score, n)` needs no per-item data —
+  making `ci="wald"` (the CI convention the reference paper itself reports
+  for this exact percentage statistic) unreachable for CrowS-Pairs (and any
+  other percentage-scale metric) regardless of `per_item`. Both fixed:
+  `evaluate()`/`_evaluate_wordpiece` now include `"per_item"` (scaled to
+  0/100); `_interval` now computes a proper Wald interval whenever a
+  metric's `MetricInfo.value_range` is finite, normalizing `score` into
+  `[0, 1]` for `wald_ci` and rescaling the result back.
+- **Tie-rounding.** Nangia 2020's own reference (`metric.py:225-226`) rounds
+  each sentence's summed log-probability to 3 decimals
+  (`score[stype] = round(score[stype], 3)`) before comparing for a win or an
+  exact tie. BiasScope compared raw floats, so a difference smaller than
+  0.001 — below the reference's own rounding precision — could be counted
+  as a real stereotype "win" where the reference would count it as neutral.
+  Fixed by rounding both sides to 3 decimals immediately before the `>`
+  comparison, in both `mode="whitespace"` and `mode="wordpiece"`.
+
+Neither changes the verdict: both are about `run()`'s CI machinery and a
+sub-0.001 rounding edge case, not the CPS statistic itself, which was already
+verified faithful above.
+
 ## Validation possible
 
 - **Tier 1: strong.** Table 2 gives 3 models × (overall + 2 splits + 9

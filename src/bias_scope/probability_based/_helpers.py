@@ -147,6 +147,32 @@ def _filter_special_aligned_positions(
     return filtered_a, filtered_b
 
 
+def _reject_masked_scorer(scorer, metric_name: str) -> None:
+    """Refuse a masking-based scorer in AUL/AULA's whitespace mode.
+
+    ``BertPLLScorer`` and ``WordPieceBertScorer`` implement the
+    ``TokenPredictionScorer`` protocol (``token_probability`` /
+    ``token_probability_with_attention``) by masking the scored position
+    before predicting it -- correct for CrowS-Pairs' pseudo-log-likelihood,
+    but the opposite of AUL/AULA (Kaneko & Bollegala 2022 eq. 4-5), which
+    scores every token from the complete UNMASKED sentence. Silently
+    accepting either scorer here would compute PLL, not AUL/AULA.
+    """
+    if scorer is None:
+        return
+    from bias_scope.probability_based.scorers import BertPLLScorer, WordPieceBertScorer
+
+    if isinstance(scorer, (BertPLLScorer, WordPieceBertScorer)):
+        raise ValueError(
+            f"{metric_name} mode='whitespace' cannot use a "
+            f"{type(scorer).__name__} instance: its token_probability / "
+            "token_probability_with_attention methods mask the scored token "
+            "and compute PLL, not AUL/AULA. Use mode='wordpiece' (passing "
+            "model_name= or a WordPieceBertScorer) or a custom callback that "
+            "scores from the complete unmasked sentence."
+        )
+
+
 def _score_wordpiece_pair_aul(scorer, s_more: str, s_less: str) -> Tuple[float, float]:
     """AUL WordPiece-mode scoring per Kaneko & Bollegala 2022 (unmasked)."""
     aul_a, _ = scorer.aul_aula(scorer.encode(s_more))

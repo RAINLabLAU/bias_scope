@@ -58,6 +58,25 @@ print()
 
 ```
 
+## Deriving the upstream artifacts
+
+`evaluate()`/`run()` need `gender_direction`, `word_importance`, and
+`gender_words_mask` as inputs. Three module-level helpers implement the
+paper's own procedures for the first two and for matching a lexicon, given
+that you supply the raw ingredients (embeddings, hidden states, a lexicon):
+
+- `derive_gender_direction(female_embeddings, male_embeddings)` — PCA of
+  gender word-pair difference vectors (Sec. 3.2). `GENDER_WORD_PAIRS` lists
+  the paper's ten canonical pairs.
+- `derive_word_importance(hidden_states)` — max-pooling selection counts
+  (Sec. 3.4), given the encoder's per-token hidden states before pooling.
+- `build_gender_words_mask(tokens, gender_word_list)` — case-insensitive
+  lexicon matching (Sec. 3.3). **BiasScope does not ship Dolci et al.'s
+  6562-word lexicon** — supply your own; see `docs/fidelity/sentence_bias_score.md`.
+
+`run()` reports Eq. 3 (`Abs-BiasScore`, `abs(female_bias) + abs(male_bias)`)
+as `BiasResult.score`, and `female_bias`/`male_bias` in `BiasResult.breakdown`.
+
 ## Reference
 
-Dolci, M., Azzalini, D., & Tanelli, M. (2023). Sentence-level bias detection in transformer models.
+Dolci, T., Azzalini, F., & Tanelli, M. (2023). Improving Gender-Related Fairness in Sentence Encoders: A Semantics-Based Approach. Data Science and Engineering, 8, 177-195. https://doi.org/10.1007/s41019-023-00211-0

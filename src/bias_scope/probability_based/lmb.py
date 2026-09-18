@@ -26,16 +26,31 @@ class LMB(ProbabilityMetric):
     RedditBias: A Real-World Resource for Bias Evaluation and Debiasing
     of Conversational Language Models. ACL-IJCNLP 2021.
 
+    Barikeri et al. measure LMB on **DialoGPT**, an autoregressive
+    (causal) model: their reference `perplexity_score` computes the
+    standard causal LM loss (`model(input_ids, labels=input_ids)` on an
+    `AutoModelForCausalLM`), where each token is predicted only from the
+    tokens *before* it -- the opposite convention from AUL's
+    `predict_token_given_sentence` (which scores each token from the
+    *complete, unmasked* sentence). To reproduce the paper's own
+    statistic, `predict_token_given_sentence` here must condition each
+    position only on the preceding tokens in `sentence` -- it must not
+    look ahead. LMB's built-in convenience scorer (`model_name=`) uses a
+    masked-LM adapter for mechanical convenience and does **not**
+    reproduce this; pass a custom causal callback (see the example
+    below) to match the paper.
+
     Examples
     --------
     >>> from bias_scope.probability_based import LMB
     >>>
     >>> lmb = LMB()
     >>>
-    >>> # Prediction function
+    >>> # Prediction function: P(sentence[position] | sentence[:position]),
+    >>> # i.e. a CAUSAL (left-context-only) prediction, matching how the
+    >>> # paper's DialoGPT is scored -- must not use sentence[position+1:].
     >>> def predict_fn(sentence, position):
-    ...     # Predict each token in unmasked sentence
-    ...     return model.predict_token_given_sentence(sentence, position)
+    ...     return model.predict_next_token(sentence[:position], sentence[position])
     >>>
     >>> # Sentence pairs
     >>> pairs = [
@@ -95,7 +110,12 @@ class LMB(ProbabilityMetric):
             - predict_token_given_sentence: Function signature:
               - Takes: sentence (List[str], complete), position (int)
               - Returns: probability (float) of token at position
-              - Same as AUL's predict function
+              - Same call signature as AUL's predict function, but NOT the
+                same contract: to reproduce Barikeri et al.'s own statistic
+                (measured on DialoGPT, an autoregressive model), the callback
+                must condition token `position` only on `sentence[:position]`
+                (causal), not on the complete unmasked sentence as AUL's
+                callback does. See the class docstring.
 
             **Perplexity Formula:**
                 PP(S) = exp(- (1/N) * Σ log P(token_i | S))
@@ -209,6 +229,18 @@ class LMB(ProbabilityMetric):
             std_pp = float(np.std(all_pps))
             lower_bound = mean_pp - 3.0 * std_pp
             upper_bound = mean_pp + 3.0 * std_pp
+
+            # Keep pairs where both PPs are within bounds
+            mask = (
+                (pp_s1_arr >= lower_bound)
+                & (pp_s1_arr <= upper_bound)
+                & (pp_s2_arr >= lower_bound)
+                & (pp_s2_arr <= upper_bound)
+            )
+
+            pp_s1_arr = pp_s1_arr[mask]
+            pp_s2_arr = pp_s2_arr[mask]
+            outliers_removed = n_original - len(pp_s1_arr)
         elif outlier_strategy == "percentile":
             # Compute percentiles on ALL perplexities
             all_pps = np.concatenate([pp_s1_arr, pp_s2_arr])
@@ -266,6 +298,11 @@ class LMB(ProbabilityMetric):
                 effect_size = float(np.sign(mean_diff) * 10.0)
 
         details = {
+            # Barikeri et al. report the bias effect as the t-value; expose it
+            # under "bias_score" too so run()'s _split_result picks the
+            # paper's own statistic as the headline, not "effect_size" (Cohen's
+            # d), which _split_result would otherwise match first.
+            "bias_score": float(t_stat),
             "t_stat": float(t_stat),
             "p_value": float(p_value),
             "mean_pp_s1": mean_pp_s1,
@@ -421,8 +458,11 @@ class LMB(ProbabilityMetric):
             Uses error function approximation.
         """
         # Using approximation: Φ(x) ≈ 0.5 * (1 + erf(x/sqrt(2)))
-        # erf approximation (Abramowitz and Stegun)
-        t = 1.0 / (1.0 + 0.3275911 * abs(x))
+        # erf approximation (Abramowitz and Stegun), applied to x/sqrt(2) --
+        # NOT to x itself, which would compute 0.5*(1+erf(x)), a different
+        # function that silently produced wrong p-values for df > 30.
+        z = x / math.sqrt(2.0)
+        t = 1.0 / (1.0 + 0.3275911 * abs(z))
         a1, a2, a3, a4, a5 = (
             0.254829592,
             -0.284496736,
@@ -431,7 +471,7 @@ class LMB(ProbabilityMetric):
             1.061405429,
         )
         erf_approx = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * np.exp(
-            -x * x
+            -z * z
         )
 
         if x >= 0:
