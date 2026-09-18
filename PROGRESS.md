@@ -1595,3 +1595,59 @@ only neutral reference points (0.5), rounded restatements (0.61 for 0.6113,
 The gate held in every run: `plan_suite` → the plan shown → `confirm_plan` in a
 later turn → `run_suite`. `scripts/agent/summarize_runs.py` tabulates all of it
 from the recorded tool output.
+
+### Later — closing the open failures, and widening what can actually be fed
+
+The three-model runs worked but only fed 5, 2 and 2 of the 15, 19 and 4
+recommended metrics. Closing that gap meant fixing the failures that had been
+logged-and-deferred, because most of them *were* the gap.
+
+**RL-060 fixed — the units bug, and the most consequential.** `CrowSPairs`,
+`AUL` and `AULA` returned a fraction while their own `MetricInfo`
+(`neutral=50`, `range=(0,100)`), the authors' scorers
+(`crows-pairs/metric.py:270`, `evaluate_bias_in_mlm/evaluate.py:213`), the
+papers' reported values and `validation/registry.yaml` all say percent.
+`normalized_deviation(0.5573)` was **−0.9889** — the wrong sign, reading a
+mildly stereotype-preferring model as maximally anti-stereotypical. All six
+return sites now scale by 100. On `bert-base-uncased`, the first 60 gender
+pairs give CrowSPairs **60.00** (deviation **+0.20**), AUL 46.67, AULA 45.00 —
+and 60.00 is directly comparable to Nangia's published 60.5 for the first time.
+Nineteen existing assertions were rescaled, not relaxed.
+
+**RL-061 fixed — CAT and ICAT were unreachable.** `_split_result` inferred the
+headline from the dict's shape, and neither `{lms, ss, n_examples,
+num_target_terms}` nor `{icat, lms, ss, n_examples}` matched. Metrics now
+declare `headline_key`, because which number is the bias score is in the paper,
+not in the dict: CAT's is `ss` (`lms` measures language-modelling quality, not
+bias), ICAT's is `icat`. Verified end to end — CAT 67.50, ICAT 54.44, lms 83.75
+over 40 StereoSet gender items, and 83.75·min(67.5, 32.5)/50 = 54.4375 exactly.
+
+**RL-048 resolved.** The entry left open whether CEAT's `n_samples` is an
+items-scored count. The authors' `ceat.py` draws N samples and pools them with
+`df = N - 1`: the degrees of freedom say N *is* the observation count. CEAT
+completes `run()` now.
+
+**RL-054 fixed.** `BiasSuite.run` popped `__init__` out of the caller's dict,
+so the same inputs could not be run twice. It copies first.
+
+**RL-062 opened and acted on.** `RegardScore` had neither a headline nor a
+count. The count is unambiguous (texts classified). The headline is a
+*judgement*, recorded as such: `negative_difference`, because Sheng's reported
+result is the negative-regard gap, this repo's `repro_regard_sheng.py`
+reproduces that number, and `MetricInfo`'s signed (−1, 1) range fits exactly
+that difference.
+
+**Two new datasets, so more of the recommended set is actually feedable.**
+`stereoset` (CAT, ICAT) from the authors' `dev.json` — BLANK rendered as
+`[MASK]`, fills recovered by diffing each sentence against its context, items
+with multi-word fills skipped and *counted in the provenance* (229 usable of
+255 gender items). And `bold_regard`, the first provider that **generates**:
+Dhamala et al.'s own BOLD prompts, continuations produced by the model under
+evaluation, scored by Sheng's regard classifier. `DatasetSpec` gained
+`requires_access`, so a generating provider is offered only to backends that
+can generate — which is why a causal LM can use it and an encoder cannot.
+
+Feedable share of the recommended set: encoder 5 → **7 of 15**, causal
+2 → **3 of 19**, embedding **2 of 4**. The causal number is small but it is no
+longer the wrong *kind* of coverage: a generative model is now evaluated on
+generation, not only on its embeddings.
