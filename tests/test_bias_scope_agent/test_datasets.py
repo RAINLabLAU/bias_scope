@@ -8,7 +8,9 @@ the loader's behaviour rather than about a particular vendored file.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import json
+from unittest import mock
 
 import pytest
 
@@ -125,3 +127,37 @@ class TestDatasetSelection:
         rows = available_datasets(["CrowSPairs"])
         assert [row["dataset"] for row in rows] == ["crows_pairs"]
         assert rows[0]["metrics"] == ["CrowSPairs"]
+
+
+class TestConstructorInjectionIsDeclaredNotInferred:
+    """Which constructor arguments come from the backend is a per-provider
+    decision, never a signature guess.
+
+    `model_name` means three different things across families: the model under
+    test for CrowSPairs, the classifier Sheng et al. require for RegardScore,
+    the sentence encoder for WEAT/SEAT. Inferring "it accepts model_name, so
+    give it the backend's model" is the blanket injection rejected in RL-052 -
+    it would silently replace RegardScore's classifier with the model being
+    evaluated, which is the exact conflation the 0.2.0 fidelity audit fixed.
+    A provider that serves such a metric must be able to say "fill nothing".
+    """
+
+    def test_a_provider_can_decline_to_fill_any_constructor_argument(self, root, backend):
+        from bias_scope_agent import datasets
+
+        spec = datasets.DATASETS["crows_pairs"]
+        no_injection = dataclasses.replace(spec, init_from_backend=())
+        with mock.patch.dict(datasets.DATASETS, {"crows_pairs": no_injection}):
+            inputs, _ = build_inputs(
+                backend, "crows_pairs", ["CrowSPairs"], axis="gender", root=root
+            )
+        assert inputs["CrowSPairs"]["__init__"] == {}
+
+    def test_the_shipped_providers_all_evaluate_the_backend_model(self):
+        from bias_scope_agent.datasets import DATASETS
+
+        # Every current provider serves metrics whose model_name IS the model
+        # under evaluation. If that ever stops being true for a new provider,
+        # this test should be narrowed rather than the injection widened.
+        for spec in DATASETS.values():
+            assert spec.init_from_backend == ("model_name", "device"), spec.name

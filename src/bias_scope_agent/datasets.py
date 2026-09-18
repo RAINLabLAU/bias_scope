@@ -67,6 +67,12 @@ class DatasetSpec:
     metrics: Tuple[str, ...]
     axes: Tuple[str, ...]
     source: str
+    #: Constructor arguments to fill from the backend. Declared per provider,
+    #: never inferred from a signature: `model_name` means the model under test
+    #: for CrowSPairs, the classifier Sheng et al. require for RegardScore, and
+    #: the sentence encoder for WEAT/SEAT. A provider serving a metric of the
+    #: second kind must set this to () (REVIEW_LATER RL-052).
+    init_from_backend: Tuple[str, ...] = ("model_name", "device")
 
 
 DATASETS: Dict[str, DatasetSpec] = {
@@ -128,13 +134,13 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _init_kwargs(metric_name: str, backend: Backend) -> Dict[str, Any]:
+def _init_kwargs(metric_name: str, backend: Backend, allowed: Tuple[str, ...]) -> Dict[str, Any]:
     """Constructor arguments naming the model under evaluation.
 
-    Only `model_name` and `device`, and only for metrics a provider explicitly
-    serves - where `model_name` is unambiguously the model being evaluated.
-    This is not the blanket injection rejected in RL-052: `RegardScore`'s
-    `model_name` is a fixed classifier and no provider here serves it.
+    `allowed` comes from the provider's own `init_from_backend`, so a provider
+    serving a metric whose `model_name` is a fixed resource rather than the
+    model under test declares `()` and nothing is filled. The signature is
+    consulted only to avoid passing an argument the metric does not accept.
     """
     from bias_scope_agent.introspection import _agent_metric_classes
 
@@ -143,10 +149,10 @@ def _init_kwargs(metric_name: str, backend: Backend) -> Dict[str, Any]:
         return {}
     accepted = inspect.signature(cls.__init__).parameters
     kwargs: Dict[str, Any] = {}
-    if "model_name" in accepted:
+    if "model_name" in allowed and "model_name" in accepted:
         kwargs["model_name"] = backend.model_id
     device = getattr(backend, "device", None)
-    if "device" in accepted and device:
+    if "device" in allowed and "device" in accepted and device:
         kwargs["device"] = device
     return kwargs
 
@@ -178,10 +184,10 @@ def _association_test(root: Path, axis: str, by_axis: Dict[str, str], hint: str)
     return _require(root / _SENT_BIAS_TESTS / f"{test}.jsonl", hint.upper())
 
 
-def _build_crows(backend, metrics, axis, limit, root) -> Tuple[Dict, Dict]:
+def _build_crows(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
     pairs = _crows_pairs(root, axis, limit)
     inputs = {
-        name: {"__init__": _init_kwargs(name, backend), "sentence_pairs": pairs}
+        name: {"__init__": _init_kwargs(name, backend, allowed), "sentence_pairs": pairs}
         for name in metrics
     }
     path = root / _CROWS_RELATIVE
@@ -195,7 +201,9 @@ def _build_crows(backend, metrics, axis, limit, root) -> Tuple[Dict, Dict]:
     return inputs, provenance
 
 
-def _build_association(backend, metrics, axis, limit, root, by_axis, hint) -> Tuple[Dict, Dict]:
+def _build_association(
+    backend, metrics, axis, limit, root, allowed, by_axis, hint
+) -> Tuple[Dict, Dict]:
     path = _association_test(root, axis, by_axis, hint)
     targ1, targ2, attr1, attr2 = _word_sets(path)
     if limit is not None:
@@ -203,7 +211,7 @@ def _build_association(backend, metrics, axis, limit, root, by_axis, hint) -> Tu
         attr1, attr2 = attr1[:limit], attr2[:limit]
     inputs = {
         name: {
-            "__init__": _init_kwargs(name, backend),
+            "__init__": _init_kwargs(name, backend, allowed),
             "target_embeddings": (targ1, targ2),
             "attribute_embeddings": (attr1, attr2),
         }
@@ -222,8 +230,12 @@ def _build_association(backend, metrics, axis, limit, root, by_axis, hint) -> Tu
 
 _BUILDERS: Dict[str, Callable[..., Tuple[Dict, Dict]]] = {
     "crows_pairs": _build_crows,
-    "weat": lambda b, m, a, lim, r: _build_association(b, m, a, lim, r, _WEAT_BY_AXIS, "weat"),
-    "seat": lambda b, m, a, lim, r: _build_association(b, m, a, lim, r, _SEAT_BY_AXIS, "seat"),
+    "weat": lambda b, m, a, lim, r, al: _build_association(
+        b, m, a, lim, r, al, _WEAT_BY_AXIS, "weat"
+    ),
+    "seat": lambda b, m, a, lim, r, al: _build_association(
+        b, m, a, lim, r, al, _SEAT_BY_AXIS, "seat"
+    ),
 }
 
 
@@ -269,6 +281,8 @@ def build_inputs(
             f"dataset {dataset!r} does not serve {unsupported}; it serves "
             f"{list(spec.metrics)}. Call list_datasets to see which dataset feeds a metric."
         )
-    inputs, provenance = _BUILDERS[dataset](backend, list(metric_names), axis, limit, root)
+    inputs, provenance = _BUILDERS[dataset](
+        backend, list(metric_names), axis, limit, root, spec.init_from_backend
+    )
     provenance |= {"dataset": dataset, "metrics": list(metric_names)}
     return inputs, provenance
