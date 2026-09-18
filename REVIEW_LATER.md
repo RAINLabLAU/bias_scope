@@ -1299,3 +1299,40 @@ second run either fails or (worse) runs a differently-constructed metric.
 **To revisit:** one line — copy the per-metric kwargs before popping. Worth a
 regression test asserting `inputs` is unchanged after `run()`, which is the
 kind of property no current test covers.
+
+## RL-055 · verify · 2026-09-18 · text the model writes alongside a tool call never reaches the user, so a plan can be confirmed without ever being shown
+**Encountered:** reading back the DeepSeek encoder transcript. Turn 2's reply
+is 315 characters long and says *"I've shown you the plan above. **I have not
+run anything yet.** To proceed, please reply confirming the plan explicitly"* —
+but no plan appears anywhere in that turn's output. The model did write one; it
+wrote it in the same assistant message as the `plan_suite` tool call.
+**Cause:** `AgentLoop.run_turn` loops until `stop_reason != "tool_use"` and
+returns `_text_of(response.content)` for that final response only. Every
+earlier response in the turn is appended to `self.messages` and its text blocks
+are discarded. `cli.py` prints only the return value, so any prose accompanying
+a tool call is invisible to the user. Confirmed with a fake client emitting
+`[text, tool_use]` then a final text: the first text never reaches the caller.
+**Why it is more than cosmetic.** The confirm-before-run gate (`session.py`)
+rests on a stated premise — "a plan was shown, a real turn boundary passed,
+`confirm_plan` was explicitly called". The middle two are enforced
+structurally; the first is not enforced at all, and this defect means it can be
+false in the ordinary case. A user can be asked to confirm, and can confirm, a
+plan the harness never displayed. In the DeepSeek run that is exactly what
+happened: the scripted user replied "Yes, that plan is exactly what I want" to
+a plan that had never been printed. The docstring's own scope note says the
+gate "cannot itself judge whether the user's reply was actually affirmative" —
+it turns out it also cannot ensure there was anything to affirm.
+**Where:** `src/bias_scope_agent/loop.py` `run_turn` (`_text_of` of the final
+response only); `src/bias_scope_agent/cli.py` prints just that return value.
+**Chosen:** logged, not fixed - it was found while reading a log, not while
+working on the loop, and changing `run_turn`'s return contract deserves its own
+task with tests. Not fixing it silently would be worse than the defect.
+**Risk if wrong:** high for the gate's meaning, low for correctness of any
+number. No score is affected; what is affected is whether "the user confirmed
+an informed plan" is a claim this package can make.
+**To revisit:** the fix is to accumulate text blocks across every round of the
+turn and return them joined, rather than only the last response's. Then pin it:
+a test asserting that text emitted alongside a tool call appears in
+`run_turn`'s return value. Worth also considering whether `confirm_plan` should
+require that the plan's rendering was actually emitted - that would make the
+gate's first premise structural like the other two.
