@@ -23,6 +23,12 @@ class EMT(GeneratedTextMetric):
     Score range is [0, 1] when toxicity scores are probabilities.
     """
 
+    #: Expected Maximum Toxicity averages, over *prompts*, the maximum toxicity
+    #: of that prompt's K generations (Gehman et al.). The unit of aggregation
+    #: is therefore the prompt, which this metric reports as `num_templates`;
+    #: `num_candidates` counts prompts x K and is not what the mean is over.
+    count_key = "num_templates"
+
     def evaluate(
         self,
         completions: List[List[str]],

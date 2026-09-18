@@ -1609,3 +1609,69 @@ nothing is lost — only the default choice would change.
 **To revisit:** whether a metric comparing two distributions should have a
 scalar headline at all. `BiasResult` requires one; that constraint, not the
 paper, is what forced this choice.
+
+## RL-063 · fix · 2026-09-18 · three more metrics were unreachable through `run()` for want of an item count
+**Encountered:** auditing whether every *recommended* metric can actually run.
+`EMT`, `GenderPolarity` and `HONEST` each completed `evaluate()` and then
+failed with "n must be positive, got 0": `_count_items` recognised a fixed list
+of key names and each of these reports its count under its own.
+**Chosen:** a `count_key` class attribute, symmetric with RL-061's
+`headline_key`, rather than extending the alias list a fourth time. Naming the
+key also says *which* count is meant, which matters when a metric reports
+several - HONEST reports templates, candidates and hurtful candidates, and only
+the definition says which one `n` is:
+- `HONEST.count_key = "num_candidates"` — Nozza's HONEST is hurtful completions
+  over total completions, so `n` is completions scored.
+- `EMT.count_key = "num_templates"` — Gehman's expected maximum toxicity
+  averages, over *prompts*, the max over that prompt's K generations, so the
+  unit of aggregation is the prompt. `num_candidates` counts prompts x K.
+- `GenderPolarity.count_key = "num_completions"` — under the default
+  `neutral_policy="zero"` an ungendered completion contributes 0 rather than
+  being dropped, so the mean is over every completion.
+**Where:** `src/bias_scope/base.py` (`count_key`, `_count_items`, and the
+`EmbeddingMetric` override, which kept the old two-argument signature and
+silently skipped every embedding metric until the suite caught it),
+`honest.py`, `emt.py`, `gender_polarity.py`.
+Tests: `tests/test_run.py::TestCountKeyDeclaration`.
+**Risk if wrong:** `n` feeds the confidence interval, so a wrong count widens
+or narrows a CI rather than changing a score. Each choice is stated above and
+each metric still reports its other counts in `details`.
+
+## RL-064 · fix · 2026-09-18 · a metric that declines to score was reported as a broken metric
+**Encountered:** `DemographicRepresentation` and `StereotypicalAssociations`
+return `bias_score: None` with an `undefined_reason` when no group word occurs
+in any generation - correctly, and citing HELM's own behaviour ("HELM drops
+such instances rather than scoring them as unbiased, bias_metrics.py:210-211").
+`run()` reported that as *"cannot find a headline score in evaluate()'s result;
+expected one of 'bias_score', 'score', ... found numeric keys [...]"*, which
+reads like a defect in the metric rather than a statement about the data - and
+is what an agent would relay to a user.
+**Chosen:** `_split_result` now detects `bias_score is None` and raises with the
+metric's own sentence. The metric knows why it declined; the base class does not.
+**Where:** `src/bias_scope/base.py` `_split_result`.
+Tests: `tests/test_run.py::TestAMetricThatDeclinesToScoreSaysWhy`.
+
+## RL-065 · verify · 2026-09-18 · `CoOccurrenceBiasScore` and `MarkedPersons` report no scalar at all, so recommending them is a promise nothing keeps
+**Encountered:** the same audit. Both complete `evaluate()` and return no
+`bias_score` under any name:
+- `CoOccurrenceBiasScore` returns `summary.mean_abs_score` (0.4159 on a toy
+  input) plus per-term tables. Its `MetricInfo` declares `direction="signed"`
+  with range `(-inf, inf)`, but a *mean absolute* score cannot be signed, so
+  the one available scalar contradicts the declared semantics. Bordia & Bowman
+  report a mean absolute bias, which suggests the metadata is what is wrong -
+  but that is a question about the paper, not a thing to settle from a summary
+  dict.
+- `MarkedPersons` returns only `vocab_considered` and token totals alongside
+  per-term Fightin' Words tables. PLAN.md 4.2's own row for this metric still
+  carries the action **"document what the reported scalar is"** - it was never
+  decided.
+**Chosen:** not guessed. Both are listed in
+`tests/test_recommendation_validity.py::KNOWN_UNRUNNABLE` with these reasons,
+so the gate records them as recommended-but-unrunnable rather than letting a
+user discover it at run time.
+**Risk if wrong:** they are recommended today and cannot complete, so any
+agent that plans them reports a skip. That is visible, not silent.
+**To revisit:** read Bordia & Bowman for whether the reported statistic is the
+mean absolute log-ratio (and fix `direction` if so), and Cheng et al. for what
+`MarkedPersons` reports as a single number - or decide that neither has a
+scalar and that `BiasResult` should be able to represent that.

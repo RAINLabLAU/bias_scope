@@ -35,6 +35,12 @@ class BiasMetric(ABC):
     #: inferred from the dict's shape. Empty means "infer it" (RL-061).
     headline_key: ClassVar[str] = ""
 
+    #: The key holding the number of items scored, for metrics that report
+    #: several counts and so cannot be read by name alone - HONEST reports
+    #: templates, candidates and hurtful candidates, and only the paper says
+    #: which one `n` means. Empty means "use the recognised names" (RL-063).
+    count_key: ClassVar[str] = ""
+
 
     def __repr__(self) -> str:
         """Return a scikit-learn-style representation of the metric config."""
@@ -154,7 +160,7 @@ class BiasMetric(ABC):
         raw = self._call_evaluate(*args, **kwargs)
         score, details = self._split_result(raw, self.headline_key)
         per_item = self._extract_per_item(details)
-        n = self._count_items(details, per_item)
+        n = self._count_items(details, per_item, self.count_key)
 
         interval, method, p_value = self._interval(score, per_item, n, ci, seed)
         # A metric that computes its own significance test reports it under a
@@ -213,6 +219,19 @@ class BiasMetric(ABC):
                 f"evaluate()'s result; found keys {sorted(raw)}"
             )
 
+        # A metric may decline to score, and say why: HELM drops instances with
+        # no group mention rather than calling them unbiased, and our HELM
+        # metrics follow that with `bias_score: None` plus `undefined_reason`.
+        # Surfacing the metric's own sentence beats "cannot find a headline
+        # score", which reads like a defect in the metric (RL-064).
+        if "bias_score" in raw and raw["bias_score"] is None:
+            reason = raw.get("undefined_reason") or ""
+            raise BiasScopeError(
+                f"the metric declined to produce a score: {reason}"
+                if reason
+                else "the metric declined to produce a score and gave no reason"
+            )
+
         # Metrics use different names for their headline number. Try the
         # documented ones in order rather than guessing from the dict.
         for key in ("bias_score", "score", "value", "effect_size"):
@@ -252,10 +271,22 @@ class BiasMetric(ABC):
             return None
 
     @staticmethod
-    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+    def _count_items(
+        details: Dict[str, Any], per_item: Optional[List[float]], count_key: str = ""
+    ) -> int:
         """`n` is the number of items actually scored."""
         if per_item is not None:
             return len(per_item)
+        # A metric that reports several counts names the one `n` means.
+        if count_key:
+            value = details.get(count_key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if value > 0 and float(value).is_integer():
+                    return int(value)
+            raise BiasScopeError(
+                f"declared count_key {count_key!r} is not a positive whole number "
+                f"in evaluate()'s result; found keys {sorted(details)}"
+            )
         # "n_samples" is CEAT's: Guo & Caliskan draw N samples, each giving one
         # effect size and one variance, then pool them with `df = N - 1`
         # (third_party/code/CEAT/code/ceat.py:205-243). The degrees of freedom
@@ -418,14 +449,17 @@ class EmbeddingMetric(BiasMetric):
         return None
 
     @staticmethod
-    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+    def _count_items(
+        details: Dict[str, Any], per_item: Optional[List[float]], count_key: str = ""
+    ) -> int:
         """For an effect size, `n` is the number of target stimuli scored."""
         if per_item is not None:
             return len(per_item)
-        sizes = EmbeddingMetric._group_sizes(details)
-        if sizes is not None:
-            return sizes[0] + sizes[1]
-        return BiasMetric._count_items(details, per_item)
+        if not count_key:
+            sizes = EmbeddingMetric._group_sizes(details)
+            if sizes is not None:
+                return sizes[0] + sizes[1]
+        return BiasMetric._count_items(details, per_item, count_key)
 
     def _interval(
         self,

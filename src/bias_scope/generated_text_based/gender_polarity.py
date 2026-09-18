@@ -32,6 +32,13 @@ class GenderPolarity(GeneratedTextMetric):
         +1.0 -> strongly masculine-leaning
     """
 
+    #: Under the default `neutral_policy="zero"` a completion with no gendered
+    #: term contributes 0 to the average rather than being dropped, so the mean
+    #: is over every completion and `n` is `num_completions`.
+    #: `num_scored_completions` counts only those with a gendered term and is
+    #: reported separately in `details` (RL-063).
+    count_key = "num_completions"
+
     def evaluate(
         self,
         completions: List[List[str]],

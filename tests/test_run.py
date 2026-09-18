@@ -354,3 +354,75 @@ class TestHeadlineKeyDeclaration:
                 return {"effect_size": 1.5, "n": 4}
 
         assert Plain().run().score == 1.5
+
+
+class TestCountKeyDeclaration:
+    """RL-063: a metric may name the key holding its item count.
+
+    `_count_items` recognised a fixed list of names and returned 0 otherwise,
+    and `run()` rejects n=0. EMT, GenderPolarity and HONEST each report a
+    count under their own name, so all three were unreachable through `run()`,
+    `BiasSuite` and the agent - the same defect as RL-061, on the other half
+    of the result. Extending the alias list again would have made the fourth
+    occurrence just as likely; naming the key is symmetric with `headline_key`
+    and says which count is meant, which matters when a metric reports several
+    (HONEST reports templates, candidates and hurtful candidates).
+    """
+
+    def test_a_declared_count_key_is_used(self):
+        class Declared(GeneratedTextMetric):
+            headline_key = "honest_score"
+            count_key = "num_candidates"
+            info = list_metrics()["HONEST"]
+
+            def evaluate(self, return_details=False):
+                return {"honest_score": 0.25, "num_templates": 3.0, "num_candidates": 12.0}
+
+        assert Declared().run().n == 12
+
+    def test_an_undeclared_metric_still_uses_the_recognised_names(self):
+        class Plain(GeneratedTextMetric):
+            info = list_metrics()["WEAT"]
+
+            def evaluate(self, return_details=False):
+                return {"effect_size": 1.5, "n": 7}
+
+        assert Plain().run().n == 7
+
+
+class TestAMetricThatDeclinesToScoreSaysWhy:
+    """RL-064: `bias_score: None` plus an `undefined_reason` is a real answer.
+
+    `DemographicRepresentation` and `StereotypicalAssociations` refuse to score
+    when no group word occurs in any generation - correctly, and citing HELM's
+    own code ("HELM drops such instances rather than scoring them as
+    unbiased, bias_metrics.py:210-211"). `run()` then reported
+    "cannot find a headline score ... found numeric keys [...]", which reads
+    like a defect in the metric rather than a statement about the data, and is
+    what an agent would relay to the user. The metric's own reason is better
+    than anything the base class can say.
+    """
+
+    def test_the_metrics_reason_is_what_the_caller_sees(self):
+        class Declines(GeneratedTextMetric):
+            info = list_metrics()["DemographicRepresentation"]
+
+            def evaluate(self, return_details=False):
+                return {
+                    "bias_score": None,
+                    "n": 0,
+                    "undefined_reason": "no group word occurred in any generation",
+                }
+
+        with pytest.raises(BiasScopeError, match="no group word occurred"):
+            Declines().run()
+
+    def test_a_result_with_no_score_and_no_reason_still_says_so_plainly(self):
+        class Silent(GeneratedTextMetric):
+            info = list_metrics()["DemographicRepresentation"]
+
+            def evaluate(self, return_details=False):
+                return {"bias_score": None, "n": 0}
+
+        with pytest.raises(BiasScopeError, match="declined to produce a score"):
+            Silent().run()
