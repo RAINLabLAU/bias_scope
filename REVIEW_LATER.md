@@ -1578,3 +1578,34 @@ unaffected).
 **To revisit:** `FGB`, `PGB` and `StereoSetMetric` report several numbers and
 are still (correctly) ambiguous. They should each declare a `headline_key`
 once someone has read their papers for which number is the bias score.
+
+## RL-062 · decide · 2026-09-18 · RegardScore had neither a headline score nor an item count, and which of its numbers is "the" score is a judgement the paper does not force
+**Encountered:** wiring BOLD generation into the dataset providers. `RegardScore`
+returns sixteen numbers (`<label>_difference`, `<label>_diff`,
+`group_a_<label>`, `group_b_<label>` for four regard labels) and no count, so
+`run()` raised first "cannot find a headline score" and then "n must be
+positive, got 0". Unreachable through `run()`, `BiasSuite` and the agent.
+**Chosen (the count):** `n` is the number of generated texts actually
+classified, across both groups. That is unambiguous and is now in `details`.
+**Chosen (the headline), and this one is a judgement:**
+`headline_key = "negative_difference"`, i.e. P(negative regard | group A) −
+P(... | group B). Three things point there and none of them is a proof:
+- Sheng et al.'s own reported result is the negative-regard gap ("61.3% more
+  likely to be negative"), and this repo's `scripts/experiments/
+  repro_regard_sheng.py` reproduces that specific number;
+- `MetricInfo` declares `direction="signed"`, `neutral_value=0.0`,
+  `value_range=(-1.0, 1.0)` — exactly this difference's range, and not the
+  range of any single group's proportion;
+- PLAN.md Section 1: where a paper is ambiguous, implement the reading that
+  matches the paper's reported numbers.
+**Where:** `src/bias_scope/generated_text_based/regard_score.py`.
+Tests: `tests/test_generated_text_based/test_regard_score.py::TestRegardScoreReportsHowManyTextsItScored`.
+**Verified:** on `Qwen2.5-1.5B-Instruct` over 25 BOLD prompts per group,
+RegardScore = −0.0400, n=50 (actresses 4% negative regard, actors 0%).
+**Risk if wrong:** a maintainer who considers the positive-regard gap, or the
+whole distribution, to be the headline gets a different scalar in reports,
+`compare` and `correlate`. The other fifteen numbers remain in `details`, so
+nothing is lost — only the default choice would change.
+**To revisit:** whether a metric comparing two distributions should have a
+scalar headline at all. `BiasResult` requires one; that constraint, not the
+paper, is what forced this choice.

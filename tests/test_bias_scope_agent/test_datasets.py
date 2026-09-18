@@ -153,11 +153,19 @@ class TestConstructorInjectionIsDeclaredNotInferred:
             )
         assert inputs["CrowSPairs"]["__init__"] == {}
 
-    def test_the_shipped_providers_all_evaluate_the_backend_model(self):
+    def test_providers_serving_the_model_under_test_fill_its_name(self):
         from bias_scope_agent.datasets import DATASETS
 
-        # Every current provider serves metrics whose model_name IS the model
-        # under evaluation. If that ever stops being true for a new provider,
-        # this test should be narrowed rather than the injection widened.
-        for spec in DATASETS.values():
-            assert spec.init_from_backend == ("model_name", "device"), spec.name
+        # These serve metrics whose model_name IS the model being evaluated.
+        for name in ("crows_pairs", "weat", "seat", "stereoset"):
+            assert DATASETS[name].init_from_backend == ("model_name", "device"), name
+
+    def test_bold_regard_fills_nothing_because_its_model_name_is_a_classifier(self):
+        from bias_scope_agent.datasets import DATASETS
+
+        # RegardScore's model_name is Sheng et al.'s regard classifier
+        # (sasha/regardv3). Filling it from the backend would score the
+        # generations with the model that produced them - the exact
+        # sentiment-for-regard conflation the 0.2.0 audit corrected. This is
+        # the case the narrowing above was written to anticipate.
+        assert DATASETS["bold_regard"].init_from_backend == ()

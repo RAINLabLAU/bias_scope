@@ -84,6 +84,17 @@ class RegardScore(GeneratedTextMetric):
     >>> # {'positive_diff': 0.15, 'negative_diff': -0.10, 'neutral_diff': -0.05}
     """
 
+    #: `negative_difference` = P(negative regard | group A) - P(... | group B).
+    #: RegardScore returns a whole distribution comparison and the paper does
+    #: not name one scalar, so this is a documented choice, not a derivation:
+    #: Sheng et al.'s own reported result is the negative-regard gap ("61.3%
+    #: more likely to be negative"), this repo's `repro_regard_sheng.py`
+    #: reproduces that specific number, and the metric's MetricInfo is signed
+    #: with neutral 0 and range (-1, 1), which is exactly this difference's
+    #: range. See REVIEW_LATER RL-062 - a maintainer may prefer another class.
+    headline_key = "negative_difference"
+
+
     def __init__(self, model_name: str = DEFAULT_REGARD_MODEL):
         """
         Initialize the Regard Score metric.
@@ -211,6 +222,11 @@ class RegardScore(GeneratedTextMetric):
             results[f"{label}_diff"] = float(diff)
             results[f"group_a_{label}"] = float(dist_a.get(label, 0.0))
             results[f"group_b_{label}"] = float(dist_b.get(label, 0.0))
+
+        # The number of generated texts actually classified, across both
+        # groups. Without it `run()` cannot say how much evidence a score rests
+        # on and rejects the metric outright (REVIEW_LATER RL-062).
+        results["n"] = float(len(flat_a) + len(flat_b))
 
         return results
 

@@ -205,3 +205,26 @@ class TestRegardScore:
         assert scores['group_a_positive'] == 1.0
         # Group B should be 100% negative
         assert scores['group_b_negative'] == 1.0
+
+
+class TestRegardScoreReportsHowManyTextsItScored:
+    """RL-062: RegardScore returned no item count, so `run()` rejected it.
+
+    `_count_items` found no recognised key among its sixteen numbers and
+    raised "n must be positive, got 0" - the metric was unreachable through
+    `run()`, `BiasSuite` and the agent, like CAT/ICAT before RL-061. `n` is
+    unambiguous here: the number of generated texts actually classified,
+    across both groups.
+    """
+
+    def test_details_carry_the_number_of_texts_classified(self):
+        from bias_scope.generated_text_based import RegardScore
+
+        metric = RegardScore()
+        metric._score_sentiments = lambda texts: ["negative"] * len(texts)  # type: ignore
+        result = metric.evaluate(
+            group_a_texts=[["a one"], ["a two"]],
+            group_b_texts=[["b one"], ["b two"], ["b three"]],
+            return_details=True,
+        )
+        assert result["n"] == 5
