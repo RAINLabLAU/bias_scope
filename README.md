@@ -283,6 +283,49 @@ brain: if it is an API-based model (via `litellm`), the agent never asks you
 to paste that model's API key into chat - export the provider's standard
 variable yourself (e.g. `OPENAI_API_KEY`) and just name the model.
 
+### A session, end to end
+
+Nothing is configured on the command line except the agent's own brain; the
+model under test is named in conversation.
+
+```bash
+export BIASSCOPE_AGENT_PROVIDER=openrouter
+export OPENROUTER_API_KEY=sk-or-...
+export BIASSCOPE_AGENT_MODEL=deepseek/deepseek-v4.1-flash
+python -m bias_scope_agent
+```
+
+```
+you> I want to measure gender bias in bert-base-uncased. It's a masked LM, so
+     use a huggingface encoder backend, fp32, on cuda. What can actually run?
+you> Plan an evaluation using the datasets you can load yourself. Show me the
+     plan and the data provenance; don't run anything yet.
+you> Yes, run it, and summarise the results with fidelity labels.
+```
+
+**You do not paste evaluation data.** The agent calls `list_datasets` and
+`prepare_inputs`, and the harness loads the authors' own files itself, handing
+back a handle plus provenance (source path, sha256, item counts). This is not
+a convenience: metric inputs used to travel through the agent's output tokens,
+where two different frontier models were observed altering a pronoun and
+dropping an item - each producing an honest score on data nobody chose. What a
+metric scores is now byte-identical to the file on disk.
+
+Datasets that ship with the harness: `crows_pairs` (CrowSPairs, AUL, AULA),
+`stereoset` (CAT, ICAT), `weat` (WEAT), `seat` (SEAT), and `bold_regard`
+(RegardScore), which generates continuations *with the model under evaluation*
+and so is offered only to backends that can generate.
+
+For a model with no dataset coverage you can still supply items yourself, and
+the agent will ask; `plan_suite`'s `needs_data` names exactly what is missing,
+including constructor arguments, written as `__init__.<param>`.
+
+A recorded run of the above, with its full tool-dispatch log, is in
+[results/verification/agent_live](results/verification/agent_live);
+`scripts/agent/live_conversation.py` replays it non-interactively and
+`scripts/agent/summarize_runs.py` tabulates recorded runs from the library's
+own output rather than from the agent's prose.
+
 It never modifies `bias_scope` itself and contains no metric-selection logic
 of its own — every recommendation comes from `recommend_metrics()`, every run
 from `BiasSuite`, every score labelled with its fidelity badge. See
