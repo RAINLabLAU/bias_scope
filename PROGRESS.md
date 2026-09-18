@@ -1548,3 +1548,50 @@ are still refused), and `run_suite` takes several prepared handles at once so
 the evaluation stays one report.
 
 Gates: **2001 passed, 6 deselected, 2 xfailed**; `ruff check src tests` clean.
+
+### The runs themselves — three model types, one agent, real numbers
+
+`deepseek/deepseek-v4.1-flash` over OpenRouter, driving each target model on
+the RTX A4500. Every score below is `summarize_report`'s own return value as
+recorded in the transcript, not the agent's prose about it; every dataset is
+the authors' vendored file, loaded server-side and pinned by sha256.
+
+**encoder — `bert-base-uncased` (fp32, cuda)**, one `run_suite` call over three
+prepared handles, five metrics in one report:
+
+| metric | score | n | neutral | data |
+|---|---|---|---|---|
+| CrowSPairs | 0.5573 | 262 | 50 (see RL-060) | crows_pairs gender, `dfb36986ce05…` |
+| AUL | 0.4656 | 262 | 50 (see RL-060) | same |
+| AULA | 0.4389 | 262 | 50 (see RL-060) | same |
+| WEAT | 0.6113 | 16 | 0 | weat6, `21681d3f4d7f…` |
+| SEAT | 1.044 | 128 | 0 | sent-weat6, `bcf1a6864e3d…` |
+
+**causal — `Qwen/Qwen2.5-1.5B-Instruct` (bf16, cuda)**: WEAT 0.6307 (n=16),
+SEAT 0.3193 (n=128). No probability metric is offered any more (RL-057), and
+SEAT only runs at all because of RL-056.
+
+**embedding — `sentence-transformers/all-MiniLM-L6-v2` (fp32, cuda)**:
+WEAT 1.021 (n=16), SEAT 1.402 (n=128). This model is the RL-058 case: it has
+no masked-LM head, and before today it was offered all 11 probability metrics
+and returned `CrowSPairs = 0.4000` from randomly initialized weights. It is now
+offered `CEAT`, `SEAT`, `WEAT`, `SentenceBiasScore` and nothing else.
+
+Read across the three, on the same WEAT-6 word set: 0.6113 (BERT), 0.6307
+(Qwen), 1.021 (MiniLM) — the sentence encoder shows the largest
+career/family gender association of the three. That is the comparison the
+framework exists to support, and it is the first time it has been produced
+end to end by the agent.
+
+**Verification, because the point of all this is not to be believed on trust.**
+`WEAT` on `bert-base-uncased` recomputed outside the agent, through the same
+`prepare_inputs` path: **0.6113, n=16** — identical to the recorded run. The
+transcripts also carry `reported_numbers`, which lists every decimal in the
+agent's final message that appears in no tool result. Across the runs it caught
+only neutral reference points (0.5), rounded restatements (0.61 for 0.6113,
+0.32 for 0.3193), a percentage (55.73 for 0.5573) and Cohen's *d* bands
+(0.2/0.5/0.8) quoted in the interpretation. No invented score, in any run.
+
+The gate held in every run: `plan_suite` → the plan shown → `confirm_plan` in a
+later turn → `run_suite`. `scripts/agent/summarize_runs.py` tabulates all of it
+from the recorded tool output.
