@@ -216,121 +216,229 @@ The repository includes runnable examples for each metric family:
 ## Agent (optional)
 
 `bias_scope_agent` is a thin, separate package that wraps BiasScope in a
-conversational agent: a single LLM, in a tool-calling loop, that talks to you
-about your model, recommends which metrics can legally run against it, shows
-you the plan, and only executes it once you have explicitly confirmed — never
-inventing input data, never running a metric on a plan you have not seen.
+conversational agent: one LLM in a tool-calling loop that works out how your
+model can be accessed, tells you which metrics can legally run against it and
+which cannot and why, shows you a plan, and executes it only after you have
+explicitly confirmed. It adds no metric-selection logic of its own — every
+recommendation comes from `recommend_metrics()`, every run from `BiasSuite`,
+every score carries its fidelity badge.
+
+### 1. Install
 
 ```bash
-pip install "bias-scope[agent]"
+pip install "bias-scope[agent]"          # Claude as the agent LLM
+pip install "bias-scope[agent-openai]"   # GPT, a local server, or OpenRouter
+pip install "bias-scope[agent-gemini]"   # Gemini
+pip install "bias-scope[llm]"            # litellm, as a general escape hatch
+```
+
+Add `[torch]` if the model you want to *evaluate* is a local Hugging Face one.
+
+### 2. Configure
+
+The agent is configured **entirely by environment variable**; the REPL takes no
+command-line flags. Nothing loads a `.env` file for you — source it yourself:
+
+```bash
+set -a; . ./.env; set +a
+```
+
+**Choosing the agent's brain**
+
+| Variable | Values | Default |
+|---|---|---|
+| `BIASSCOPE_AGENT_PROVIDER` | `anthropic`, `openai`, `gemini`, `local`, `openrouter`, `litellm` | `anthropic` |
+| `BIASSCOPE_AGENT_MODEL` | any slug that provider accepts | per-provider (below) |
+| `BIASSCOPE_AGENT_MAX_TOKENS` | integer | `2048` |
+| `BIASSCOPE_AGENT_INSPECT_LIVE` | `1/true/yes/on` ⟷ `0/false/no/off` | `true` |
+
+Set `BIASSCOPE_AGENT_INSPECT_LIVE=0` to stop `inspect_model` making live Hub
+lookups; it then uses local config files and litellm's bundled registry.
+
+Default model per provider, when `BIASSCOPE_AGENT_MODEL` is unset:
+
+| Provider | Default model |
+|---|---|
+| `anthropic` | `claude-sonnet-4-5-20250929` |
+| `openai` | `gpt-4o-mini` |
+| `gemini` | `gemini-2.0-flash` |
+| `local` | `llama3.1` |
+| `openrouter` | `anthropic/claude-3.5-sonnet` |
+| `litellm` | `openrouter/anthropic/claude-3.5-sonnet` |
+
+**Credentials**
+
+| Provider | Variable | Notes |
+|---|---|---|
+| `anthropic` | `ANTHROPIC_API_KEY` | |
+| `openai` | `OPENAI_API_KEY` | |
+| `gemini` | `GOOGLE_API_KEY` | |
+| `openrouter` | `OPENROUTER_API_KEY` | endpoint is fixed, not overridable |
+| `litellm` | resolved by litellm from the model prefix | not checked up front |
+| `local` | `BIASSCOPE_AGENT_LOCAL_API_KEY` (default `local`), `BIASSCOPE_AGENT_LOCAL_BASE_URL` (default `http://localhost:11434/v1`) | most local servers ignore the key |
+
+A missing key fails at startup naming the variable, rather than as a traceback
+from deep inside an SDK on the first turn.
+
+Examples:
+
+```bash
+# Anthropic (the default)
 export ANTHROPIC_API_KEY=sk-...
-python -m bias_scope_agent
-```
 
-By default the agent LLM is Claude. `openai` and `gemini` are also supported
-via `BIASSCOPE_AGENT_PROVIDER`:
-
-```bash
-pip install "bias-scope[agent-openai]"   # or [agent-gemini]
-export BIASSCOPE_AGENT_PROVIDER=openai   # or gemini
-export OPENAI_API_KEY=sk-...             # or GOOGLE_API_KEY for gemini
-python -m bias_scope_agent
-```
-
-If the relevant API key is missing, `python -m bias_scope_agent` fails
-immediately with a message naming the exact environment variable to set,
-rather than a traceback from deep inside the SDK.
-
-The agent LLM can also be a **local** model — anything served behind an
-OpenAI-compatible endpoint (Ollama, llama.cpp's server, LM Studio, vLLM):
-
-```bash
-pip install "bias-scope[agent-openai]"   # reused as a generic OpenAI-compatible client
-export BIASSCOPE_AGENT_PROVIDER=local
-export BIASSCOPE_AGENT_MODEL=llama3.1              # whatever you've pulled
-export BIASSCOPE_AGENT_LOCAL_BASE_URL=http://localhost:11434/v1   # defaults to this (Ollama)
-python -m bias_scope_agent
-```
-
-No API key needed — `local` defaults to a placeholder most local servers
-ignore. Override it with `BIASSCOPE_AGENT_LOCAL_API_KEY` if yours checks one.
-
-Two more options for the agent's own brain, both reusing the OpenAI-shaped
-tool-calling wire format:
-
-```bash
-# OpenRouter directly - one key, access to OpenRouter's model catalog
-pip install "bias-scope[agent-openai]"
-export BIASSCOPE_AGENT_PROVIDER=openrouter
-export OPENROUTER_API_KEY=sk-or-...
-export BIASSCOPE_AGENT_MODEL=anthropic/claude-3.5-sonnet   # any OpenRouter slug
-python -m bias_scope_agent
-```
-
-```bash
-# litellm - a general escape hatch to any of the 100+ providers it supports,
-# OpenRouter included (note the extra "openrouter/" routing prefix litellm
-# itself needs, on top of the slug above)
-pip install "bias-scope[llm]"
-export BIASSCOPE_AGENT_PROVIDER=litellm
-export OPENROUTER_API_KEY=sk-or-...            # or whichever provider you route to
-export BIASSCOPE_AGENT_MODEL=openrouter/anthropic/claude-3.5-sonnet
-python -m bias_scope_agent
-```
-
-The same rule applies to the model being *tested*, not just the agent's own
-brain: if it is an API-based model (via `litellm`), the agent never asks you
-to paste that model's API key into chat - export the provider's standard
-variable yourself (e.g. `OPENAI_API_KEY`) and just name the model.
-
-### A session, end to end
-
-Nothing is configured on the command line except the agent's own brain; the
-model under test is named in conversation.
-
-```bash
+# OpenRouter - one key, its whole catalogue
 export BIASSCOPE_AGENT_PROVIDER=openrouter
 export OPENROUTER_API_KEY=sk-or-...
 export BIASSCOPE_AGENT_MODEL=deepseek/deepseek-v4.1-flash
-python -m bias_scope_agent
+
+# A local server (Ollama, llama.cpp, LM Studio, vLLM) - no key needed
+export BIASSCOPE_AGENT_PROVIDER=local
+export BIASSCOPE_AGENT_MODEL=llama3.1
+export BIASSCOPE_AGENT_LOCAL_BASE_URL=http://localhost:11434/v1
+
+# litellm - anything it routes to, using its own model-string conventions
+export BIASSCOPE_AGENT_PROVIDER=litellm
+export BIASSCOPE_AGENT_MODEL=openrouter/anthropic/claude-3.5-sonnet
 ```
 
+The agent LLM must support **tool calling**. A model that only returns text —
+or a structured-output endpoint that returns no text at all — cannot drive it.
+
+### 3. Run
+
+```bash
+python -m bias_scope_agent      # or the console script: bias-scope-agent
 ```
-you> I want to measure gender bias in bert-base-uncased. It's a masked LM, so
-     use a huggingface encoder backend, fp32, on cuda. What can actually run?
-you> Plan an evaluation using the datasets you can load yourself. Show me the
-     plan and the data provenance; don't run anything yet.
-you> Yes, run it, and summarise the results with fidelity labels.
+
+Exit with `exit`, `quit`, or Ctrl-D.
+
+### 4. Use it
+
+The model you want to evaluate is named **in conversation**, not configured.
+A session takes at least three turns, because the confirm-before-run gate
+requires a plan to be shown and then confirmed in a *later* turn:
+
+```
+you> I want to measure gender bias in bert-base-uncased. It is a masked LM, so
+     use a huggingface encoder backend, fp32, on cuda. Which metrics can
+     actually run on it, and which cannot, and why?
+
+agent> [calls inspect_model, construct_backend, recommend_metrics,
+        explain_exclusions — reports both what runs and what was excluded]
+
+you> Plan an evaluation, axis gender, language en, using the datasets you can
+     load yourself. Show me the plan and the data provenance. Don't run yet.
+
+agent> [calls list_datasets, prepare_inputs, plan_suite — shows the metric set,
+        the source file and sha256 of each dataset, and stops]
+
+you> Yes, run it, and summarise the results with their fidelity labels.
+
+agent> [calls confirm_plan, run_suite, summarize_report]
+
+        Bias report for bert-base-uncased
+        embedding:
+          [faithful] WEAT: 0.6113 (n=16)
+          [faithful] SEAT: 1.044 (n=128)
+        probability:
+          [faithful] CrowSPairs: 55.73 (n=262)
+          [faithful] AUL: 46.56 (n=262)
+          [faithful] AULA: 43.89 (n=262)
+          [faithful] CAT: 69 (n=229)
+          [faithful] ICAT: 51.99 (n=229)
 ```
 
-**You do not paste evaluation data.** The agent calls `list_datasets` and
-`prepare_inputs`, and the harness loads the authors' own files itself, handing
-back a handle plus provenance (source path, sha256, item counts). This is not
-a convenience: metric inputs used to travel through the agent's output tokens,
-where two different frontier models were observed altering a pronoun and
-dropping an item - each producing an honest score on data nobody chose. What a
-metric scores is now byte-identical to the file on disk.
+**Target-model arguments**, which you give in words and the agent passes to
+`construct_backend`:
 
-Datasets that ship with the harness: `crows_pairs` (CrowSPairs, AUL, AULA),
-`stereoset` (CAT, ICAT), `weat` (WEAT), `seat` (SEAT), and `bold_regard`
-(RegardScore), which generates continuations *with the model under evaluation*
-and so is offered only to backends that can generate.
+| Argument | Values |
+|---|---|
+| `kind` | `huggingface` or `litellm` |
+| `model_id` | a Hub id, a local path, or an API model string |
+| `backend_kind` | `causal` or `encoder` (required for `huggingface`) |
+| `dtype` | `bf16` (default), `fp32`, `fp16` |
+| `device` | e.g. `cuda`, `cpu` — **there is no auto-detection**; omit it and the model stays on CPU |
+| `api_base` | for a self-hosted or proxied endpoint |
 
-For a model with no dataset coverage you can still supply items yourself, and
-the agent will ask; `plan_suite`'s `needs_data` names exactly what is missing,
+There is deliberately **no `api_key` argument**, so a target model's credentials
+can never enter the transcript. Export the provider's standard variable
+yourself and just name the model.
+
+### You do not paste evaluation data
+
+The agent calls `list_datasets` and `prepare_inputs`, and the harness loads the
+authors' own files itself, returning a handle plus provenance — source path,
+sha256, item counts — and never the data.
+
+This is not a convenience. Metric inputs used to travel through the agent's
+output tokens, and two different frontier models were observed corrupting them:
+one rewrote *"one of the best engineers in **her** field"* as *"**his** field"*,
+destroying the minimal pair on exactly the token CrowS-Pairs measures; the other
+silently dropped an item and scored 19 where 20 were asked for. Both produced
+honest scores on data nobody chose. What a metric scores is now byte-identical
+to the file on disk.
+
+Datasets that ship with the harness:
+
+| Dataset | Feeds | Axes |
+|---|---|---|
+| `crows_pairs` | `CrowSPairs`, `AUL`, `AULA` | gender, race, religion, age, and five more |
+| `stereoset` | `CAT`, `ICAT` | gender, race, religion, profession |
+| `weat` | `WEAT` | gender, race, age |
+| `seat` | `SEAT` | gender, race, age |
+| `bold_regard` | `RegardScore` | gender |
+
+`bold_regard` **generates** continuations with the model under evaluation, so it
+is offered only to backends that can generate — a causal LM can use it, an
+encoder cannot.
+
+These datasets live under `third_party/`, which is git-ignored. Restore them
+with `python scripts/sources/fetch_sources.py --all`; a loader that cannot find
+its file says which command to run.
+
+Where no dataset covers a metric you can still supply items yourself, and the
+agent will ask. `plan_suite`'s `needs_data` names exactly what is missing,
 including constructor arguments, written as `__init__.<param>`.
 
-A recorded run of the above, with its full tool-dispatch log, is in
-[results/verification/agent_live](results/verification/agent_live);
-`scripts/agent/live_conversation.py` replays it non-interactively and
-`scripts/agent/summarize_runs.py` tabulates recorded runs from the library's
-own output rather than from the agent's prose.
+### What the agent will not do
 
-It never modifies `bias_scope` itself and contains no metric-selection logic
-of its own — every recommendation comes from `recommend_metrics()`, every run
-from `BiasSuite`, every score labelled with its fidelity badge. See
-[src/bias_scope_agent](src/bias_scope_agent) for the tool wrappers and
-`BIASSCOPE_AGENT_*` environment variables that configure it.
+- **Run anything you have not confirmed.** The gate is enforced by the tool
+  dispatcher, not by the prompt: `run_suite` is refused unless a matching plan
+  was produced, shown, and confirmed in a later turn.
+- **Report a score for a metric that did not run.** A call that would produce an
+  empty report is rejected, and a metric that declines to score reports its own
+  reason.
+- **Recommend a metric the backend cannot support.** Access is derived from the
+  backend. A causal LM is not offered masked-LM metrics, and an encoder whose
+  checkpoint has no LM head is not offered them either.
+
+Some metrics are recommended but still cannot run here — they need a Perspective
+API key, a lexicon that is not vendored, or they report no single scalar. That
+set is listed with reasons in
+[tests/test_recommendation_validity.py](tests/test_recommendation_validity.py),
+which fails if a recommended metric outside the list stops working, and also
+fails if a listed one starts.
+
+### Scripted runs
+
+For reproducible, non-interactive runs with a full tool-dispatch log:
+
+```bash
+python scripts/agent/live_conversation.py \
+    --scenario {encoder,causal,embedding} \
+    --model-id MODEL_ID \
+    --device cuda \
+    --out-dir results/verification/agent_live
+
+python scripts/agent/summarize_runs.py --check
+```
+
+The first reads the same `BIASSCOPE_AGENT_*` variables and records every turn,
+every tool call with its arguments, `summarize_report`'s own return value, and a
+check listing any figure in the agent's final message that appears in no tool
+result. The second tabulates recorded runs from the library's output rather than
+from the agent's prose. Recorded runs are in
+[results/verification/agent_live](results/verification/agent_live).
 
 ## Documentation
 
