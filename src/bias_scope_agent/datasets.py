@@ -135,11 +135,12 @@ DATASETS: Dict[str, DatasetSpec] = {
             "sent-bias repository. Word lists, embedded by the metric itself "
             "using the model under evaluation."
         ),
-        # CEAT is deliberately absent: it reports `n_samples` (its permutation
-        # sample count) rather than an items-scored count, so `run()`'s guard
-        # rejects it with "n must be positive, got 0" for every input. That is
-        # REVIEW_LATER RL-048, an open question about Guo & Caliskan's
-        # definition - not something a dataset provider may paper over.
+        # CEAT is deliberately absent, and no longer for RL-048's reason (that
+        # is fixed - it completes `run()` now). CEAT's whole point is sampling
+        # a *different context* for each word on every draw; this provider
+        # supplies one embedding per word, so CEAT would resample from a fixed
+        # set of eight vectors, which is WEAT with extra steps and not CEAT.
+        # Serving it faithfully needs per-word sets of contextual embeddings.
         metrics=("WEAT",),
         axes=tuple(_WEAT_BY_AXIS),
         source=f"{_SENT_BIAS_TESTS}/weat<n>.jsonl",
