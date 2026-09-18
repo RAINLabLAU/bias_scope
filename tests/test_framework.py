@@ -565,6 +565,62 @@ class TestEncoderWithoutAMaskedLmHeadDoesNotAdvertiseLogits:
         assert "probability" not in {rec.info.family for rec in recommended}
 
 
+class TestAConfigThatClaimsAHeadTheCheckpointDoesNotShip:
+    """RL-066: RL-058 again, past the config check.
+
+    `sentence-transformers/all-mpnet-base-v2` lists `MPNetForMaskedLM` in its
+    config, so the architecture-name check said "has a head" - but the
+    checkpoint ships no `lm_head.*` weights at all (six MISSING keys at load).
+    transformers initialised them at random and the agent recorded five
+    `[faithful]` probability scores from that head: CrowSPairs 48.85, AULA
+    exactly 50.00. The config is a claim; the weights are the fact.
+    """
+
+    def test_missing_head_weights_withhold_logits(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: False)
+        backend = HuggingFaceBackend("sentence-transformers/all-mpnet-base-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+        assert backend.lm_head_verified is False
+
+    def test_present_head_weights_verify_the_head(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: True)
+        backend = HuggingFaceBackend("bert-base-cased", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is True
+
+    def test_a_config_without_a_head_is_settled_before_any_weights_are_read(self, monkeypatch):
+        def never(model_id):
+            raise AssertionError("weights must not be read when the config already says no")
+
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: False)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", never)
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+    def test_unreadable_weights_leave_the_head_unverified_but_offered(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: None)
+        backend = HuggingFaceBackend("whatever", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is False
+
+    def test_the_tiny_encoder_really_has_its_head(self):
+        # No monkeypatching: the real check on the real test checkpoint, so the
+        # fast suite proves the weight check does not reject a genuine MLM.
+        from tests.conftest import TINY_ENCODER_ID
+
+        backend = HuggingFaceBackend(TINY_ENCODER_ID, kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is True
+
+    @pytest.mark.slow
+    def test_all_mpnet_base_v2_really_has_no_head(self):
+        backend = HuggingFaceBackend("sentence-transformers/all-mpnet-base-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+
 class TestRunDoesNotMutateTheCallersInputs:
     """RL-054: `BiasSuite.run` popped "__init__" out of the dict it was given.
 

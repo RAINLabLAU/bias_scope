@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 _MASKED_LM_ARCHITECTURES = ("ForMaskedLM", "ForPreTraining")
 
 
-def _has_masked_lm_head(model_id: str) -> Optional[bool]:
+def _config_claims_masked_lm(model_id: str) -> Optional[bool]:
     """True/False from the checkpoint's config, or None if it cannot be read.
 
     None means "unknown" (offline, a local directory without a config, a repo
@@ -44,6 +44,41 @@ def _has_masked_lm_head(model_id: str) -> Optional[bool]:
     if not architectures:
         return None
     return any(name.endswith(_MASKED_LM_ARCHITECTURES) for name in architectures)
+
+
+def _checkpoint_has_head_weights(model_id: str) -> Optional[bool]:
+    """Does the checkpoint populate every parameter of its masked-LM head?
+
+    The config is a claim; the weights are the fact. `all-mpnet-base-v2` lists
+    `MPNetForMaskedLM` yet ships no `lm_head.*` tensors, so transformers
+    reports them as missing keys and initialises them at random (RL-066).
+    A genuine masked LM loads with no missing keys (bert-base-cased,
+    roberta-base, the tiny test encoder). None if the weights cannot be read.
+
+    This loads the model once, on CPU, and discards it. It is the price of
+    not scoring with a random head, paid once per backend construction.
+    """
+    try:
+        from transformers import AutoModelForMaskedLM
+        from transformers.utils import logging
+
+        verbosity = logging.get_verbosity()
+        logging.set_verbosity_error()  # the MISSING report is what we read, not noise
+        try:
+            _, info = AutoModelForMaskedLM.from_pretrained(model_id, output_loading_info=True)
+        finally:
+            logging.set_verbosity(verbosity)
+    except Exception:
+        return None
+    return not info.get("missing_keys")
+
+
+def _has_masked_lm_head(model_id: str) -> Optional[bool]:
+    """Config says masked LM *and* the checkpoint ships the head's weights."""
+    claimed = _config_claims_masked_lm(model_id)
+    if claimed is not True:
+        return claimed
+    return _checkpoint_has_head_weights(model_id)
 
 
 
@@ -123,7 +158,8 @@ class HuggingFaceBackend(Backend):
         # If a causal-logits metric is ever added, split this into two access
         # modes rather than widening this one back.
         # An encoder offers `logits` only if its checkpoint actually has a
-        # masked-LM head; see _has_masked_lm_head. `lm_head_verified` records
+        # masked-LM head - claimed by the config AND present in the weights;
+        # see _has_masked_lm_head (RL-058, RL-066). `lm_head_verified` records
         # whether that could be established, so an unreadable config is
         # distinguishable from a confirmed head.
         self.lm_head_verified = False

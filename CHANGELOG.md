@@ -69,6 +69,25 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   now states what the two modes are and cites the reproduction.
 
 ### Fixed
+- **An encoder whose config claims a masked-LM head the checkpoint does not
+  ship was scored with a random head.** `sentence-transformers/all-mpnet-base-v2`
+  lists `MPNetForMaskedLM` but has no `lm_head.*` tensors; the RL-058 check
+  read only the config, so five probability metrics were recommended, run and
+  badged `faithful` at chance level (AULA exactly 50.00). `HuggingFaceBackend`
+  now also loads the masked-LM model once and withholds `logits` when any head
+  weight is missing (`REVIEW_LATER` RL-066).
+- **WEAT and SEAT failed on GPT-2-style tokenizers.** `pooling='cls'` batched
+  texts of unequal length through a tokenizer with no pad token and raised
+  "Asking to pad but the tokenizer does not have a padding token"; both
+  metrics were skipped on `gpt2` in a live agent run. The encoder now pads with
+  end-of-sequence, the choice `HuggingFaceBackend.generate` already made
+  (RL-067).
+- `scripts/agent/live_conversation.py` records `recommendation_coverage`
+  (recommended vs feedable vs planned vs run vs scored) and
+  `summarize_runs.py --check` tabulates it for every recorded run, so a
+  recommended metric the agent quietly left out is a listed gap rather than
+  an unnoticed omission. The Unicode minus in an agent's prose is normalised
+  before figures are traced to tool results.
 - **`run()` rejected legitimate results.** A metric whose per-item values are
   all equal gives a degenerate bootstrap interval `[v, v]`, and the mean can
   miss both endpoints by one ULP from summation order, so the bracketing guard

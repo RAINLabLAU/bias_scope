@@ -1688,3 +1688,83 @@ reason all of these reached a release. It asserts every recommended metric runs
 or appears in `KNOWN_UNRUNNABLE` with a reason, and a second test fails when a
 listed entry starts working, which caught two entries I had over-listed on its
 first run.
+
+## 2026-09-19 — five more target models through the agent, and a check that the recommended metrics are the ones it runs
+
+Goal for the session: run the agent on a few more models and make sure the
+metrics it *recommends* are the metrics it *runs*. Agent LLM
+`deepseek/deepseek-v4.1-flash` over OpenRouter; targets on the A4500 (fp32
+for encoders, bf16 for causal); every dataset sha256-pinned through
+`prepare_inputs`. Eight conversations recorded under
+`results/verification/agent_live/`.
+
+**The check did not exist.** Each transcript already carried the
+recommendation output, the plan, the `run_suite` call and the summary, but
+nothing compared them - a recommended metric quietly left out looked the same
+as one that ran. `recommendation_coverage` in
+`scripts/agent/live_conversation.py` now derives, from the transcript alone:
+recommended → feedable (a dataset provider serves it and the backend has the
+access it needs) → planned → run → scored, and `complete` means every
+feedable metric was scored and nothing was scored that was never recommended.
+Written test-first (`tests/test_bias_scope_agent/test_recommendation_coverage.py`,
+7 tests); `summarize_runs.py --check` recomputes it for old runs too, and on
+them it reproduces yesterday's account exactly (bert-base-uncased fed 0, then
+1, then 5, then 7 of 7).
+
+**Results, from `summarize_report`'s own output:**
+
+    encoder    bert-base-cased        CrowSPairs 57.63  AUL 53.05  AULA 53.82  (n=262)
+                                      CAT 64.19  ICAT 59.11                    (n=229)
+                                      WEAT 0.3792 (n=16)  SEAT 0.9246 (n=128)
+    encoder    roberta-base           CrowSPairs 54.96  AUL 56.49  AULA 53.44  (n=262)
+                                      CAT 55.46  ICAT 61.07                    (n=229)
+                                      WEAT -0.6074 (n=16) SEAT 1.099 (n=128)
+    causal     Qwen2.5-0.5B-Instruct  WEAT 0.847 (n=16)   SEAT 0.2512 (n=128)
+                                      RegardScore 0.02 (n=100) [ADAPTATION]
+    causal     gpt2                   WEAT 0.5183 (n=16)  SEAT -0.0486 (n=128)
+                                      RegardScore 0.02 (n=100) [ADAPTATION]
+    embedding  all-mpnet-base-v2      WEAT 1.257 (n=16)   SEAT 1.042 (n=128)
+
+Coverage on the final transcript of each: 15 recommended / 7 feedable / 7
+scored (both encoders), 19 / 3 / 3 (both causal), 4 / 2 / 2 (mpnet). WEAT and
+CrowSPairs on bert-base-cased recomputed outside the agent through the same
+`prepare_inputs` path: 0.3792 and 57.6336, identical. The confirm gate held in
+all eight runs; `reported_numbers` found no figure that was not a rounding,
+a neutral point or a Cohen's-d band. RoBERTa's `<mask>` token went through
+the `[MASK]`-normalising scorer without incident.
+
+**Two defects found by the new models, both fixed test-first the same day.**
+
+*RL-066 - RL-058 recurred past the config check.* `all-mpnet-base-v2` lists
+`MPNetForMaskedLM` in its config, so `_has_masked_lm_head` said yes and all
+11 probability metrics were recommended. The checkpoint ships no `lm_head.*`
+tensors; transformers initialised them at random, and the first run reported
+CrowSPairs 48.85, AUL 50.38, AULA **50.00**, CAT 54.59, ICAT 38.87 - all
+badged `faithful`, all from a random head, and the coverage check called the
+run *complete*, because it was: the wrong metrics were run completely. The
+config is a claim; the weights are the fact. `HuggingFaceBackend` now loads
+the masked-LM model once with `output_loading_info=True` and withholds
+`logits` when any head weight is missing (empty `missing_keys` verified for
+bert-base-uncased, bert-base-cased, roberta-base and the tiny test encoder;
+six missing for each sentence-transformers checkpoint). The rerun recommends
+4 metrics instead of 15. The invalidated transcript is moved to
+`results/verification/agent_live/invalidated/` with a README; it is evidence,
+not a result.
+
+*RL-067 - WEAT and SEAT skipped on gpt2.* "Asking to pad but the tokenizer
+does not have a padding token." The agent reported the skips honestly and the
+coverage check marked the run incomplete, so this one was visible. The pad
+token is now set to end-of-sequence, as `HuggingFaceBackend.generate`
+already did - in *both* loaders: the first rerun fixed SEAT (`cls` path) and
+still skipped WEAT (sentence-transformers `mean` path), which is how the
+second was found. Third gpt2 run: complete.
+
+**Logged, not changed:** RL-068 - `pooling='cls'` on a decoder-only LM reads
+the first token's hidden state, so the causal SEAT numbers are of uncertain
+meaning even though the statistic is WEAT's; the fix is a protocol decision
+to be read from May et al.'s code, not made here. RL-069 - the agent's
+interpretive prose is occasionally wrong where the numbers are right (SEAT
+called "not comparable to WEAT's d"; WEAT's sign called absent).
+
+`ruff check src tests scripts/agent` clean; fast suite 2038 passed, 2 xfailed;
+`-m slow` on `test_framework.py` and `test_recommendation_validity.py` green.

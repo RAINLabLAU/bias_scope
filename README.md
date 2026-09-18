@@ -410,7 +410,10 @@ including constructor arguments, written as `__init__.<param>`.
   reason.
 - **Recommend a metric the backend cannot support.** Access is derived from the
   backend. A causal LM is not offered masked-LM metrics, and an encoder whose
-  checkpoint has no LM head is not offered them either.
+  checkpoint has no LM head is not offered them either. That check reads the
+  loaded weights, not only the config: a checkpoint whose config claims a
+  masked-LM architecture but ships no head weights (the sentence-transformers
+  `all-mpnet-base-v2`) is treated as having no head.
 
 Some metrics are recommended but still cannot run here — they need a Perspective
 API key, a lexicon that is not vendored, or they report no single scalar. That

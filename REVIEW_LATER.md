@@ -1675,3 +1675,70 @@ agent that plans them reports a skip. That is visible, not silent.
 mean absolute log-ratio (and fix `direction` if so), and Cheng et al. for what
 `MarkedPersons` reports as a single number - or decide that neither has a
 scalar and that `BiasResult` should be able to represent that.
+
+## RL-066 · decide · 2026-09-19 · RL-058 recurred past the config check: a config can claim a masked-LM head the checkpoint does not ship
+**Encountered:** running the agent on `sentence-transformers/all-mpnet-base-v2`.
+Its config lists `MPNetForMaskedLM`, so `_has_masked_lm_head` (RL-058) said
+yes and all 11 probability metrics were recommended. The checkpoint has no
+`lm_head.*` tensors (six MISSING keys at load); transformers initialised them
+at random and the agent reported CrowSPairs 48.85, AUL 50.38, AULA 50.00, CAT
+54.59, ICAT 38.87 - all badged `faithful`, all from a random head. Transcript:
+`results/verification/agent_live/invalidated/embedding__*all-mpnet-base-v2__20260918T214413Z.json`
+(moved out of the tabulated directory and kept as evidence; its probability
+rows are not results - see the README there).
+**Chosen:** the config check stays as a fast negative; when it says yes,
+`_checkpoint_has_head_weights` loads the model through `AutoModelForMaskedLM`
+with `output_loading_info=True` and the head counts as present only when
+`missing_keys` is empty. Verified empty for bert-base-uncased/-cased,
+roberta-base and the tiny test encoder; non-empty for both sentence-transformers
+checkpoints. Tests: `tests/test_framework.py::TestAConfigThatClaimsAHeadTheCheckpointDoesNotShip`.
+**Risk if wrong:** backend construction now loads the encoder once on CPU
+(seconds for a base model); "constructing a backend costs nothing" no longer
+holds for encoders. An MLM whose checkpoint legitimately omits a tied bias
+would lose `logits` - none seen yet.
+**To revisit:** read only the checkpoint's key names (safetensors header) if
+the load cost ever matters.
+
+## RL-067 · fix · 2026-09-19 · WEAT/SEAT skipped on gpt2: no pad token
+**Encountered:** the agent's gpt2 run planned WEAT, SEAT and RegardScore; the
+suite skipped the first two with "Asking to pad but the tokenizer does not have
+a padding token". `_load_cls_encoder` batched unequal-length texts with
+`padding=True` through a tokenizer that has no pad token. The agent reported
+the skips honestly (`recommendation_coverage.complete = False`), so this was
+visible, not silent.
+**Chosen:** `tokenizer.pad_token = tokenizer.eos_token` when absent - the
+choice `HuggingFaceBackend.generate` already makes - in both loaders: the
+`pooling='cls'` path (`_load_cls_encoder`) and the sentence-transformers path
+(`_load_sentence_transformer`, WEAT's default `pooling='mean'`). The first
+rerun fixed SEAT and still skipped WEAT, which is how the second path was
+found. Test: `tests/test_embeddings/test_cls_pooling.py::TestATokenizerWithoutAPadToken`.
+**Risk if wrong:** none for the vectors read (position 0, attention-masked).
+
+## RL-068 · verify · 2026-09-19 · `pooling='cls'` on a decoder-only LM reads the first token's hidden state
+**Encountered:** WEAT and SEAT run on causal LMs (Qwen2.5, gpt2) through
+`_embed_cls`, which takes `last_hidden_state[:, 0, :]`. A decoder-only model
+has no `[CLS]`; position 0 attends to nothing but itself, so the "sentence
+vector" is a function of the first token alone. `docs/fidelity/seat.md`
+records the reference's position-0 pooling for its BERT encoder only; what
+May et al.'s code does for GPT-style encoders is not recorded there and
+must be read from `sent-bias/encoders/` before anything is changed. The Qwen
+SEAT scores (0.2512, 0.3193) and gpt2's are therefore of uncertain meaning
+even though the statistic is WEAT's.
+**Chosen:** not changed - changing pooling changes the protocol and the
+recorded numbers, and the plan forbids changing a protocol to fit. Logged.
+**To revisit:** decide a causal-LM pooling (last token, or mean) from the
+paper, add it as a documented option, and re-run the causal scenarios.
+
+## RL-069 · verify · 2026-09-19 · the agent's interpretive prose is occasionally wrong where the numbers are right
+**Encountered:** every score in the eight 2026-09-18/19 runs traces to a tool
+result, but the explanations around them do not always. In the
+Qwen2.5-0.5B run the agent wrote that SEAT's "scale is a differential
+association score, not directly comparable to WEAT's d" (SEAT *is* WEAT's
+effect size) and that WEAT's sign "isn't in the number I was given" (it is).
+On bert-base-cased it described WEAT as "relative to a permutation null"
+(no permutation test was run).
+**Chosen:** nothing in code; `summarize_report` is correct and the check
+`reported_numbers` covers figures, not claims. Logged so a maintainer reading
+transcripts does not take the prose as the library's statement.
+**To revisit:** the system prompt could hand the agent each metric's
+one-line docstring formula so its interpretation has something to quote.

@@ -23,7 +23,14 @@ def _load_sentence_transformer(model_name: str) -> Any:
             "Install the embedding dependencies or pass precomputed embeddings."
         ) from exc
 
-    return SentenceTransformer(model_name)
+    model = SentenceTransformer(model_name)
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is not None and getattr(tokenizer, "pad_token", None) is None:
+        # Same fix as _load_cls_encoder: GPT-2-style tokenizers have no pad
+        # token, so mean pooling over a batch raised before embedding anything
+        # (REVIEW_LATER RL-067).
+        tokenizer.pad_token = tokenizer.eos_token
+    return model
 
 
 @lru_cache(maxsize=4)
@@ -38,6 +45,13 @@ def _load_cls_encoder(model_name: str) -> tuple[Any, Any]:
         ) from exc
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        # GPT-2-style tokenizers ship no pad token, and a batch of texts of
+        # unequal length cannot be padded without one. Pad with end-of-sequence,
+        # the same choice HuggingFaceBackend.generate makes; the attention mask
+        # keeps the pad positions out of the hidden states that are read
+        # (REVIEW_LATER RL-067).
+        tokenizer.pad_token = tokenizer.eos_token
     model = AutoModel.from_pretrained(model_name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()

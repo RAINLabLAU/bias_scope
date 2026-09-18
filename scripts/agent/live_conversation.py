@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from bias_scope_agent.config import AgentConfig, load_config
+from bias_scope_agent.datasets import DATASETS
 from bias_scope_agent.loop import AgentLoop
 from bias_scope_agent.session import AgentSession
 
@@ -166,7 +167,8 @@ def check_reported_numbers(record: Dict[str, Any]) -> Dict[str, Any]:
     )
     from_tools = set(_NUMBER.findall(tool_text))
     final = record["exchanges"][-1]["agent"] if record["exchanges"] else ""
-    reported = set(_NUMBER.findall(final))
+    # Models write a typographic minus; the library writes "-". Same number.
+    reported = set(_NUMBER.findall(final.replace("\u2212", "-")))
     unmatched = sorted(
         value
         for value in reported
@@ -190,6 +192,93 @@ def scored_metrics(record: Dict[str, Any]) -> List[Tuple[str, str]]:
             if match:
                 rows.append((match.group(2), match.group(3)))
     return rows
+
+
+_SUMMARY_LINE = re.compile(r"\s*\[(\w+)\]\s*(\w+):\s*(\S+)")
+_SKIPPED_LINE = re.compile(r"\s*(\w+):\s*(.+)$")
+
+
+def _tool_metric_names(record: Dict[str, Any], tool: str) -> List[str]:
+    """Union of `metric_names` across the *successful* calls of one tool."""
+    names = set()
+    for entry in record["dispatched"]:
+        if entry["tool"] == tool and entry.get("ok"):
+            names.update(entry["input"].get("metric_names") or [])
+    return sorted(names)
+
+
+def _recommended_rows(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    for entry in record["dispatched"]:
+        if entry["tool"] == "recommend_metrics_tool" and entry.get("ok"):
+            return list(entry.get("output") or [])
+    return []
+
+
+def _feedable(recommended_rows: List[Dict[str, Any]]) -> List[str]:
+    """Recommended metrics some dataset provider can actually load.
+
+    The backend's access is read off the recommendation itself: every
+    recommended metric's `access` is a subset of the backend's, so their union
+    is what the backend offers. A generating dataset (`requires_access`) is
+    feedable only when that union covers it.
+    """
+    access = set()
+    for row in recommended_rows:
+        access.update(row.get("access") or [])
+    recommended = {row["metric"] for row in recommended_rows}
+    feedable = set()
+    for spec in DATASETS.values():
+        if set(spec.requires_access) <= access:
+            feedable.update(m for m in spec.metrics if m in recommended)
+    return sorted(feedable)
+
+
+def _scored_and_skipped(record: Dict[str, Any]) -> Tuple[List[str], Dict[str, str]]:
+    """Metric names from summarize_report's own output, split by outcome."""
+    scored, skipped = set(), {}
+    for entry in record["dispatched"]:
+        if entry["tool"] != "summarize_report" or not entry.get("ok"):
+            continue
+        in_skipped = False
+        for line in str(entry.get("output", "")).splitlines():
+            if line.strip() == "skipped:":
+                in_skipped = True
+                continue
+            match = _SUMMARY_LINE.match(line)
+            if match:
+                scored.add(match.group(2))
+            elif in_skipped and (match := _SKIPPED_LINE.match(line)):
+                skipped[match.group(1)] = match.group(2).strip()
+    return sorted(scored), skipped
+
+
+def recommendation_coverage(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Recommended vs planned vs run vs scored, from the transcript alone.
+
+    `complete` is the goal condition for a live run: every recommended metric
+    the harness can feed was scored, and nothing was scored that was never
+    recommended. Recommended metrics no dataset provider serves are listed
+    under `not_feedable`; they are the library's coverage gap, not the
+    agent's.
+    """
+    rows = _recommended_rows(record)
+    recommended = sorted(row["metric"] for row in rows)
+    feedable = _feedable(rows)
+    scored, skipped = _scored_and_skipped(record)
+    feedable_not_scored = sorted(set(feedable) - set(scored))
+    scored_not_recommended = sorted(set(scored) - set(recommended))
+    return {
+        "recommended": recommended,
+        "feedable": feedable,
+        "not_feedable": sorted(set(recommended) - set(feedable)),
+        "planned": _tool_metric_names(record, "plan_suite"),
+        "run": _tool_metric_names(record, "run_suite"),
+        "scored": scored,
+        "skipped": skipped,
+        "feedable_not_scored": feedable_not_scored,
+        "scored_not_recommended": scored_not_recommended,
+        "complete": not feedable_not_scored and not scored_not_recommended,
+    }
 
 
 def main() -> int:
@@ -223,6 +312,7 @@ def main() -> int:
         "tool_call_order": [entry["tool"] for entry in record["dispatched"]],
         "scores_from_tool_output": scored_metrics(record),
         "reported_numbers": check_reported_numbers(record),
+        "recommendation_coverage": recommendation_coverage(record),
     }
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -235,6 +325,13 @@ def main() -> int:
     print("tools:", " -> ".join(record["tool_call_order"]) or "(none)")
     print("scores (from the library, not the prose):", record["scores_from_tool_output"])
     print("untraceable figures:", record["reported_numbers"]["not_traceable_to_a_tool_result"])
+    coverage = record["recommendation_coverage"]
+    print(
+        f"coverage: recommended {len(coverage['recommended'])}, feedable "
+        f"{len(coverage['feedable'])}, scored {len(coverage['scored'])}; "
+        f"feedable but not scored: {coverage['feedable_not_scored'] or 'none'}; "
+        f"complete: {coverage['complete']}"
+    )
     return 0
 
 

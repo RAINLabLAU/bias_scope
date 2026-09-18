@@ -198,3 +198,32 @@ class TestEmbedClsBf16:
         assert out.dtype == np.float64
         assert np.allclose(out[0], 0.0)
         assert np.allclose(out[1], 1.0)
+
+
+class TestATokenizerWithoutAPadToken:
+    """RL-067: GPT-2's tokenizer has no pad token, so batching two texts of
+    different length through `pooling='cls'` raised "Asking to pad but the
+    tokenizer does not have a padding token" - and WEAT and SEAT, both
+    recommended for every causal LM, were skipped on gpt2 in a live run.
+    `HuggingFaceBackend.generate` already makes the same choice this test
+    asks for: pad with the end-of-sequence token.
+    """
+
+    def test_gpt2_style_tokenizer_can_batch_texts_of_different_length(self):
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        out = embed(["a", "b c d e"], model_name="sshleifer/tiny-gpt2", pooling="cls")
+        assert out.shape[0] == 2
+        assert np.all(np.isfinite(out))
+
+    def test_mean_pooling_has_the_same_fix(self):
+        # WEAT's default is pooling='mean' through sentence-transformers, which
+        # wraps the same tokenizer; the gpt2 rerun scored SEAT (cls) and still
+        # skipped WEAT (mean) with the identical error.
+        from bias_scope.embeddings_based.encoder import _load_sentence_transformer
+
+        _load_sentence_transformer.cache_clear()
+        out = embed(["a", "b c d e"], model_name="sshleifer/tiny-gpt2", pooling="mean")
+        assert out.shape[0] == 2
+        assert np.all(np.isfinite(out))

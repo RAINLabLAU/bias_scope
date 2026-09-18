@@ -97,7 +97,25 @@ def main() -> int:
                 "not_traceable_to_a_tool_result", []
             )
             print(f"  {record['_path']}: {untraceable or 'none'}")
+        _print_coverage(records)
     return 0
+
+
+def _print_coverage(records: List[Dict[str, Any]]) -> None:
+    """Recommended vs scored, recomputed from each transcript (not read from
+    the file, so runs recorded before the check existed are covered too)."""
+    from scripts.agent.live_conversation import recommendation_coverage
+
+    print("\nrecommended metrics vs metrics actually scored:")
+    print(f"  {'run':70} {'rec':>4} {'feed':>4} {'run':>4} {'scored':>6}  gap")
+    for record in records:
+        cov = recommendation_coverage(record)
+        gap = cov["feedable_not_scored"] + [f"!{m}" for m in cov["scored_not_recommended"]]
+        print(
+            f"  {record['_path'][:70]:70} {len(cov['recommended']):>4} "
+            f"{len(cov['feedable']):>4} {len(cov['run']):>4} {len(cov['scored']):>6}  "
+            f"{', '.join(gap) or 'none'}"
+        )
 
 
 if __name__ == "__main__":
