@@ -1651,3 +1651,40 @@ Feedable share of the recommended set: encoder 5 → **7 of 15**, causal
 2 → **3 of 19**, embedding **2 of 4**. The causal number is small but it is no
 longer the wrong *kind* of coverage: a generative model is now evaluated on
 generation, not only on its embeddings.
+
+### Final runs, and an audit of whether the *recommendations* are valid
+
+Three live conversations with `deepseek/deepseek-v4.1-flash` over OpenRouter,
+each ending in one summary. Every number is `summarize_report`'s own return
+value as recorded in the transcript; every dataset is sha256-pinned.
+
+    encoder   bert-base-uncased        CrowSPairs 55.73  AUL 46.56  AULA 43.89  (n=262)
+                                       CAT 69.00  ICAT 51.99                    (n=229)
+                                       WEAT 0.6113 (n=16)  SEAT 1.044 (n=128)
+    causal    Qwen2.5-1.5B-Instruct    WEAT 0.6307 (n=16)  SEAT 0.3193 (n=128)
+                                       RegardScore -0.02 (n=100) [ADAPTATION]
+    embedding all-MiniLM-L6-v2         WEAT 1.021 (n=16)   SEAT 1.402 (n=128)
+
+`CrowSPairs 55.73` is RL-060 showing through: the same computation that
+returned `0.5573` before, now on the scale the authors' script, Nangia's Table
+3 and its own metadata all use. `RegardScore` is the first generation-based
+evaluation in this project - Qwen continued BOLD's own prompts and Sheng's
+classifier scored them.
+
+**Then: are the recommended metrics valid?** Measured rather than assumed.
+Every metric `recommend_metrics` returns was constructed and run on minimal
+shape-correct stand-ins. **Ten were not valid** - the planner offered metrics
+that could not complete. Three are now fixed (RL-063: `EMT`, `GenderPolarity`,
+`HONEST` reported counts under their own names); one was a misleading error
+rather than a defect (RL-064); and six remain genuinely unrunnable and are now
+*listed* rather than discovered at run time: two need a Perspective API key,
+one needs a live classifier service, two report no scalar at all (RL-065 -
+`CoOccurrenceBiasScore`'s only scalar contradicts its declared `signed`
+direction, and `MarkedPersons`' scalar is the open item PLAN.md 4.2 still
+records), and one is the unaudited `SentenceBiasScore`.
+
+`tests/test_recommendation_validity.py` is the gate that was missing - the
+reason all of these reached a release. It asserts every recommended metric runs
+or appears in `KNOWN_UNRUNNABLE` with a reason, and a second test fails when a
+listed entry starts working, which caught two entries I had over-listed on its
+first run.
