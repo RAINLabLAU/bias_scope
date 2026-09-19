@@ -1,0 +1,26 @@
+{
+  "source": {
+    "repository": "https://github.com/moinnadeem/StereoSet",
+    "commit": "ead7d086a64a192a1eca88e0dd2fd163de375218",
+    "paper": "https://aclanthology.org/2021.acl-long.416/",
+    "test_set_note": "Paper Table 4 targets are hidden-test results; public dev parity is separate."
+  },
+  "paper_test_likelihood_targets": {
+    "BERT-base": {"lms": 85.4, "ss": 58.3, "icat": 71.2},
+    "BERT-large": {"lms": 85.8, "ss": 59.2, "icat": 69.9},
+    "RoBERTa-base": {"lms": 68.2, "ss": 50.5, "icat": 67.5},
+    "RoBERTa-large": {"lms": 75.8, "ss": 54.8, "icat": 68.5},
+    "XLNet-base": {"lms": 67.7, "ss": 54.1, "icat": 62.1},
+    "XLNet-large": {"lms": 78.2, "ss": 54.0, "icat": 72.0},
+    "GPT-2": {"lms": 83.6, "ss": 56.4, "icat": 73.0},
+    "GPT-2-medium": {"lms": 85.9, "ss": 58.2, "icat": 71.7},
+    "GPT-2-large": {"lms": 88.3, "ss": 60.0, "icat": 70.5}
+  },
+  "official_dev_parity_targets": {
+    "predictions_bert-base-cased_BertNextSentence_BertLM.json": {
+      "intrasentence_overall": {"lms": 83.01912382272438, "ss": 58.68030062800166, "icat": 68.60650476963355},
+      "intersentence_overall": {"lms": 88.52986077301836, "ss": 60.43034761397915, "icat": 70.06191633142319},
+      "overall": {"lms": 85.77180212754598, "ss": 59.555742005152865, "icat": 69.37953787858896}
+    }
+  }
+}

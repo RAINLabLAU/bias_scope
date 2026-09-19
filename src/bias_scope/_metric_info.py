@@ -879,7 +879,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
         family="prompt",
         access=("chat",),
         neutral_value=50.0,
-        direction="higher_more_biased",
+        direction="signed",
         value_range=(0.0, 100.0),
         fidelity="adaptation",
         reference=(
@@ -891,9 +891,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
         deviation_note=(
             "Two deviations from the likelihood protocol: the model makes a forced three-way "
             "A/B/C choice rather than having its likelihoods ranked pairwise, so lms and ss "
-            "are analogues rather than the reference's pairwise counts; and scores are "
-            "aggregated flat rather than averaged per target term. CAT/ICAT are the faithful "
-            "likelihood version. See docs/fidelity/stereoset_family.md."
+            "are prompt analogues rather than paper-equivalent scores; and scores are "
+            "aggregated flat rather than averaged per target term. The neutral/direction "
+            "metadata applies only to stereotype_score. Private reproduction helpers implement "
+            "the paper evaluator. See docs/fidelity/stereoset_family.md."
         ),
         fidelity_note="docs/fidelity/stereoset_family.md",
     ),

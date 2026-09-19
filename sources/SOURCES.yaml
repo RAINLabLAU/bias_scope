@@ -188,14 +188,13 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
-    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: CBS
   family: probability
@@ -569,14 +568,13 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
-    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: IdentitySwapConsistency
   family: prompt
@@ -1066,14 +1064,13 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
-    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: See docs/fidelity/stereoset_family.md (one note, three classes, one paper).
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. Exact RoBERTa/XLNet/GPT-2 intersentence reconstruction additionally needs unavailable paper-era custom NSP weights. See docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: StereotypeRuleHitRate
   family: generated_text
