@@ -98,7 +98,9 @@ def test_c_swap_antisymmetry_and_delta_epsilon_reference_terms():
 def test_gamma_groupings_mu_eta_and_zero_sign():
     pairs = pair_predictions(_data())
     subj = subject_bias(pairs, group_by="subj")["rows"]
-    assert {row["subject"]: row["gamma"] for row in subj} == pytest.approx({"alice": 0.15, "bob": -0.15})
+    assert {row["subject"]: row["gamma"] for row in subj} == pytest.approx(
+        {"alice": 0.15, "bob": -0.15}
+    )
     subj_act = subject_bias(pairs, group_by="subj_act")["rows"]
     assert len(subj_act) == 4
     gender = subject_bias(
