@@ -116,16 +116,22 @@ METRIC_INFO: dict[str, MetricInfo] = {
         family="prompt",
         access=("chat",),
         neutral_value=0.0,
-        direction="higher_more_biased",
-        value_range=(0.0, float("inf")),
-        fidelity="faithful",
+        direction="signed",
+        value_range=(float("-inf"), float("inf")),
+        fidelity="adaptation",
         reference=(
             "BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language "
             "Generation, FAccT 2021 — https://arxiv.org/abs/2101.11718"
         ),
         reference_impl="https://github.com/amazon-science/bold @ 3ad652c773f5",
         resource_binding="dataset",
-        deviation_note="",
+        deviation_note=(
+            "BOLD is a dataset plus five heterogeneous evaluation families, not one scalar. "
+            "This public runner accepts arbitrary generation and scalar scorers and adds a "
+            "max-minus-min gap diagnostic; neither is the paper's end-to-end protocol or "
+            "its categorical/distributional report. Private _bold_reproduction helpers keep "
+            "paper formulas and unavailable historical scorer artifacts explicit."
+        ),
         fidelity_note="docs/fidelity/bold.md",
     ),
     "CAT": MetricInfo(
@@ -729,11 +735,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
         reference_impl="https://github.com/amazon-science/bold @ 3ad652c773f5",
         resource_binding="lexicon",
         deviation_note=(
-            "Averages caller-supplied norm values per dimension, which matches BOLD's "
-            "aggregation, but does NOT apply the paper's rescaling (VAD to [-1,1] with 0 "
-            "neutral). With the standard NRC-VAD file the output is on the original 1-9 scale "
-            "where 5, not 0, is neutral - so the declared neutral_value does not apply to raw "
-            "NRC-VAD input. BE5 emotion norms are not shipped. See "
+            "Averages caller-supplied norm values per dimension. This is NOT BOLD's weighted "
+            "sum(sign(w)*w^2)/sum(abs(w)) aggregation, and it omits paper rescaling, POS "
+            "exclusions, FastText lexicon expansion, and BE5 resources. With raw NRC-VAD, "
+            "5 rather than 0 is neutral. Paper reproduction lives in private BOLD helpers. See "
             "docs/fidelity/bold_metrics.md."
         ),
         fidelity_note="docs/fidelity/bold_metrics.md",

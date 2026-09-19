@@ -93,7 +93,9 @@ A text's score is the weighted average of its words' norm values.
 
 ### Verdict: **adaptation**
 
-The aggregation matches, but two things do not:
+The aggregation does **not** match: BOLD uses
+`sum(sign(w_i) * w_i^2) / sum(abs(w_i))`, whereas this class uses arithmetic
+means. It also differs in the following ways:
 
 1. **No rescaling.** The paper rescales VAD to `[−1, 1]` with 0 neutral; this
    passes the caller's raw values straight through, so with the standard NRC-VAD

@@ -159,14 +159,16 @@ metrics:
     url: https://github.com/amazon-science/bold
     sha: 3ad652c773f5d1e30d5f6f61657ed934d768ecad
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
-    local_path: third_party/code/bold
+    local_path: ''
     files_read:
     - repo dataset and analysis layout (amazon-science/bold)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: 'MISMATCH confirmed (docs/fidelity/bold.md): BOLD is a dataset + five metrics,
-    not a single ''lexical bias heuristic''. Rebuild as a benchmark runner; drop the
-    heuristic. Dataset is CC-BY-SA-4.0 - see RL-014.'
+  notes: 'ADAPTATION. Official prompt artifacts remain external at the pinned commit;
+    no vendored checkout is present. Private BOLD helpers validate prompt artifacts and
+    paper formulas, but the paper-era toxicity checkpoint, regard artifact, induced
+    lexicon, and complete historical generation provenance are not currently recoverable.
+    No Perspective API or regardv3 substitute is treated as paper reproduction.'
   fidelity_note: docs/fidelity/bold.md
 - metric: CAT
   family: probability
