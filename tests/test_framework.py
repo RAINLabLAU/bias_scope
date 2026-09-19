@@ -194,9 +194,9 @@ class TestRecommend:
             assert "fr" in rec.info.languages
 
     def test_truthfulqa_is_excluded_as_not_social_bias(self):
-        names = {r.metric for r in recommend_metrics(("chat",))}
+        names = {r.metric for r in recommend_metrics(("logits",))}
         assert "TruthfulQA" not in names
-        opted_in = {r.metric for r in recommend_metrics(("chat",), include_non_bias=True)}
+        opted_in = {r.metric for r in recommend_metrics(("logits",), include_non_bias=True)}
         assert "TruthfulQA" in opted_in
 
     def test_empty_access_raises(self):

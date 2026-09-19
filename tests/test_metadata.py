@@ -29,7 +29,7 @@ from bias_scope.metadata import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "sources" / "SOURCES.yaml"
 
-EXPECTED_METRIC_COUNT = 55  # 43 + WinoBias, DiscrimEval, PoliticalEvenHandedness,
+EXPECTED_METRIC_COUNT = 56  # 43 + WinoBias, DiscrimEval, PoliticalEvenHandedness,
 #                             ImplicitAssociationTest, LLMDecisionBias (PLAN.md 7.2)
 
 
@@ -172,7 +172,7 @@ class TestRegistryQueries:
         counts = {f: len(list_metrics(family=f)) for f in
                   ("embedding", "probability", "generated_text", "prompt")}
         assert counts == {"embedding": 4, "probability": 11,
-                          "generated_text": 17, "prompt": 23}
+                          "generated_text": 17, "prompt": 24}
 
     def test_filtering_by_fidelity_works(self):
         assert len(list_metrics(fidelity="mismatch")) == len(
