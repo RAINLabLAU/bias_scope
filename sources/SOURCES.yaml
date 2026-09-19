@@ -1282,15 +1282,19 @@ metrics:
     url: https://github.com/allenai/unqover
     sha: 3e47969b78acc0de436f9d17c9ab1b2f6a108ff0
     license: Apache-2.0
-    local_path: third_party/code/unqover
     files_read:
-    - allenai/unqover repo layout (Apache-2.0)
+    - analysis.py:get_ans_p, pairup_ex, get_positional_inconsistency, get_attributive_inconsistency, get_subj1_win_score, get_model_bias, get_subj_bias
+    - qa_hf/predict.py:forward and candidate-span output construction
+    - lm/predict.py:predict and candidate-token output construction
   resources: []
   retrieved_on: '2026-08-23'
-  notes: 'ADAPTATION. The four-variant design and the gamma/mu/eta aggregations are
-    faithful. Deviation is access mode: the paper scores QA answer spans and masked-LM
-    fills; this reads chat-model token logprobs for the A/B option letters, which
-    is a different quantity and is prompt-format sensitive.'
+  notes: 'PUBLIC ADAPTATION: the chat class renormalizes A/B option-token logprobs;
+    it does not score the paper''s unnormalized QA answer spans or masked-token subjects.
+    Private reproduction helpers mirror pinned analysis.py over external output.json dumps.
+    The official data.zip distribution URL is https://ai2-public-datasets.s3.amazonaws.com/unqover/data.zip,
+    but the pinned repository provides no immutable checksum; runtime SHA-256 is recorded
+    when an artifact is supplied. Released QA checkpoints are tli8hf/unqover-*-squad and
+    tli8hf/unqover-*-newsqa. No upstream checkout or archive is vendored here.'
   fidelity_note: docs/fidelity/unqover.md
 - metric: WEAT
   family: embedding

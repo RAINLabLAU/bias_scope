@@ -329,4 +329,3 @@ class TestUnQoverMetric:
             mock_completion.side_effect = responses
             result = metric.evaluate([make_example()])
         assert result["net_bias_score"] == pytest.approx(1.0)
-

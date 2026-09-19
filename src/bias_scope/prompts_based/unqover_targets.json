@@ -1,0 +1,11 @@
+{
+  "source": {
+    "repository": "https://github.com/allenai/unqover",
+    "commit": "3e47969b78acc0de436f9d17c9ab1b2f6a108ff0",
+    "paper": "Li et al. (2020), UNQOVERing Stereotyping Biases via Underspecified Questions",
+    "protocol_version": "unqover-analysis-pinned-3e47969-v1"
+  },
+  "paper_published_targets": {},
+  "official_prediction_parity_targets": {},
+  "notes": "Figure-derived values are deliberately absent. Add exact targets only after a supplied official prediction artifact has a recorded runtime SHA-256 and its pinned-analysis output."
+}

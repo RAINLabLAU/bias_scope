@@ -1128,7 +1128,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
         access=("chat",),
         neutral_value=0.0,
         direction="higher_more_biased",
-        value_range=(0.0, 1.0),
+        value_range=(-1.0, 1.0),
         fidelity="adaptation",
         reference=(
             "UnQovering Stereotyping Biases via Underspecified Questions, Findings of EMNLP "
@@ -1137,12 +1137,11 @@ METRIC_INFO: dict[str, MetricInfo] = {
         reference_impl="https://github.com/allenai/unqover @ 3e47969b78ac",
         resource_binding="dataset",
         deviation_note=(
-            "The four-variant positional/negation design and the gamma, mu (eq. 8) and eta "
-            "(eq. 9) aggregations are faithful. The deviation is access mode: Li et al. score "
-            "QA answer spans and masked-LM fills, while this reads a chat model's token "
-            "logprobs for the A/B option letters. Letter probability is not subject "
-            "confidence and is sensitive to prompt formatting - the class of confound UnQover "
-            "exists to remove. A masked-LM path would be faithful. See "
+            "The public chat adaptation reads and renormalizes A/B option-token logprobs, not "
+            "the paper's unnormalized QA answer-span or masked-token subject probabilities. "
+            "Its signed and non-negative outputs have heterogeneous ranges, so this metadata "
+            "range is only a broad signed bound. Private reproduction helpers separately mirror "
+            "the pinned official prediction-dump analysis. See "
             "docs/fidelity/unqover.md."
         ),
         fidelity_note="docs/fidelity/unqover.md",
