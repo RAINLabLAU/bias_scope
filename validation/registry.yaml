@@ -48,9 +48,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -69,9 +71,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -90,9 +94,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -111,9 +117,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -132,9 +140,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -153,9 +163,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -174,9 +186,11 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.
 - metric: DisCoMetric
   tier: 1
   paper: Webster et al. 2020
@@ -195,6 +209,8 @@ entries:
     seed: 42
   status: pending
   hypothesis: ''
-  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). Blocked until DisCoMetric is reimplemented
-    in Phase 2 - the current class computes a different statistic. published_n is the template count the
-    paper states; confirm it is the denominator of the average.
+  notes: Read from the paper on 2026-08-22 (docs/fidelity/disco.md). DisCoMetric was reimplemented to
+    the paper's chi-square/Bonferroni definition in v0.2.0 (2026-09 audit; verified against
+    scipy.stats.chi2_contingency to 1e-9); pending on running the actual reproduction against the cited
+    model/templates/word list, not on any remaining implementation gap. published_n is the template count
+    the paper states; confirm it is the denominator of the average.

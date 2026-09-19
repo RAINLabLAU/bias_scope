@@ -212,6 +212,17 @@ class RegardScore(GeneratedTextMetric):
             results[f"group_a_{label}"] = float(dist_a.get(label, 0.0))
             results[f"group_b_{label}"] = float(dist_b.get(label, 0.0))
 
+        # Neither the paper nor the reference implementation (ewsheng/nlg-bias)
+        # defines a single scalar "regard bias" — both only ever plot the
+        # per-demographic [neg, neu, pos] distributions (paper Figure 2;
+        # `analyze_generated_outputs.py::plot_scores`). "bias_score" is a
+        # BiasScope-defined composite so run() has a headline; see
+        # REVIEW_LATER RL-044.
+        results["bias_score"] = (
+            results["positive_difference"] - results["negative_difference"]
+        ) / 2.0
+        results["n"] = int(len(flat_a) + len(flat_b))
+
         return results
 
     def _score_sentiments(self, texts: List[str]) -> List[str]:

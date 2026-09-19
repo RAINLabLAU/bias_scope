@@ -143,7 +143,15 @@ METRIC_INFO: dict[str, MetricInfo] = {
         languages=('ko', 'en', 'de', 'fr', 'es', 'zh', 'ja', 'tr', 'ar', 'el',
                    'th', 'vi'),
         resource_binding="lexicon",
-        deviation_note='',
+        deviation_note=(
+            "Multi-token targets (allow_multi_token_targets=True, opt-in) are scored "
+            "one-to-one against their own mask position, following the paper's stated "
+            "whole-word-masking design rather than the reference's apparent all-pairs "
+            "loop (REVIEW_LATER RL-042). Fixed in the 2026-09-18 audit: run() was "
+            "unconditionally broken, the prior sentence did not whole-word-mask "
+            "multi-token attributes, and the variance used ddof=0 instead of the "
+            "reference's ddof=1. See docs/fidelity/cbs_lmb.md."
+        ),
         fidelity_note='docs/fidelity/cbs_lmb.md',
     ),
     "CEAT": MetricInfo(
@@ -161,7 +169,18 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/weiguowilliam/CEAT @ 497e2958a152',
         resource_binding="dataset",
-        deviation_note='',
+        deviation_note=(
+            'CES and its DerSimonian-Laird pooling match the reference '
+            'exactly (V_i=std**2, CES, SE). Two paper-vs-reference-code '
+            'disagreements are resolved by following the paper: contexts are '
+            'sampled without replacement once a stimulus has n_samples '
+            'occurrences (the reference script always samples with '
+            'replacement), and the p-value is two-sided (the reference '
+            'script computes a one-sided signed p that contradicts its own '
+            "paper's Table 1). Does not implement the CWE-extraction "
+            'pipeline; callers supply stimulus-aligned contextual token '
+            'embeddings. See docs/fidelity/ceat.md.'
+        ),
         fidelity_note='docs/fidelity/ceat.md',
     ),
     "CoOccurrenceBiasScore": MetricInfo(
@@ -225,7 +244,20 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='',
         resource_binding="classifier",
-        deviation_note='',
+        deviation_note=(
+            "A from-scratch audit found and fixed a stale docstring/example claim that "
+            "csb_score is signed ('CSB < 0 means group B is favoured') - impossible, since "
+            "csb_score is a Wasserstein-1 distance and is always >= 0; direction lives in "
+            "details['signed_mean_difference'] instead. Two design choices are documented, "
+            "not changed: (1) sentiment scores are validated against [-1, 1] rather than "
+            "Huang et al.'s stated [0, 1] domain - wasserstein_1 is domain-agnostic, so this "
+            "is a supported generalization, but csb_score is only numerically comparable to "
+            "the paper's own reported I.F. values when scores are scaled to [0, 1]; (2) this "
+            "class computes one pairwise term of eq. 3, exactly the paper's I.F. for a "
+            "binary attribute (Name), but not the full multi-value average for attributes "
+            'with >2 values (Country, Occupation) without averaging multiple calls yourself. '
+            'See REVIEW_LATER RL-045 and docs/fidelity/huang_metrics.md.'
+        ),
         fidelity_note='docs/fidelity/huang_metrics.md',
     ),
     "CrowSPairs": MetricInfo(
@@ -247,11 +279,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
         resource_binding="dataset",
         deviation_note=(
             'Faithful in the default `mode="wordpiece"`, which is the pseudo-log-likelihood '
-            "over WordPiece tokens that the authors' `metric.py` computes. `mode=\"whitespace\"` "
-            'scores whole whitespace words instead; it is kept for continuity with v0.1.x but is '
-            'NOT the published protocol and must not be reported as CrowS-Pairs. Reproduction on '
-            'bert-base-uncased over all 1,508 pairs: 58.62 vs the published 60.5, Wald intervals '
-            'overlapping (results/emnlp/crows_pairs.json).'
+            "over shared non-special WordPiece tokens that the authors' `metric.py` computes. "
+            "`mode=\"whitespace\"` scores whole whitespace words instead; it is kept for "
+            "continuity with v0.1.x but is NOT the published protocol and must not be reported "
+            "as CrowS-Pairs."
         ),
         fidelity_note='docs/fidelity/crows_pairs.md',
     ),
@@ -427,7 +458,15 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b',
         resource_binding="classifier",
-        deviation_note='',
+        deviation_note=(
+            "run() was unconditionally broken until the 2026-09 audit: evaluate()'s dict had "
+            "no 'bias_score'/'score'/'value'/'effect_size' key, so BiasMetric._split_result "
+            "raised on every call. Fixed by adding 'bias_score' and 'per_item' (per-template "
+            "max toxicity). evaluate() itself was always correct. Gehman et al. report EMT "
+            "'with a mean and standard deviation' (RL-022); 'std' (sample std, ddof=1, of "
+            "the per-template maxima) is now exposed in details/run(), matching the "
+            "reference notebook's own 'std_max = max_toxicities.std()'."
+        ),
         fidelity_note='docs/fidelity/toxicity_family.md',
     ),
     "FGB": MetricInfo(
@@ -564,11 +603,12 @@ METRIC_INFO: dict[str, MetricInfo] = {
         resource_binding="dataset",
         deviation_note=(
             "Barikeri et al. report the bias effect as the t-value of a Student's two-tailed "
-            'test; evaluate(return_details=False) returns mean_diff instead. The t-statistic '
-            'and p-value are computed and available in details, so nothing is missing - the '
-            "default scalar is simply not the paper's (REVIEW_LATER RL-026). The paper's "
-            '3-sigma outlier rule was added as the default in 0.2.0; the percentile variant '
-            "is BiasScope's own. See docs/fidelity/cbs_lmb.md."
+            'test; evaluate(return_details=False) returns mean_diff instead (REVIEW_LATER '
+            "RL-026) -- run() now reports the paper's t-value via 'bias_score', fixed in the "
+            '2026-09-17 audit alongside two other bugs found the same day: the default '
+            "3-sigma outlier rule computed its bounds but never applied them (silently "
+            "identical to no removal at all), and the df>30 p-value branch used the wrong "
+            "normal-CDF scaling (up to 10x too small). See docs/fidelity/cbs_lmb.md."
         ),
         fidelity_note='docs/fidelity/cbs_lmb.md',
     ),
@@ -593,8 +633,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'Faithful to the paper. One documented judgement: the authors\' code '
             'appears to read p_prior at the attribute mask rather than the target '
             'mask, and its get_index last branch omits the [CLS] offset; this '
-            'implementation follows the paper\'s Sec. 2 step 3 instead. See '
-            'docs/fidelity/lpbs.md and REVIEW_LATER RL-012.'
+            'implementation follows the paper\'s Sec. 2 step 3 instead. Multi-target '
+            'sets use the reference-code sum-before-log behavior; BiasScope averages '
+            'over (template, attribute) items. See docs/fidelity/lpbs.md and '
+            'REVIEW_LATER RL-012.'
         ),
         fidelity_note='docs/fidelity/lpbs.md',
     ),
@@ -712,11 +754,19 @@ METRIC_INFO: dict[str, MetricInfo] = {
         reference_impl='https://github.com/amazon-science/bold @ 3ad652c773f5',
         resource_binding="lexicon",
         deviation_note=(
-            "Averages caller-supplied norm values per dimension, which matches BOLD's "
-            "aggregation, but does NOT apply the paper's rescaling (VAD to [-1,1] with 0 "
-            'neutral). With the standard NRC-VAD file the output is on the original 1-9 scale '
-            'where 5, not 0, is neutral - so the declared neutral_value does not apply to raw '
-            'NRC-VAD input. BE5 emotion norms are not shipped. See '
+            "Fixed in the 2026-09 audit: previously averaged caller-supplied norm values per "
+            "dimension with a plain mean; an earlier note here wrongly claimed this 'matches "
+            "BOLD's aggregation'. The paper's actual formula (Sec 4.4) is the magnitude-"
+            "weighted sgn(w)*w^2/sum(|w|) aggregation, identical in form to its own Gender-Wavg "
+            "- confirmed by a 3.6x-divergent counterexample. Now implements that formula "
+            "exactly, plus function-word (pronoun/preposition/conjunction) exclusion per the "
+            "paper (word list is BiasScope's own, undocumented in the paper; RL-046). Does NOT "
+            "apply the paper's rescaling (VAD to [-1,1] with 0 neutral) - unchanged, "
+            "pre-existing deviation: with the standard NRC-VAD file the output is on the "
+            "original 1-9 scale where 5, not 0, is neutral, so the declared neutral_value does "
+            "not apply to raw NRC-VAD input. BE5 emotion norms are not shipped. run() was also "
+            "unconditionally broken (no 'bias_score'/'n'-like key); fixed with a "
+            "single-dimension-exact / multi-dimension-mean headline (RL-046). See "
             'docs/fidelity/bold_metrics.md.'
         ),
         fidelity_note='docs/fidelity/bold_metrics.md',
@@ -764,6 +814,12 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "different checkpoint trained on the v2 dataset with an added 'other' bucket. "
             'v0.1.1 defaulted to a SENTIMENT classifier, which was a mismatch: Sheng et al. '
             'Table 2 gives sentences where sentiment and regard labels have opposite signs. '
+            "run() was unconditionally broken until the 2026-09 audit: evaluate()'s dict had "
+            "no 'bias_score'/'n'-like key. Fixed by adding 'bias_score' = (positive_difference "
+            "- negative_difference) / 2, a BiasScope-defined composite that neither the paper "
+            "nor the reference define (RL-044), and 'n' = total texts scored. No per_item "
+            "exists (a two-group distributional comparison, not a per-prompt statistic), so "
+            "run()'s default bootstrap CI degrades to ci='none', like WEAT/SEAT/CEAT/CBS. "
             'See docs/fidelity/regard_score.md.'
         ),
         fidelity_note='docs/fidelity/regard_score.md',
@@ -782,7 +838,13 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/W4ngatang/sent-bias @ e3559fb669ca',
         resource_binding="dataset",
-        deviation_note='',
+        deviation_note=(
+            'Effect size is faithful (WEAT on sentence vectors, ddof=1). The '
+            'permutation p-value uses May et al.\'s non-strict >= inequality '
+            '(Appendix A), not Caliskan\'s >. Raw-text encoding and pooling are '
+            'convenience paths; May et al.\'s bleached templates and per-encoder '
+            'pooling table are not reproduced. See docs/fidelity/seat.md.'
+        ),
         fidelity_note='docs/fidelity/seat.md',
     ),
     "MeanScoreGap": MetricInfo(
@@ -804,7 +866,17 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "between two groups, with Cohen's d. Borkan et al.'s five metrics are all "
             'threshold-agnostic and label-based (Subgroup/BPSN/BNSP AUC and the two Average '
             'Equality Gaps); a mean-score gap is none of them and needs no labels. Shipped as '
-            'ScoreParity citing Borkan through v0.1.1; renamed in 0.2.0. See '
+            'ScoreParity citing Borkan through v0.1.1; renamed in 0.2.0. '
+            "run() was unconditionally broken until the 2026-09 audit: 'effect_size' was "
+            "already a recognised headline key, but evaluate()'s dict had no 'n'-like key, "
+            "so the n > 0 guard always failed. Fixed by adding 'n' (total texts scored). No "
+            "per_item exists (Cohen's d is a two-sample statistic, not a per-prompt one), so "
+            "run()'s default bootstrap CI degrades to ci='none', like WEAT/SEAT/CEAT/CBS/"
+            "RegardScore. A follow-up audit found and fixed two more bugs: group_a_std/"
+            "group_b_std returned NaN (with unguarded RuntimeWarnings) for a single-text "
+            "group, since np.std(..., ddof=1) divides by zero at n=1 - now 0.0; and a local "
+            "_validate_classifier_scores override shadowed the inherited (more permissive) "
+            "one, rejecting legitimate numpy.float32 classifier output - removed. See "
             'docs/fidelity/score_parity.md.'
         ),
         fidelity_note='docs/fidelity/score_parity.md',
@@ -814,22 +886,26 @@ METRIC_INFO: dict[str, MetricInfo] = {
         family="embedding",
         access=('embeddings',),
         neutral_value=0.0,
-        direction="signed",
-        value_range=(float("-inf"), float("inf")),
-        fidelity="unaudited",
+        direction="higher_more_biased",
+        value_range=(0.0, float("inf")),
+        fidelity="adaptation",
         reference=(
-            'Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2), Springer — '
-            'paper NOT LOCATED'
+            'Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8, '
+            '177-195, Springer — https://doi.org/10.1007/s41019-023-00211-0'
         ),
         reference_impl='',
         resource_binding="lexicon",
         deviation_note=(
-            'Fidelity cannot be established: the source paper is paywalled and no preprint '
-            'was found after the Section 4.0 search, so it has not been read. PLAN.md Section '
-            '4.0 forbids assigning a status without reading the paper, and this is the one '
-            'metric in the library where that was impossible. Do NOT cite this implementation '
-            'as faithful to Dolci et al. See docs/fidelity/sentence_bias_score.md and '
-            'REVIEW_LATER RL-029.'
+            "The scoring equations (Eq. 1-3) are faithful and verified against the "
+            "paper's own worked example (Table 2) to float precision; run()/BiasResult.score "
+            "reports Eq. 3 (Abs-BiasScore). derive_gender_direction() and "
+            "derive_word_importance() implement the paper's PCA and max-pooling "
+            "procedures (Sec. 3.2, 3.4). Not implemented: Dolci et al.'s 6562-word "
+            "gender lexicon (Sec. 3.3) is not vendored -- it is not published and "
+            "cannot be reconstructed from its two cited source lists without "
+            "guessing the authors' curation; callers must supply gender_words_mask "
+            "themselves, optionally via build_gender_words_mask() with their own "
+            "lexicon. See docs/fidelity/sentence_bias_score.md and REVIEW_LATER.md."
         ),
         fidelity_note='docs/fidelity/sentence_bias_score.md',
     ),
@@ -967,7 +1043,10 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'prompted generation - expected maximum toxicity (EMT) and the probability of at '
             'least one toxic span (ToxicityProbability) - and this mean-of-fractions is '
             'neither. A model with 1 toxic generation in 25 scores 1.0 on ToxicityProbability '
-            'and 0.04 here. See docs/fidelity/toxicity_family.md.'
+            'and 0.04 here. Separately, run() was unconditionally broken until the 2026-09 '
+            "audit (evaluate()'s dict had no key BiasMetric._split_result recognised); fixed "
+            "by adding 'bias_score' and 'per_item' (per-prompt toxic fractions). "
+            'See docs/fidelity/toxicity_family.md.'
         ),
         fidelity_note='docs/fidelity/toxicity_family.md',
     ),
@@ -985,7 +1064,15 @@ METRIC_INFO: dict[str, MetricInfo] = {
         ),
         reference_impl='https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b',
         resource_binding="classifier",
-        deviation_note='',
+        deviation_note=(
+            "run() was unconditionally broken until the 2026-09 audit: evaluate()'s dict had "
+            "no 'bias_score'/'score'/'value'/'effect_size' key, so BiasMetric._split_result "
+            "raised on every call. Fixed by adding 'bias_score' and 'per_item' (per-prompt "
+            "at-least-one-toxic indicators). evaluate() itself was always correct. The "
+            "threshold comparison is '>=' 0.5, matching the paper's stated 'TOXICITY >= 0.5' "
+            "(Gehman et al. §2.1, §4.2) rather than the reference notebook's strict '>' "
+            "(RL-043) — a deliberate paper-over-reference choice, not a defect."
+        ),
         fidelity_note='docs/fidelity/toxicity_family.md',
     ),
     "TrustLLMStereotypeRecognition": MetricInfo(
@@ -1199,11 +1286,14 @@ METRIC_INFO: dict[str, MetricInfo] = {
             'https://arxiv.org/abs/1608.07187'
         ),
         reference_impl=(
-            'https://github.com/W4ngatang/sent-bias '
-            '@ e3559fb669ca'
+            'Primary: https://doi.org/10.7910/DVN/DX4VWP; secondary: '
+            'https://github.com/W4ngatang/sent-bias @ e3559fb669ca'
         ),
         resource_binding="language_agnostic",
-        deviation_note='',
+        deviation_note=(
+            'Canonical static-embedding WEAT uses the paper definition. Raw-text '
+            'encoding and tie_policy="conservative" are explicit BiasScope extensions.'
+        ),
         fidelity_note='docs/fidelity/weat.md',
     ),
 }

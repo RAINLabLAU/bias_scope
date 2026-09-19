@@ -2,328 +2,270 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
+import hashlib
+import math
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import numpy as np
 
-if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
+if TYPE_CHECKING:
     import torch
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based._helpers import (
-    _compute_random_effects_weights,
-    _validate_embedding_dimensions,
+    _ceat_random_effects,
     _validate_tuple_length,
+    _weat_effect_components,
 )
-from bias_scope.embeddings_based.encoder import (
-    DEFAULT_EMBEDDING_MODEL,
-    _resolve_embedding_pair,
-)
-from bias_scope.embeddings_based.weat import WEAT
+from bias_scope.embeddings_based.encoder import DEFAULT_EMBEDDING_MODEL
 from bias_scope.utils import to_numpy
 
 
+ContextualGroup = Mapping[str, Any]
+
+
 class CEAT(EmbeddingMetric):
-    """
-    Contextualized Embedding Association Test.
+    """Contextualized Embedding Association Test.
 
-    Extends WEAT to contextualized embeddings by calculating a distribution
-    of WEAT effect sizes across randomly sampled subsets, then aggregating
-    them using a random-effects model. This captures both the mean bias and
-    how bias varies across different contexts.
+    CEAT accepts precomputed, stimulus-aligned contextual token embeddings.
+    Each mapping is stimulus -> array(n_contexts, embedding_dimension). It is
+    not a bag of arbitrary vectors and does not encode strings or pool whole
+    sentences. On each iteration CEAT retains every stimulus, selects one
+    contextual occurrence, computes a WEAT effect size, and pools the results
+    with a DerSimonian--Laird random-effects model.
 
-    Unlike SEAT which averages over contexts, CEAT measures the full
-    distribution of bias, revealing context-dependent associations.
-
-    Reference
-    ---------
-    Guo, W., & Caliskan, A. (2021). Detecting Emergent Intersectional Biases:
-    Contextualized Word Embeddings Contain a Distribution of Human-like Biases.
-    AIES '21, pp. 122-133. https://doi.org/10.1145/3461702.3462536
-
-    Examples
-    --------
-    >>> from bias_scope.embeddings_based import CEAT
-    >>> import numpy as np
-    >>>
-    >>> # Test with BERT contextualized embeddings
-    >>> ceat = CEAT()
-    >>>
-    >>> # Many contextualized embeddings (different sentences)
-    >>> male_embeddings = np.random.randn(50, 768)
-    >>> female_embeddings = np.random.randn(50, 768)
-    >>> career_embeddings = np.random.randn(40, 768)
-    >>> family_embeddings = np.random.randn(40, 768)
-    >>>
-    >>> result = ceat.evaluate(
-    ...     (male_embeddings, female_embeddings),
-    ...     (career_embeddings, family_embeddings),
-    ...     n_samples=100,
-    ...     random_seed=42
-    ... )
-    >>>
-    >>> print(f"CEAT score: {result['ceat_score']:.3f}")
-    >>> print(f"Mean WEAT: {result['weat_mean']:.3f}")
-    >>> print(f"WEAT variance: {result['weat_variance']:.3f}")
+    Selection for each stimulus is without replacement when it has at least
+    n_samples contexts, and with replacement otherwise.
     """
 
-    def __init__(
-        self,
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
-        *,
-        pooling: str = "cls",
-    ):
-        """
-        Initialize CEAT.
+    def __init__(self, model_name: str = DEFAULT_EMBEDDING_MODEL, *, pooling: str = "cls"):
+        """Create CEAT.
 
-        Args:
-            model_name (str): Default SentenceTransformer/Hugging Face model used
-                when raw text inputs need to be embedded automatically. This
-                default is used unless ``evaluate(..., model_name=...)`` overrides
-                it for a single call.
-            pooling (str): 'cls' (default, the reference protocol) or 'mean'. Use 'cls' with a raw
-                bert-base-* model to match Guo & Caliskan's CEAT protocol.
+        model_name and pooling are inert compatibility attributes. CEAT no
+        longer encodes text: callers must supply contextual token embeddings
+        extracted with their own stimulus-alignment procedure.
         """
         self.model_name = model_name
         self.pooling = pooling
 
     def evaluate(
         self,
-        target_embeddings: Tuple[
-            np.ndarray | torch.Tensor | Sequence[str],
-            np.ndarray | torch.Tensor | Sequence[str],
-        ],
-        attribute_embeddings: Tuple[
-            np.ndarray | torch.Tensor | Sequence[str],
-            np.ndarray | torch.Tensor | Sequence[str],
-        ],
-        n_samples: int = 100,
+        target_embeddings: Tuple[ContextualGroup, ContextualGroup],
+        attribute_embeddings: Tuple[ContextualGroup, ContextualGroup],
+        n_samples: int = 10_000,
         sample_size: Optional[int] = None,
         random_seed: Optional[int] = None,
         model_name: str | None = None,
         return_details: bool = False,
         *,
         pooling: str | None = None,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Any]:
+        """Compute CEAT's combined effect size (CES).
+
+        target_embeddings is (X, Y), attribute_embeddings is (A, B), and every
+        group maps a stimulus to an array of that stimulus's contextual token
+        embeddings. The effect_size and ceat_score alias are CES; p_value is a
+        two-sided normal random-effects meta-analysis p-value.
         """
-        Evaluate CEAT score with distribution of WEAT effect sizes.
-
-        Args:
-            target_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
-                target group contextualized embeddings
-            attribute_embeddings (Tuple[np.ndarray | torch.Tensor, ...]):
-                attribute group contextualized embeddings
-            n_samples (int): number of random samples
-            sample_size (int, optional): embeddings per group per sample
-            random_seed (int, optional): seed for reproducibility
-            model_name (str | None): SentenceTransformer/Hugging Face model used
-                when text inputs are provided. If omitted, uses the ``model_name``
-                configured on ``__init__``. If passed here, it overrides the
-                instance default for this call only.
-
-        Returns:
-            Dict[str, float]: CEAT scores and statistics
-
-        Raises:
-            ValueError: If inputs are invalid
-
-        Notes:
-            **Input Structure:**
-            - target_embeddings: (target_group1, target_group2)
-              - Each array shape: (n_contexts, embedding_dim)
-              - Need sufficient contexts for sampling (recommended: 30+)
-            - attribute_embeddings: (attribute_group1, attribute_group2)
-              - Each array shape: (n_contexts, embedding_dim)
-              - Need sufficient contexts for sampling (recommended: 30+)
-
-            Args:
-            - n_samples: More samples = more stable results but slower (recommended: 50-200)
-            - sample_size: If None, uses min(10, smallest_group_size)
-            - random_seed: If provided, results will be deterministic
-
-            **Return Dictionary:**
-            - 'ceat_score': Weighted average of WEAT scores (main metric)
-            - 'weat_mean': Simple mean of WEAT scores
-            - 'weat_std': Standard deviation of WEAT scores
-            - 'weat_variance': Variance of WEAT scores
-            - 'n_samples': Number of samples actually used
-
-            **CEAT Formula:**
-                CEAT = (Σ vᵢ × WEATᵢ) / (Σ vᵢ)
-
-            Where:
-                - WEATᵢ = WEAT score for sample i
-                - vᵢ = inverse-variance weight from random-effects model
-                - N = n_samples
-
-            Random-effects model accounts for heterogeneity across contexts,
-            giving more weight to samples with lower variance.
-
-        Examples:
-            >>> import numpy as np
-            >>> from bias_scope.embeddings_based import CEAT
-            >>>
-            >>> ceat = CEAT()
-            >>>
-            >>> # Generate contextualized embeddings (50 contexts each)
-            >>> male = np.random.randn(50, 768)
-            >>> female = np.random.randn(50, 768)
-            >>> career = np.random.randn(40, 768)
-            >>> family = np.random.randn(40, 768)
-            >>>
-            >>> # Compute with 100 random samples
-            >>> result = ceat.evaluate(
-            ...     (male, female),
-            ...     (career, family),
-            ...     n_samples=100,
-            ...     sample_size=10,
-            ...     random_seed=42
-            ... )
-            >>>
-            >>> # Main bias score
-            >>> print(f"CEAT: {result['ceat_score']:.3f}")
-            >>>
-            >>> # Variance shows context-dependency
-            >>> print(f"Variance: {result['weat_variance']:.3f}")
-        """
-        effective_model_name = model_name or self.model_name
-        effective_pooling = pooling or self.pooling
-
-        # Validate inputs
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
+        if not isinstance(n_samples, (int, np.integer)) or n_samples <= 0:
+            raise ValueError(f"n_samples must be a positive integer. Got {n_samples!r}.")
+        if sample_size is not None:
+            raise ValueError(
+                "sample_size is not part of canonical CEAT: every iteration "
+                "contains every stimulus. Remove sample_size and provide "
+                "stimulus-aligned contextual token embeddings."
+            )
+        if model_name is not None or pooling is not None:
+            raise ValueError(
+                "CEAT does not encode text or pool sentences. Provide "
+                "precomputed stimulus-aligned contextual token embeddings."
+            )
 
-        if n_samples <= 0:
-            raise ValueError(f"n_samples must be positive. Got {n_samples}")
+        x = self._prepare_group(target_embeddings[0], "target_embeddings[0]")
+        y = self._prepare_group(target_embeddings[1], "target_embeddings[1]")
+        a = self._prepare_group(attribute_embeddings[0], "attribute_embeddings[0]")
+        b = self._prepare_group(attribute_embeddings[1], "attribute_embeddings[1]")
+        if len(x) != len(y):
+            raise ValueError(
+                "Canonical CEAT requires X and Y to contain equal numbers of stimuli. "
+                f"Got {len(x)} and {len(y)}."
+            )
+        dimensions = {matrix.shape[1] for group in (x, y, a, b) for matrix in group.values()}
+        if len(dimensions) != 1:
+            raise ValueError(
+                "All contextual token embeddings must have the same dimension. "
+                f"Got dimensions: {sorted(dimensions)}."
+            )
 
-        target_embeddings = _resolve_embedding_pair(
-            target_embeddings,
-            model_name=effective_model_name,
-            pooling=effective_pooling,
-        )
-        attribute_embeddings = _resolve_embedding_pair(
-            attribute_embeddings,
-            model_name=effective_model_name,
-            pooling=effective_pooling,
-        )
-
-        # Unpack and convert to numpy
-        target1, target2 = target_embeddings
-        attr1, attr2 = attribute_embeddings
-
-        target1 = to_numpy(target1)
-        target2 = to_numpy(target2)
-        attr1 = to_numpy(attr1)
-        attr2 = to_numpy(attr2)
-
-        # Validate embeddings
-        self._validate_embeddings(target1, "target_embeddings[0]")
-        self._validate_embeddings(target2, "target_embeddings[1]")
-        self._validate_embeddings(attr1, "attribute_embeddings[0]")
-        self._validate_embeddings(attr2, "attribute_embeddings[1]")
-
-        # Validate dimensions
-        _validate_embedding_dimensions([target1, target2, attr1, attr2])
-
-        # Determine sample size
-        if sample_size is None:
-            min_group_size = min(len(target1), len(target2), len(attr1), len(attr2))
-            sample_size = min(10, min_group_size)
-
-        # Validate sufficient data for sampling
-        self._validate_sufficient_data([target1, target2, attr1, attr2], sample_size)
-
-        rng = np.random.default_rng(random_seed)
-
-        # Compute WEAT scores for random samples
-        weat_scores = self._compute_weat_distribution(
-            target1, target2, attr1, attr2, n_samples, sample_size, rng
-        )
-
-        # Compute random-effects weights
-        weights = _compute_random_effects_weights(weat_scores, sample_size)
-
-        if len(weat_scores) == 1:
-            weat_std = 0.0
-            weat_variance = 0.0
-        else:
-            weat_std = float(np.std(weat_scores, ddof=1))
-            weat_variance = float(np.var(weat_scores, ddof=1))
-
-        # Compute final CEAT score (weighted average)
-        ceat_score = float(np.sum(weights * np.array(weat_scores)))
-
-        # Return comprehensive results
-        return {
-            "ceat_score": ceat_score,
-            "weat_mean": float(np.mean(weat_scores)),
-            "weat_std": weat_std,
-            "weat_variance": weat_variance,
-            "n_samples": n_samples,
-        }
-
-    def _validate_sufficient_data(self, arrays: list, sample_size: int) -> None:
-        """
-        Validate sufficient data for sampling (PRIVATE).
-
-        Args:
-            arrays (list): All embedding arrays
-            sample_size (int): Required sample size
-
-        Raises:
-            ValueError: If any array has fewer embeddings than sample_size
-        """
-        names = [
-            "target_embeddings[0]",
-            "target_embeddings[1]",
-            "attribute_embeddings[0]",
-            "attribute_embeddings[1]",
+        groups = (x, y, a, b)
+        families = ("target", "target", "attribute", "attribute")
+        selections = [
+            {
+                stimulus: self._sample_context_indices(
+                    len(contexts),
+                    n_samples,
+                    self._rng_for_stimulus(random_seed, family, stimulus),
+                )
+                for stimulus, contexts in group.items()
+            }
+            for group, family in zip(groups, families)
         ]
 
-        for arr, name in zip(arrays, names):
-            if len(arr) < sample_size:
-                raise ValueError(
-                    f"{name} has only {len(arr)} embeddings but "
-                    f"sample_size={sample_size}. Need at least {sample_size} "
-                    f"embeddings per group for sampling."
+        effect_sizes = np.empty(n_samples, dtype=float)
+        variances = np.empty(n_samples, dtype=float)
+        for index in range(n_samples):
+            sample_groups = [
+                np.stack(
+                    [
+                        contexts[selections[group_index][stimulus][index]]
+                        for stimulus, contexts in group.items()
+                    ]
                 )
+                for group_index, group in enumerate(groups)
+            ]
+            _, _, pooled_sd, effect_size = _weat_effect_components(*sample_groups)
+            effect_sizes[index] = effect_size
+            variances[index] = pooled_sd**2
 
-    def _compute_weat_distribution(
-        self,
-        target1: np.ndarray,
-        target2: np.ndarray,
-        attr1: np.ndarray,
-        attr2: np.ndarray,
-        n_samples: int,
-        sample_size: int,
-        rng: np.random.Generator,
-    ) -> List[float]:
+        meta = _ceat_random_effects(effect_sizes, variances)
+        z_score = meta["effect_size"] / meta["standard_error"]
+        p_value = float(math.erfc(abs(z_score) / math.sqrt(2.0)))
+        if not np.isfinite(p_value):
+            raise ValueError("CEAT p-value is undefined due to invalid random-effects output.")
+
+        result: Dict[str, Any] = {
+            "effect_size": meta["effect_size"],
+            "ceat_score": meta["effect_size"],
+            "p_value": p_value,
+            "standard_error": meta["standard_error"],
+            "between_context_variance": meta["between_context_variance"],
+            "n_samples": int(n_samples),
+            "weat_mean": float(np.mean(effect_sizes)),
+            "weat_std": float(np.std(effect_sizes, ddof=1)) if n_samples > 1 else 0.0,
+            "weat_variance": float(np.var(effect_sizes, ddof=1)) if n_samples > 1 else 0.0,
+            "n_target_group_1": len(x),
+            "n_target_group_2": len(y),
+            "n_attribute_group_1": len(a),
+            "n_attribute_group_2": len(b),
+        }
+        if return_details:
+            result.update(
+                {
+                    "sample_effect_sizes": effect_sizes.tolist(),
+                    "sample_variances": variances.tolist(),
+                    "random_effect_weights": meta["random_effect_weights"].tolist(),
+                    "fixed_effect_mean": meta["fixed_effect_mean"],
+                    "Q": meta["Q"],
+                    "sampled_context_indices": {
+                        name: {stimulus: indices.tolist() for stimulus, indices in selected.items()}
+                        for name, selected in zip(("X", "Y", "A", "B"), selections)
+                    },
+                }
+            )
+        return result
+
+    def run(self, *args, seed: int = 42, protocol_kwargs=None, **kwargs):
+        """Run CEAT, using and recording ``seed`` for context sampling.
+
+        Without this override, ``run(seed=...)`` never reaches ``random_seed``
+        (`evaluate`'s own default falls back to OS entropy, PLAN.md Section 1
+        notwithstanding), so every call would resample and report a different
+        CES. Mirrors ``WEAT.run`` / ``SEAT.run``.
         """
-        Compute distribution of WEAT scores via sampling (PRIVATE).
+        effective_random_seed = kwargs.setdefault("random_seed", seed)
+        effective_protocol_kwargs = dict(protocol_kwargs or {})
+        effective_protocol_kwargs["random_seed"] = effective_random_seed
+        return super().run(
+            *args,
+            seed=seed,
+            protocol_kwargs=effective_protocol_kwargs,
+            **kwargs,
+        )
 
-        Args:
-            target1 (np.ndarray): first target group embeddings
-            target2 (np.ndarray): second target group embeddings
-            attr1 (np.ndarray): first attribute group embeddings
-            attr2 (np.ndarray): second attribute group embeddings
-            n_samples (int): number of samples
-            sample_size (int): embeddings per sample
+    def _call_evaluate(self, *args, **kwargs):
+        """Stash the random-effects standard error so `_interval` can use it."""
+        raw = super()._call_evaluate(*args, **kwargs)
+        self._last_standard_error = raw.get("standard_error") if isinstance(raw, dict) else None
+        return raw
 
-        Returns:
-            List[float]: WEAT scores from samples
+    def _interval(self, score, per_item, n, ci, seed):
+        """CEAT's own uncertainty is SE(CES) from the random-effects model
+        (Guo & Caliskan, Appendix "Random-Effects Model Details"), not a
+        Hedges-Olkin interval on target-group sizes: CEAT's "sample" is the
+        `n_samples` drawn context-combinations, not the stimulus counts.
         """
-        weat = WEAT(model_name=self.model_name)
-        weat_scores = []
+        if ci == "none":
+            return None, "none", None
+        se = getattr(self, "_last_standard_error", None)
+        if se is None:
+            return super()._interval(score, per_item, n, ci, seed)
 
-        for i in range(n_samples):
-            # Random sample without replacement from each group
-            t1_sample = target1[rng.choice(len(target1), sample_size, replace=False)]
-            t2_sample = target2[rng.choice(len(target2), sample_size, replace=False)]
-            a1_sample = attr1[rng.choice(len(attr1), sample_size, replace=False)]
-            a2_sample = attr2[rng.choice(len(attr2), sample_size, replace=False)]
+        from bias_scope.stats import Z_95
 
-            # Compute WEAT for this sample
-            weat_score = weat.evaluate((t1_sample, t2_sample), (a1_sample, a2_sample))
-            weat_scores.append(weat_score)
+        return (score - Z_95 * se, score + Z_95 * se), "random_effects", None
 
-        return weat_scores
+    @staticmethod
+    def _count_items(details, per_item):
+        """CEAT's `n` is the number of sampled context-combinations (the
+        meta-analysis sample size), not the number of target stimuli.
+        """
+        if per_item is not None:
+            return len(per_item)
+        n_samples = details.get("n_samples")
+        if isinstance(n_samples, int) and n_samples > 0:
+            return n_samples
+        return EmbeddingMetric._count_items(details, per_item)
+
+    @staticmethod
+    def _sample_context_indices(
+        n_contexts: int, n_samples: int, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Select contextual occurrences for one stimulus."""
+        return rng.choice(n_contexts, size=n_samples, replace=n_contexts < n_samples)
+
+    @staticmethod
+    def _rng_for_stimulus(
+        random_seed: int | None, family: str, stimulus: str
+    ) -> np.random.Generator:
+        """Create a stable per-stimulus generator independent of CEAT side."""
+        if random_seed is None:
+            random_seed = int(np.random.SeedSequence().entropy)
+        material = f"CEAT-v1\\0{int(random_seed)}\\0{family}\\0{stimulus}".encode("utf-8")
+        derived_seed = int.from_bytes(hashlib.sha256(material).digest()[:16], "big")
+        return np.random.default_rng(derived_seed)
+
+    @staticmethod
+    def _prepare_group(group: Any, name: str) -> dict[str, np.ndarray]:
+        """Validate and normalize one CEAT stimulus group (PRIVATE)."""
+        if not isinstance(group, Mapping):
+            raise ValueError(
+                f"{name} must be a non-empty mapping of stimulus -> contextual "
+                "token embedding matrix; flat arrays and raw strings cannot "
+                "represent canonical CEAT."
+            )
+        if not group:
+            raise ValueError(f"{name} cannot be empty.")
+        prepared: dict[str, np.ndarray] = {}
+        for stimulus, contexts in group.items():
+            if not isinstance(stimulus, str):
+                raise ValueError(f"{name} stimulus keys must be strings.")
+            array = to_numpy(contexts)
+            if array.ndim != 2:
+                raise ValueError(
+                    f"{name}[{stimulus!r}] must have shape (n_contexts, embedding_dim), "
+                    f"got shape {array.shape}."
+                )
+            if array.shape[0] == 0:
+                raise ValueError(f"{name}[{stimulus!r}] has zero contextual embeddings.")
+            if array.shape[1] == 0:
+                raise ValueError(f"{name}[{stimulus!r}] has zero embedding dimensions.")
+            if not np.issubdtype(array.dtype, np.number):
+                raise ValueError(f"{name}[{stimulus!r}] must contain numeric embeddings.")
+            array = np.asarray(array, dtype=float)
+            if not np.isfinite(array).all():
+                raise ValueError(f"{name}[{stimulus!r}] contains NaN or Inf values.")
+            prepared[stimulus] = array
+        return prepared

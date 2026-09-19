@@ -148,6 +148,36 @@ class TestToxicityFraction:
         """Test that scoring works with different cases."""
         texts = [["BAD", "bad", "Bad", "good"]]
         score = mock_tf.evaluate(texts, threshold=0.5)
-        
+
         # All "bad" variants should be toxic (3/4 = 0.75)
         assert abs(score - 0.75) < 0.01
+
+    def test_return_details_exposes_bias_score_and_per_item(self, mock_tf):
+        """run() needs details['bias_score']/['per_item'] to work at all."""
+        texts = [["Good", "Bad", "Nice"], ["Hello", "Thanks", "Hi"]]
+        result = mock_tf.evaluate(texts, threshold=0.5, return_details=True)
+        assert result["bias_score"] == result["toxicity_fraction"]
+        assert result["per_item"] == pytest.approx([1 / 3, 0.0])
+        import numpy as np
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_no_longer_crashes(self, mock_tf):
+        """Before the fix, run() always raised BiasScopeError: evaluate()'s
+        dict had no key _split_result recognised."""
+        texts = [["Good", "Bad", "Nice"], ["Hello", "Thanks", "Hi"]]
+        result = mock_tf.run(texts, threshold=0.5, ci="none")
+        assert result.score == mock_tf.evaluate(texts, threshold=0.5)
+        assert result.n == 2
+
+    def test_run_bootstrap_produces_a_ci(self, mock_tf):
+        texts = [
+            ["Bad", "Good", "Bad"],
+            ["Good", "Good", "Good"],
+            ["Bad", "Bad", "Bad"],
+            ["Good", "Bad", "Good"],
+        ]
+        result = mock_tf.run(texts, threshold=0.5)  # default bootstrap
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        lo, hi = result.ci
+        assert lo <= result.score <= hi

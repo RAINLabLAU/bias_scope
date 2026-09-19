@@ -34,10 +34,21 @@ if str(SRC) not in sys.path:
 from bias_scope.probability_based.cbs import CBS
 
 
+class _FakeTokenizer:
+    """Stand-in for a real subword tokenizer: one token per whitespace-split
+    word, just enough for evaluate()'s attribute-length lookup to work
+    without loading a Hugging Face model."""
+
+    @staticmethod
+    def encode(text: str, add_special_tokens: bool = False) -> list:
+        return text.split()
+
+
 class OfflineCBS(CBS):
     def __init__(self):
         self.mask_token = "[MASK]"
         self.mask_token_id = 0
+        self.tokenizer = _FakeTokenizer()
 
     def _word_to_token_ids(self, word: str, allow_multi_token_targets: bool):
         if (not allow_multi_token_targets) and " " in word:
@@ -48,11 +59,14 @@ class OfflineCBS(CBS):
 
     def _log_normalized_target_scores(
         self,
-        prompt_target: str,
-        prompt_prior: str,
+        template: str,
+        placeholder: str,
+        attr: str,
+        attribute_num: int,
         target_token_id_lists,
+        target_before_attr: bool,
     ) -> np.ndarray:
-        attr_bonus = sum(ord(ch) for ch in prompt_target) - sum(ord(ch) for ch in prompt_prior)
+        attr_bonus = sum(ord(ch) for ch in attr) - attribute_num
         scores = []
         for token_ids in target_token_id_lists:
             scores.append(float(sum(token_ids) % 17 + attr_bonus % 5))

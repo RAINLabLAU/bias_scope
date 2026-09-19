@@ -13,9 +13,9 @@ if TYPE_CHECKING:  # torch is an optional extra; used in annotations only
 
 from bias_scope.base import EmbeddingMetric
 from bias_scope.embeddings_based._helpers import (
-    _compute_similarity_measure,
     _validate_embedding_dimensions,
     _validate_tuple_length,
+    _weat_effect_components,
 )
 from bias_scope.embeddings_based.encoder import (
     DEFAULT_EMBEDDING_MODEL,
@@ -27,7 +27,7 @@ from bias_scope.utils import to_numpy
 #: 12,870, so Caliskan's own 8-per-group tests are always exact.
 EXACT_PERMUTATION_LIMIT = 100_000
 
-#: Samples used when the partition count exceeds the limit.
+#: Total partition evaluations used when the exact test is too large.
 DEFAULT_PERMUTATION_SAMPLES = 10_000
 
 
@@ -95,9 +95,11 @@ class WEAT(EmbeddingMetric):
                 default is used unless ``evaluate(..., model_name=...)`` overrides
                 it for a single call.
             pooling (str): 'mean' (default, sentence-transformers) or 'cls'
-                (raw `[CLS]` embedding from the underlying LM — matches Caliskan/May
-                paper protocols when using bert-base-*). Only applies when raw
-                text inputs are provided; ignored for precomputed arrays.
+                (raw `[CLS]` embedding from the underlying LM). Only applies when
+                raw text inputs are provided; ignored for precomputed arrays.
+                Raw-text encoding is a noncanonical BiasScope extension: Caliskan
+                et al. use static GloVe word vectors, not a tokenizer or a
+                contextual encoder.
         """
         self.model_name = model_name
         self.pooling = pooling
@@ -118,6 +120,7 @@ class WEAT(EmbeddingMetric):
         pooling: str | None = None,
         n_permutation_samples: int = DEFAULT_PERMUTATION_SAMPLES,
         permutation_seed: int = 42,
+        tie_policy: str = "strict",
     ) -> float | Dict[str, float]:
         """
         Evaluate WEAT effect size.
@@ -131,6 +134,15 @@ class WEAT(EmbeddingMetric):
                 when text inputs are provided. If omitted, uses the ``model_name``
                 configured on ``__init__``. If passed here, it overrides the
                 instance default for this call only.
+            n_permutation_samples (int): Positive total number of partition
+                evaluations in sampled p-values. Ignored when exact enumeration
+                is used. Strict mode draws this many random partitions;
+                conservative mode counts the observed partition once and draws
+                one fewer random partitions.
+            permutation_seed (int): RNG seed for sampled permutations.
+            tie_policy (str): ``"strict"`` (default, the paper's ``>``) or
+                ``"conservative"`` (the later May et al./sent-bias ``>=``
+                convention).
 
         Returns:
             float: WEAT effect size score
@@ -177,6 +189,12 @@ class WEAT(EmbeddingMetric):
         effective_model_name = model_name or self.model_name
         effective_pooling = pooling or self.pooling
 
+        self._validate_permutation_options(
+            n_permutation_samples, permutation_seed, tie_policy
+        )
+        n_permutation_samples = int(n_permutation_samples)
+        permutation_seed = int(permutation_seed)
+
         # Validate tuple structure
         _validate_tuple_length(target_embeddings, "target_embeddings")
         _validate_tuple_length(attribute_embeddings, "attribute_embeddings")
@@ -210,23 +228,27 @@ class WEAT(EmbeddingMetric):
         # Validate all have same dimensions
         _validate_embedding_dimensions([target1, target2, attr1, attr2])
 
-        # Compute similarity scores (using private helper)
-        cos_target1 = [_compute_similarity_measure(w, attr1, attr2) for w in target1]
-        cos_target2 = [_compute_similarity_measure(w, attr1, attr2) for w in target2]
+        if len(target1) != len(target2):
+            raise ValueError(
+                "Canonical WEAT requires target groups X and Y to have equal "
+                f"sizes. Got {len(target1)} and {len(target2)}."
+            )
 
-        # Union for standard deviation
-        union_targets = np.concatenate([target1, target2])
-        cos_union = [
-            _compute_similarity_measure(w, attr1, attr2) for w in union_targets
-        ]
-
-        # Compute and return effect size (private method)
-        score = self._compute_effect_size(cos_target1, cos_target2, cos_union)
+        # Shared mathematical primitive; permutation testing stays WEAT-specific.
+        scores1, scores2, _, score = _weat_effect_components(
+            target1, target2, attr1, attr2
+        )
+        cos_target1 = scores1.tolist()
+        cos_target2 = scores2.tolist()
         if not return_details:
             return score
 
         p_value, exact, num_partitions, note = self._permutation_test(
-            cos_target1, cos_target2, n_permutation_samples, permutation_seed
+            cos_target1,
+            cos_target2,
+            n_permutation_samples,
+            permutation_seed,
+            tie_policy,
         )
         return {
             "weat_score": score,
@@ -235,6 +257,8 @@ class WEAT(EmbeddingMetric):
             "p_value_exact": exact,
             "num_partitions": num_partitions,
             "p_value_note": note,
+            "permutation_seed": permutation_seed,
+            "tie_policy": tie_policy,
             "n_target_group_1": float(len(target1)),
             "n_target_group_2": float(len(target2)),
             "n_attribute_group_1": float(len(attr1)),
@@ -247,6 +271,7 @@ class WEAT(EmbeddingMetric):
         scores2: list,
         n_samples: int,
         seed: int,
+        tie_policy: str,
     ) -> tuple:
         """
         One-sided permutation p-value (Caliskan et al. 2017).
@@ -255,10 +280,12 @@ class WEAT(EmbeddingMetric):
         equal size; the p-value is Pr_i[s(Xi, Yi, A, B) > s(X, Y, A, B)], where
         s(X, Y, A, B) = sum_{x in X} s(x,A,B) - sum_{y in Y} s(y,A,B).
 
-        Enumerated exactly when there are few enough partitions, as the
-        reference implementation does (`sent-bias/sentbias/weat.py:82-152`);
-        sampled otherwise. The observed partition is always counted, so the
-        p-value has a floor of 1/num_partitions rather than reaching zero.
+        ``tie_policy='strict'`` is the paper's literal ``>`` comparison.
+        ``tie_policy='conservative'`` uses ``>=`` to reproduce the later May
+        et al. / sent-bias nonparametric convention. In sampled mode,
+        ``n_samples`` is the total number of partition evaluations: strict mode
+        draws that many random partitions; conservative mode counts the
+        observed partition once and draws ``n_samples - 1`` random partitions.
 
         Returns:
             (p_value, exact, num_partitions, note)
@@ -281,11 +308,16 @@ class WEAT(EmbeddingMetric):
         total = len(pooled)
         num_partitions = math.comb(total, n1)
 
+        def exceeds_observed(statistic: float) -> bool:
+            if tie_policy == "strict":
+                return statistic > observed
+            return statistic >= observed
+
         if num_partitions <= EXACT_PERMUTATION_LIMIT:
             at_least = sum(
                 1
                 for left in itertools.combinations(range(total), n1)
-                if _partition_statistic(pooled, left) >= observed - 1e-12
+                if exceeds_observed(_partition_statistic(pooled, left))
             )
             return (
                 at_least / num_partitions,
@@ -296,17 +328,43 @@ class WEAT(EmbeddingMetric):
 
         rng = np.random.default_rng(seed)
         indices = np.arange(total)
-        at_least = 1  # count the observed partition itself
-        for _ in range(n_samples):
+        at_least = 1 if tie_policy == "conservative" else 0
+        random_draws = n_samples - 1 if tie_policy == "conservative" else n_samples
+        for _ in range(random_draws):
             rng.shuffle(indices)
-            if _partition_statistic(pooled, indices[:n1]) >= observed - 1e-12:
+            if exceeds_observed(_partition_statistic(pooled, indices[:n1])):
                 at_least += 1
         return (
-            at_least / (n_samples + 1),
+            at_least / n_samples,
             False,
             num_partitions,
-            f"Sampled test: {n_samples} of {num_partitions} partitions "
-            "(too many to enumerate).",
+            f"Sampled {tie_policy} test: {n_samples} of {num_partitions} "
+            "partition evaluations (too many to enumerate).",
+        )
+
+    @staticmethod
+    def _validate_permutation_options(
+        n_samples: int, seed: int, tie_policy: str
+    ) -> None:
+        if not isinstance(n_samples, (int, np.integer)) or isinstance(n_samples, bool):
+            raise ValueError("n_permutation_samples must be a positive non-Boolean integer.")
+        if n_samples <= 0:
+            raise ValueError("n_permutation_samples must be a positive non-Boolean integer.")
+        if not isinstance(seed, (int, np.integer)) or isinstance(seed, bool):
+            raise ValueError("permutation_seed must be a non-Boolean integer.")
+        if tie_policy not in ("strict", "conservative"):
+            raise ValueError("tie_policy must be 'strict' or 'conservative'.")
+
+    def run(self, *args, seed: int = 42, protocol_kwargs=None, **kwargs):
+        """Run WEAT, using and recording ``seed`` for sampled permutations."""
+        effective_permutation_seed = kwargs.setdefault("permutation_seed", seed)
+        effective_protocol_kwargs = dict(protocol_kwargs or {})
+        effective_protocol_kwargs["permutation_seed"] = effective_permutation_seed
+        return super().run(
+            *args,
+            seed=seed,
+            protocol_kwargs=effective_protocol_kwargs,
+            **kwargs,
         )
 
     def _compute_effect_size(
@@ -328,23 +386,17 @@ class WEAT(EmbeddingMetric):
         Raises:
             ValueError: If standard deviation is zero or insufficient data
         """
-        # Check sufficient data
+        # Retained for private callers; the public path uses the shared helper.
         if len(scores_union) < 2:
             raise ValueError(
                 f"Need at least 2 total embeddings to compute effect size. "
                 f"Got {len(scores_union)}."
             )
-
-        # Compute standard deviation
         std_union = np.std(scores_union, ddof=1)
-
-        # Check for zero std
         if std_union < 1e-10:
             raise ValueError(
                 "Standard deviation of association scores is zero or near-zero. "
                 "This occurs when all target embeddings have identical associations "
                 "with the attribute embeddings. Cannot compute effect size."
             )
-
-        # Return effect size
         return float((np.mean(scores1) - np.mean(scores2)) / std_union)

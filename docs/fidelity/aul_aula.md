@@ -54,10 +54,16 @@ Two details the prose leaves implicit:
 
 ## Verdicts
 
-### AUL — **faithful**
+### AUL — **faithful**, as of v0.2.0
 
-Mean log-probability over unmasked tokens, with the indicator-based bias score
-of eq. 6. Matches.
+Mean log-probability over unmasked content tokens, with the percentage-based
+indicator aggregation of eq. 6. The canonical built-in implementation is
+`mode="wordpiece"`.
+
+`mode="whitespace"` is available only with a custom callback. The callback must
+score each token from the complete unmasked sentence; BiasScope cannot verify
+that contract. Combining whitespace mode with `model_name` is rejected because
+the generic scorer masks the scored token and would compute PLL instead of AUL.
 
 ### AULA — **faithful**, as of v0.2.0
 
@@ -74,15 +80,59 @@ change the reported percentage. Fixed to match eq. 5 and the reference; the
 three affected tests were rewritten to assert the paper's arithmetic, with the
 old expectation recorded in each so the change is auditable.
 
+The canonical built-in AULA path is `mode="wordpiece"`. It reports the paper's
+`0-100` bias scale and exposes `bias_score` for `run()`. Whitespace mode is
+retained only for custom callbacks that provide probabilities and already
+aggregated per-token attention from the complete unmasked sentence; combining
+it with `model_name` is rejected because the generic scorer masks the target.
+
 ## Required action
 
-None outstanding for the formula. Two follow-ups:
+The implementation uses tokenizer special-token metadata to exclude all special
+tokens while retaining them in the model input, and raises when no content token
+remains. One limitation remains:
 
 - The `predict_with_attention` callable takes per-token attention from the
   caller, so *this* library cannot guarantee the layer/head averaging matches
   the reference. Document the requirement in the class docstring: `αᵢ` must be
   averaged over all layers and all heads.
-- Confirm the `[1:-1]` special-token handling in the wordpiece path.
+
+## Fixed in the 2026-09-15 from-scratch audit
+
+Independently re-verified `WordPieceBertScorer.aul_aula()` against a fresh
+clone of the reference (`evaluate_bias_in_mlm@6b10239974a7`): bit-identical
+(diff = 0.0) for both AUL and AULA on a real `bert-base-uncased` forward pass.
+The canonical `mode="wordpiece"` scoring was already correct. Two gaps in the
+surrounding code were found and fixed:
+
+- **`run()` never produced a confidence interval, for either metric, for any
+  `ci=`.** `evaluate(return_details=True)` computed the per-pair 0/1
+  preference indicators but never exposed them under the `per_item` key
+  `BiasMetric._interval` needs — so `ci="bootstrap"` (the `run()` default)
+  silently fell through to `(None, "none", None)`. Fixed by adding
+  `"per_item"` (the indicators scaled to 0/100, matching `bias_score`'s
+  scale) to both modes' `return_details=True` dict, in both `AUL` and
+  `AULA`. `run(pairs, ci="bootstrap")` now returns a real interval.
+- **A whitespace-mode footgun could silently compute masked PLL instead of
+  AUL/AULA.** `BertPLLScorer`'s class docstring advertised it as a reusable
+  adapter for AUL and AULA, and `WordPieceBertScorer`'s
+  `token_probability`/`token_probability_with_attention` compatibility shim
+  made the same claim — but both always mask the scored position before
+  predicting it, which is the PLL a plain CrowS-Pairs comparison needs, not
+  AUL/AULA's defining unmasked forward pass. Neither `__init__` guard (which
+  only blocks `model_name=` + `mode="whitespace"` together) caught a
+  manually-constructed scorer passed straight to `.evaluate()`. Fixed with a
+  runtime check (`_reject_masked_scorer`) that rejects a `BertPLLScorer` or
+  `WordPieceBertScorer` instance in whitespace mode with a clear error, and
+  corrected both classes' docstrings.
+
+Also corrected two inaccurate comments found in the same pass (no scoring
+change): `AUL.evaluate()`'s worked example claimed a `0.5`-scale output where
+the real scale is `0-100`; `AULA`'s whitespace-mode docstring and one of its
+tests claimed attention weights are "normalized to sum to 1", when the code
+correctly uses them raw (eq. 5's `1/|S|` already comes from the mean, not
+from the weights summing to 1) — the test's own inputs couldn't have told the
+two apart, since it used the same probability at every position.
 
 ## Validation possible
 

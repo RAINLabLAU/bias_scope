@@ -1,0 +1,7 @@
+{
+  "inputs": "np.random.default_rng(42).standard_normal((8, 16)) x4",
+  "metric": "SEAT",
+  "p_value": 0.5183372183372184,
+  "regenerated_because": "Phase 1 SEAT audit: new golden; freezes effect size (=WEAT) and the May et al. non-strict >= permutation p-value",
+  "score": -0.023887195046478373
+}

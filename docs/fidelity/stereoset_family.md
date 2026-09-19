@@ -94,6 +94,36 @@ faithful likelihood version. That is now literally true.
 - Vendor the StereoSet dev split with a SHA-256 (CC-BY-SA-4.0 — see RL-014 on
   share-alike before vendoring rather than loading).
 
+## Fixed in the 2026-09-17 audit follow-up
+
+Neither `CAT.evaluate()` nor `ICAT.evaluate()` exposed `details["per_item"]`,
+so `run()`'s default `ci="bootstrap"` silently returned no interval for
+either metric (found during a from-scratch CAT audit; confirmed by
+execution). Fixed differently for each, because `ss` and `icat` have
+different statistical structure:
+
+- **CAT**: `per_item` is now the per-target-term `ss` values (`term_ss`).
+  Each target term is the paper's own resampling unit — `ss` is literally
+  defined as their mean — so a standard percentile bootstrap over that list
+  is the textbook-correct interval for `ss`, and `np.mean(per_item) ==
+  bias_score` exactly.
+- **ICAT**: `icat = combine(mean(term_lms), mean(term_ss))` is a *nonlinear*
+  function of two paired per-term statistics, so a generic bootstrap over
+  any single flat list would not describe `icat`'s actual uncertainty (and
+  could produce an interval that doesn't bracket the reported score, which
+  `run()`'s guards would then reject). `ICAT` therefore does not expose
+  `per_item` at all — reusing CAT's own `per_item` (which is `ss`-only)
+  would be exactly this mistake — and instead overrides `_interval` to
+  resample target terms with their `(term_lms, term_ss)` pairs kept
+  together, recomputing `icat` via the same `combine` formula on every
+  resample. This is the correct paired bootstrap for a ratio/product-type
+  statistic built from two per-unit averages.
+
+`ci="wald"` was already reachable for both (a side effect of the earlier
+CrowS-Pairs `base.py::_interval` fix, since both scores are on a bounded
+`[0, 100]` scale); this fix is specifically about `ci="bootstrap"`, the
+`run()` default.
+
 ## Validation possible
 
 - **Tier 1:** the paper reports lms / ss / icat for BERT, RoBERTa, XLNet and

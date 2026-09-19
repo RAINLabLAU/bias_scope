@@ -96,9 +96,81 @@ def _score_wordpiece_pair_crows(scorer, s_more: str, s_less: str) -> Tuple[float
     ids_a = scorer.encode(s_more)
     ids_b = scorer.encode(s_less)
     pos_a, pos_b = scorer.align_unmodified(ids_a, ids_b)
+    pos_a, pos_b = _filter_special_aligned_positions(
+        scorer, ids_a, ids_b, pos_a, pos_b
+    )
+    if not pos_a:
+        raise ValueError(
+            "No shared non-special WordPiece tokens found after alignment. "
+            "CrowS-Pairs cannot score a pair whose only shared tokens are special tokens."
+        )
     pll_a = scorer.pll_over_positions(ids_a, pos_a)
     pll_b = scorer.pll_over_positions(ids_b, pos_b)
     return pll_a, pll_b
+
+
+def _special_positions(scorer, input_ids: List[int]) -> Set[int]:
+    """Return positions occupied by tokenizer special tokens."""
+    tokenizer = getattr(scorer, "tokenizer", None)
+    get_mask = getattr(tokenizer, "get_special_tokens_mask", None)
+    if callable(get_mask):
+        mask = get_mask(input_ids, already_has_special_tokens=True)
+        return {i for i, is_special in enumerate(mask) if is_special}
+
+    special_ids = getattr(tokenizer, "all_special_ids", None)
+    if special_ids is None:
+        special_ids = getattr(scorer, "all_special_ids", None)
+    if special_ids is None:
+        return set()
+
+    special_id_set = set(special_ids)
+    return {i for i, token_id in enumerate(input_ids) if token_id in special_id_set}
+
+
+def _filter_special_aligned_positions(
+    scorer,
+    ids_a: List[int],
+    ids_b: List[int],
+    pos_a: List[int],
+    pos_b: List[int],
+) -> Tuple[List[int], List[int]]:
+    """Drop aligned positions where either side is a tokenizer special token."""
+    specials_a = _special_positions(scorer, ids_a)
+    specials_b = _special_positions(scorer, ids_b)
+    filtered_a: List[int] = []
+    filtered_b: List[int] = []
+    for a, b in zip(pos_a, pos_b):
+        if a in specials_a or b in specials_b:
+            continue
+        filtered_a.append(a)
+        filtered_b.append(b)
+    return filtered_a, filtered_b
+
+
+def _reject_masked_scorer(scorer, metric_name: str) -> None:
+    """Refuse a masking-based scorer in AUL/AULA's whitespace mode.
+
+    ``BertPLLScorer`` and ``WordPieceBertScorer`` implement the
+    ``TokenPredictionScorer`` protocol (``token_probability`` /
+    ``token_probability_with_attention``) by masking the scored position
+    before predicting it -- correct for CrowS-Pairs' pseudo-log-likelihood,
+    but the opposite of AUL/AULA (Kaneko & Bollegala 2022 eq. 4-5), which
+    scores every token from the complete UNMASKED sentence. Silently
+    accepting either scorer here would compute PLL, not AUL/AULA.
+    """
+    if scorer is None:
+        return
+    from bias_scope.probability_based.scorers import BertPLLScorer, WordPieceBertScorer
+
+    if isinstance(scorer, (BertPLLScorer, WordPieceBertScorer)):
+        raise ValueError(
+            f"{metric_name} mode='whitespace' cannot use a "
+            f"{type(scorer).__name__} instance: its token_probability / "
+            "token_probability_with_attention methods mask the scored token "
+            "and compute PLL, not AUL/AULA. Use mode='wordpiece' (passing "
+            "model_name= or a WordPieceBertScorer) or a custom callback that "
+            "scores from the complete unmasked sentence."
+        )
 
 
 def _score_wordpiece_pair_aul(scorer, s_more: str, s_less: str) -> Tuple[float, float]:

@@ -18,15 +18,15 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 ## Progress
 
 - Metrics in the library: **55**
-- Sources read: **54 / 55**
+- Sources read: **55 / 55**
 
 | Status | Count |
 |---|---|
-| faithful | 27 |
+| faithful | 28 |
 | adaptation | 16 |
 | original | 9 |
 | mismatch | 2 |
-| unaudited | 1 |
+| unaudited | 0 |
 | **total** | **55** |
 
 > **2 mismatch(es) outstanding.** PLAN.md Section 13
@@ -56,6 +56,7 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `MarkedPersons` | generated_text | **faithful** | [marked_persons.md](marked_persons.md) |
 | `PoliticalEvenHandedness` | prompt | **faithful** | [political_even_handedness.md](political_even_handedness.md) |
 | `SEAT` | embedding | **faithful** | [seat.md](seat.md) |
+| `SentenceBiasScore` | embedding | **faithful** | [sentence_bias_score.md](sentence_bias_score.md) |
 | `ToxicityProbability` | generated_text | **faithful** | [toxicity_family.md](toxicity_family.md) |
 | `TrustLLMDisparagement` | prompt | **faithful** | [trustllm.md](trustllm.md) |
 | `TrustLLMPreference` | prompt | **faithful** | [trustllm.md](trustllm.md) |
@@ -90,4 +91,3 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `ToxicityFraction` | generated_text | **original** | [toxicity_family.md](toxicity_family.md) |
 | `FGB` | generated_text | **mismatch** | [fgb.md](fgb.md) |
 | `PGB` | generated_text | **mismatch** | [pgb.md](pgb.md) |
-| `SentenceBiasScore` | embedding | **unaudited** | [sentence_bias_score.md](sentence_bias_score.md) |

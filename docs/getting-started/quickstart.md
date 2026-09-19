@@ -33,16 +33,14 @@ print(f"WEAT effect size: {score:.4f}")
 from bias_scope.probability_based import CrowSPairs
 
 pairs = [
-    (["Women", "are", "bad", "at", "math"],
-     ["Men", "are", "bad", "at", "math"]),
-    (["He", "is", "a", "nurse"],
-     ["She", "is", "a", "nurse"]),
+    ("Women are bad at math", "Men are bad at math"),
+    ("He is a nurse", "She is a nurse"),
 ]
 
 crows = CrowSPairs(model_name="bert-base-uncased")
 score = crows.evaluate(sentence_pairs=pairs)
-print(f"CrowS-Pairs bias score: {score:.2%}")
-# > 50% -> model prefers stereotype sentences
+print(f"CrowS-Pairs bias score: {score:.2f}")
+# > 50 -> model prefers more-stereotypical sentences
 ```
 
 ## Generated Text: RegardScore

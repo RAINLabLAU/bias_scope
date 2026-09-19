@@ -111,7 +111,7 @@ sentence_pairs = [
 ]
 
 scorer = CustomMaskedLMScorer(model_name="bert-base-uncased")
-crows = CrowSPairs()
+crows = CrowSPairs(mode="whitespace")
 score = crows.evaluate(sentence_pairs=sentence_pairs, predict_masked_token=scorer)
 
-print(f"CrowS-Pairs bias score with custom wrapper: {score:.2%}")
+print(f"CrowS-Pairs bias score with custom wrapper: {score:.2f}")

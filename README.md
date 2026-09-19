@@ -59,26 +59,27 @@ pip install -e .
 
 ### Embedding-Based Example
 
-You can now pass raw text directly and let the metric embed it for you:
+Canonical WEAT takes precomputed static word embeddings:
 
 ```python
+import numpy as np
 from bias_scope.embeddings_based import WEAT
 
-weat = WEAT(model_name="sentence-transformers/all-MiniLM-L6-v2")
-score = weat.evaluate(
-    target_embeddings=(
-        ["John", "Paul", "Mike", "Kevin"],
-        ["Amy", "Joan", "Lisa", "Sarah"],
-    ),
-    attribute_embeddings=(
-        ["executive", "management", "salary", "career"],
-        ["home", "children", "marriage", "family"],
-    ),
-)
-print(f"WEAT effect size: {score:.4f}")
+# Rows from a static word-embedding table; use the paper's full word lists in
+# a real experiment.
+X = np.array([[1.0, 0.0], [0.9, 0.1]])
+Y = np.array([[0.0, 1.0], [0.1, 0.9]])
+A = np.array([[1.0, 0.0], [0.95, 0.05]])
+B = np.array([[0.0, 1.0], [0.05, 0.95]])
+
+details = WEAT().evaluate((X, Y), (A, B), return_details=True)
+print(f"WEAT effect size: {details['effect_size']:.4f}")
+print(f"Strict permutation p-value: {details['p_value']:.4g}")
 ```
 
-If you already have embeddings, you can still pass precomputed arrays exactly as before.
+Raw string sequences are supported as a noncanonical BiasScope extension: they
+depend on the selected encoder's tokenizer, subword handling, truncation, and
+pooling. Document all of those choices when reporting a raw-text result.
 
 ### Probability-Based Example
 

@@ -1,9 +1,29 @@
 """Tests for All Unmasked Likelihood with Attention (AULA)."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 
 from bias_scope.probability_based import AULA
+
+
+def _mock_masked_scorer(cls):
+    """Build a real scorer instance (mocked HF backend) for guard tests.
+
+    Only __init__ needs to succeed; the guard rejects the instance before
+    any prediction method is called, so the model/tokenizer mocks need not
+    be functional beyond that.
+    """
+    with patch("transformers.AutoTokenizer") as auto_tok, patch(
+        "transformers.AutoModelForMaskedLM"
+    ) as auto_mlm:
+        tok = MagicMock()
+        tok.mask_token = "[MASK]"
+        tok.mask_token_id = 999
+        auto_tok.from_pretrained.return_value = tok
+        auto_mlm.from_pretrained.return_value = MagicMock()
+        return cls(model_name="fake", device="cpu")
 
 
 class TestAULA:
@@ -30,8 +50,8 @@ class TestAULA:
 
         score = aula.evaluate(pairs, biased_predict)
 
-        assert 0.0 <= score <= 1.0
-        assert score > 0.5  # Prefers stereotypes
+        assert 0.0 <= score <= 100.0
+        assert score > 50.0  # Prefers stereotypes
 
     def test_attention_weighting_single_token(self):
         """Attention on one token zeroes the others, then a plain mean over |S|.
@@ -69,28 +89,50 @@ class TestAULA:
 
         assert pytest.approx(result, abs=1e-5) == expected
 
-    def test_attention_normalization(self):
-        """Test that attention weights are normalized to sum to 1."""
+    def test_attention_weights_are_not_renormalized(self):
+        """Attention weights are used raw, NOT renormalized to sum to 1.
+
+        eq. 5 is `(1/|S|) sum_i a_i log P(w_i|S)` -- the `1/|S|` already comes
+        from the final mean over |S|, not from `sum(a_i) == 1`. Renormalizing
+        by `sum(a_i)` instead (v0.1.1's bug) gives a different, per-sentence
+        rescaled answer. Unlike the old version of this test, probabilities
+        differ by position, so a renormalizing implementation would produce a
+        different number than the eq. 5 arithmetic asserted here.
+        """
         aula = AULA(mode="whitespace")
 
         def predict_with_unnormalized_attention(sentence, pos):
             n = len(sentence)
-            # Unnormalized attention (sum = 3)
+            # Unnormalized attention (sums to 3, not 1)
             attention = np.array([1.0, 1.0, 1.0])[:n]
-            prob = 0.5
+            # Different probability per position, so normalization would
+            # change the weighted combination, not just cancel out.
+            prob = [0.9, 0.5, 0.1][pos]
 
             return {"prob": prob, "attention": attention}
 
         sentence = ["A", "B", "C"]
 
-        # Should normalize to [1/3, 1/3, 1/3]
         result = aula._compute_aula(sentence, predict_with_unnormalized_attention)
 
-        # All probs same (0.5), all weights same after normalization
-        # AULA = (1/3)*log(0.5) + (1/3)*log(0.5) + (1/3)*log(0.5) = log(0.5)
-        expected = np.log(0.5)
-
+        # eq. 5, raw (unnormalized) weights [1, 1, 1] over |S| = 3:
+        #   (1/3) * [1*log(0.9) + 1*log(0.5) + 1*log(0.1)]
+        expected = (np.log(0.9) + np.log(0.5) + np.log(0.1)) / 3
+        # The old (v0.1.1) renormalized behaviour would instead divide by
+        # sum(attention) = 3 as well here (weights already 1 each), so also
+        # check this is NOT the same as dividing the sum by a different
+        # normalizer, e.g. treating weights as [1/3, 1/3, 1/3] pre-scaled by
+        # a factor that doesn't equal |S| -- assert against the one true
+        # eq. 5 value.
         assert pytest.approx(result, abs=1e-5) == expected
+
+        # A renormalizing implementation dividing by sum(attention)*n instead
+        # of just n would give a visibly different number; confirm the two
+        # are distinguishable at these inputs.
+        wrong_renormalized = (
+            1.0 * np.log(0.9) + 1.0 * np.log(0.5) + 1.0 * np.log(0.1)
+        ) / (3.0 * 3.0)
+        assert abs(result - wrong_renormalized) > 1e-3
 
     def test_missing_attention_raises_error(self):
         """Test that missing attention key raises clear error."""
@@ -306,8 +348,8 @@ class TestAULA:
 
         score = aula.evaluate(pairs, predict_biased)
 
-        # Should prefer stereotypes (> 0.5)
-        assert score > 0.5
+        # Should prefer stereotypes (> 50)
+        assert score > 50.0
 
     def test_unbiased_model_near_fifty(self):
         """Test unbiased model returns score near 0.5."""
@@ -328,7 +370,7 @@ class TestAULA:
         # With identical probs, ties are broken arbitrarily (depends on >)
         # Score could be 0.0 or 1.0 due to tie-breaking
         # In practice, should be 0.0 since neither is strictly greater
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_result_type(self):
         """Test that result is a float."""
@@ -342,7 +384,7 @@ class TestAULA:
         score = aula.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     # === A) Common validation gaps ===
 
@@ -423,3 +465,134 @@ class TestAULA:
         # With identical scores, aula_stereo > aula_anti is False
         # So bias_indicators.append(0) for all pairs
         assert score == 0.0  # All ties count as 0 (no bias)
+
+    def test_score_scale_and_neutral_fixture(self):
+        aula = AULA(mode="whitespace")
+
+        def predict(sentence, pos):
+            if "Women" in sentence:
+                prob = 0.8
+            elif "Girls" in sentence:
+                prob = 0.2
+            elif "Boys" in sentence:
+                prob = 0.8
+            else:
+                prob = 0.5
+            return {"prob": prob, "attention": np.ones(len(sentence))}
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Girls", "work"], ["Boys", "work"]),
+        ]
+        assert aula.evaluate(pairs, predict) == 50.0
+
+    def test_return_details_and_run(self):
+        aula = AULA(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        result = aula.evaluate(
+            pairs,
+            lambda sentence, pos: {
+                "prob": 0.5,
+                "attention": np.ones(len(sentence)),
+            },
+            return_details=True,
+        )
+        assert result["bias_score"] == 0.0
+        assert result["aula_score"] == 0.0
+        assert isinstance(result["num_pairs"], int)
+        run_result = aula.run(
+            pairs,
+            lambda sentence, pos: {
+                "prob": 0.5,
+                "attention": np.ones(len(sentence)),
+            },
+            ci="none",
+        )
+        assert run_result.score == 0.0
+
+    def test_whitespace_model_name_is_rejected(self):
+        with pytest.raises(ValueError, match="cannot be combined with model_name"):
+            AULA(mode="whitespace", model_name="bert-base-uncased")
+
+    def test_invalid_whitespace_inputs_raise_clear_error(self):
+        aula = AULA(mode="whitespace")
+        with pytest.raises(ValueError, match="token lists"):
+            aula.evaluate([("Women work", "Men work")], lambda sentence, pos: {})
+
+    # === per_item exposure + run() confidence intervals ===
+
+    def test_return_details_exposes_per_item(self):
+        """run() needs details['per_item'] to compute a bootstrap CI; verify
+        evaluate(return_details=True) actually reports it, scaled to match
+        the 0-100 bias_score so the two are on the same axis."""
+        aula = AULA(mode="whitespace")
+
+        def predict(sentence, pos):
+            prob = 0.8 if "Women" in sentence else 0.3
+            return {"prob": prob, "attention": np.ones(len(sentence))}
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+        ]
+        result = aula.evaluate(pairs, predict, return_details=True)
+        assert result["per_item"] == [100.0, 100.0, 0.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_produces_bootstrap_ci(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for AULA because per_item was never exposed."""
+        aula = AULA(mode="whitespace")
+
+        def predict(sentence, pos):
+            prob = 0.8 if "Women" in sentence else 0.3
+            return {"prob": prob, "attention": np.ones(len(sentence))}
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+            (["Girls", "read"], ["Boys", "read"]),
+        ]
+        result = aula.run(pairs, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_wordpiece_mode_also_exposes_per_item(self):
+        class FakeWordpieceScorer:
+            def encode(self, sentence):
+                return [ord(c) for c in sentence]
+
+            def aul_aula(self, input_ids):
+                aula = -float(np.mean(input_ids))
+                return aula, aula
+
+        aula = AULA(mode="wordpiece")
+        pairs = [("bb", "aa"), ("aa", "bb")]
+        result = aula.evaluate(pairs, FakeWordpieceScorer(), return_details=True)
+        assert result["per_item"] == [0.0, 100.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    # === Reject masking-based scorers in whitespace mode (they'd silently
+    # compute PLL, not AULA) ===
+
+    def test_whitespace_rejects_bert_pll_scorer_instance(self):
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        scorer = _mock_masked_scorer(BertPLLScorer)
+        aula = AULA(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aula.evaluate(pairs, scorer)
+
+    def test_whitespace_rejects_wordpiece_scorer_instance(self):
+        from bias_scope.probability_based.scorers import WordPieceBertScorer
+
+        scorer = _mock_masked_scorer(WordPieceBertScorer)
+        aula = AULA(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aula.evaluate(pairs, scorer)
