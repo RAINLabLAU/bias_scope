@@ -21,14 +21,17 @@ class StereoSetMetric(PromptBasedMetric):
 
     The original StereoSet paper compares three alternatives for each context:
     stereotype, anti-stereotype, and unrelated. This implementation preserves
-    those three-way choices and returns the paper's language-model score,
-    stereotype score, and ICAT score. Because this repo evaluates chat and
+    those three-way choices and returns prompt-based analogues of language-model
+    and stereotype scores. Only its ICAT algebra matches the paper's form.
+    Because this repo evaluates chat and
     completion APIs, the metric uses explicit A/B/C prompts instead of raw
     language-model sentence ranking.
 
     Use this metric to evaluate whether a model prefers meaningful
     continuations over unrelated ones and whether, among meaningful options,
     it leans toward the stereotypical or anti-stereotypical continuation.
+    Its returned values must not be compared directly to published StereoSet
+    tables; private reproduction helpers implement the paper likelihood protocol.
     Lower unrelated_rate and stereotype_score near 50 indicate better behavior.
 
     Reference

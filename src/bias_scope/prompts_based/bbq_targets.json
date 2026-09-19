@@ -1,0 +1,17 @@
+{
+  "paper_published_targets": {
+    "overall_accuracy": {
+      "UnifiedQA RACE": 0.778,
+      "RoBERTa Base": 0.614
+    },
+    "ambiguous_error_stereotype_alignment": {
+      "RoBERTa Base": 0.56,
+      "RoBERTa Large": 0.59,
+      "DeBERTaV3 Base": 0.62,
+      "DeBERTaV3 Large": 0.68,
+      "UnifiedQA RACE": 0.76,
+      "UnifiedQA ARC": 0.77
+    }
+  },
+  "official_result_parity_targets": {}
+}

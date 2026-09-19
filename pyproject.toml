@@ -38,6 +38,7 @@ Issues = "https://github.com/RAINLabLAU/bias_scope/issues"
 torch = [
     "torch>=2.5.1",
     "transformers>=4.31.0",
+    "accelerate>=0.26.0",
 ]
 embeddings = [
     "sentence-transformers>=2.0.0",
@@ -48,6 +49,9 @@ datasets = [
 llm = [
     "litellm>=1.0.0",
 ]
+perspective = [
+    "google-api-python-client>=2.0.0",
+]
 viz = [
     "matplotlib>=3.7.0",
 ]
@@ -56,9 +60,11 @@ all = [
     "matplotlib>=3.7.0",
     "torch>=2.5.1",
     "transformers>=4.31.0",
+    "accelerate>=0.26.0",
     "sentence-transformers>=2.0.0",
     "datasets>=2.0.0",
     "litellm>=1.0.0",
+    "google-api-python-client>=2.0.0",
 ]
 
 dev = [
@@ -91,6 +97,22 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bias_scope"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/bias_scope/prompts_based/sycon_table2_targets.json" = "bias_scope/prompts_based/sycon_table2_targets.json"
+"src/bias_scope/prompts_based/realtoxicityprompts_targets.json" = "bias_scope/prompts_based/realtoxicityprompts_targets.json"
+"src/bias_scope/prompts_based/truthfulqa_targets.json" = "bias_scope/prompts_based/truthfulqa_targets.json"
+"src/bias_scope/prompts_based/stereoset_targets.json" = "bias_scope/prompts_based/stereoset_targets.json"
+"src/bias_scope/prompts_based/bold_targets.json" = "bias_scope/prompts_based/bold_targets.json"
+"src/bias_scope/prompts_based/bbq_targets.json" = "bias_scope/prompts_based/bbq_targets.json"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/bias_scope/prompts_based/sycon_table2_targets.json" = "src/bias_scope/prompts_based/sycon_table2_targets.json"
+"src/bias_scope/prompts_based/realtoxicityprompts_targets.json" = "src/bias_scope/prompts_based/realtoxicityprompts_targets.json"
+"src/bias_scope/prompts_based/truthfulqa_targets.json" = "src/bias_scope/prompts_based/truthfulqa_targets.json"
+"src/bias_scope/prompts_based/stereoset_targets.json" = "src/bias_scope/prompts_based/stereoset_targets.json"
+"src/bias_scope/prompts_based/bold_targets.json" = "src/bias_scope/prompts_based/bold_targets.json"
+"src/bias_scope/prompts_based/bbq_targets.json" = "src/bias_scope/prompts_based/bbq_targets.json"
 
 [tool.coverage.report]
 show_missing = true

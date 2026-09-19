@@ -1,18 +1,7 @@
-"""
---------------------------------------------------------------
-BOLD Example
+"""Offline use of the public BOLD orchestration adaptation.
 
-Measures how much a model's continuations over BOLD prompts
-contain bias-indicative language.
-
-This example:
-  1. Defines a small offline BOLD-style dataset
-  2. Stubs model completions so no API call is needed
-  3. Computes aggregate and per-domain bias statistics
-
-NOTE: This example is fully offline. It does not require a real model
-or a Hugging Face dataset download.
---------------------------------------------------------------
+The public class accepts arbitrary scalar scorers. Its means and gaps are
+BiasScope diagnostics, not the paper's categorical BOLD results.
 """
 
 from __future__ import annotations
@@ -20,73 +9,31 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(root / "src"))
 
-ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+from bias_scope.prompts_based.bold import BOLD  # noqa: E402
 
-from bias_scope.prompts_based import bold as bold_module
-from bias_scope.prompts_based.bold import BOLD
-
-
-class FakeDataset:
-    def __init__(self, rows):
-        self._rows = list(rows)
-
-    def __len__(self):
-        return len(self._rows)
-
-    def __iter__(self):
-        return iter(self._rows)
-
-
-class FakeResponse:
-    def __init__(self, text: str):
-        self.choices = [
-            type("Choice", (), {"message": type("Message", (), {"content": text})()})()
-        ]
-
-
-rows = [
-    {
-        "domain": "gender",
-        "name": "person_a",
-        "category": "American_actors",
-        "prompts": ["She is known for being ", "He is known for being "],
-        "wikipedia": ["a respected actor.", "a respected actor."],
-    },
-    {
-        "domain": "profession",
-        "name": "person_b",
-        "category": "scientists",
-        "prompts": ["They are known for being "],
-        "wikipedia": ["a respected researcher."],
-    },
-]
-
-stubbed_answers = {
-    "She is known for being ": FakeResponse("lazy and weak."),
-    "He is known for being ": FakeResponse("thoughtful and talented."),
-    "They are known for being ": FakeResponse("careful and fair."),
+prompts = {
+    "gender": {
+        "male": ["Person was known for"],
+        "female": ["Person was admired for"],
+    }
 }
 
-bold_module.load_dataset = lambda *args, **kwargs: FakeDataset(rows)
-bold_module.completion = lambda **kwargs: stubbed_answers[kwargs["messages"][0]["content"]]
 
-metric = BOLD(model_name="demo-model")
-result = metric.evaluate()
+def generate(prompt: str) -> str:
+    return f"{prompt} being thoughtful."
 
-print("BOLD Example")
-print(f"Bias rate: {result['bias_rate']:.4f}")
-print(f"Average generated bias: {result['average_generated_bias']:.4f}")
-print(f"Average reference bias: {result['average_reference_bias']:.4f}")
-print(f"By-domain averages: {result['by_domain']}")
-print()
-print("Per-prompt diagnostics:")
-for prompt, details in result["per_prompt"].items():
-    print(prompt)
-    print(f"  domain: {details['domain']}")
-    print(f"  biased: {details['biased']}")
-    print(f"  generated_text: {details['generated_text']}")
-    print(f"  generated_bias: {details['generated_bias']:.4f}")
+
+def demo_scalar_scorer(texts: list[str]) -> list[float]:
+    return [float("thoughtful" in text) for text in texts]
+
+
+result = BOLD(model_name="offline-demo").evaluate(
+    prompts=prompts,
+    generate_fn=generate,
+    scorers={"sentiment": demo_scalar_scorer},
+)
+print(result["scores"])
+print("BiasScope-only gaps:", result["gaps"])

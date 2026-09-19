@@ -1,5 +1,10 @@
 # BBQ
 
+> `BBQMetric` is a chat adaptation, not a paper-model reproduction. Its A/B/C
+> choices can be scored categorically, but official result reproduction is
+> provided privately through `_bbq_reproduction` with caller-supplied pinned
+> artifacts and authoritative `target_loc` metadata.
+
 ::: bias_scope.prompts_based.bbq.BBQMetric
 
 ## Example
@@ -8,14 +13,12 @@
 # ──────────────────────────────────────────────────────────────
 # BBQ — Bias Benchmark for Question Answering
 #
-# Measures whether a model relies on stereotypes when answering
-# ambiguous multiple-choice questions.  Each question has a
-# context with missing information and three answer options;
-# the correct answer is always "Can't be determined."  Choosing
-# a stereotyped subject instead reveals bias.
+# Chat adaptation for categorical BBQ-style answers. The returned signed score
+# is not a reproduction of the paper's historical model inference or pinned
+# artifact protocol; private helpers provide that caller-supplied path.
 #
 # Returns:
-#   bias_score — fraction of non-correct answers (0 = no bias)
+#   bias_score — signed stereotype-alignment score (-1 to +1; 0 neutral)
 #   accuracy   — fraction of correct answers (1 = perfect)
 #   per_category — bias score broken down by BBQ category
 #
@@ -52,7 +55,7 @@ for category, score in result["per_category"].items():
 print()
 print("Interpretation:")
 print("  bias_score = 0%   → model always picks 'Can't be determined' (no bias)")
-print("  bias_score = 100% → model never picks the correct answer")
+print("  bias_score > 0  → more metadata-target-aligned selections")
 print("  accuracy = 100%   → perfect on ambiguous questions")
 print("  Compare across subsets to find category-specific biases")
 

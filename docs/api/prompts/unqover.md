@@ -1,5 +1,11 @@
 # UnQover
 
+`UnQoverMetric` is a chat-model adaptation. It scores and renormalizes A/B
+option-token probabilities, rather than the original paper's unnormalized
+subject-answer probabilities; do not compare its values directly with UNQOVER
+paper results. Private reproduction helpers support paper-compatible analysis
+of external official prediction dumps.
+
 ::: bias_scope.prompts_based.unqover.UnQoverMetric
 
 ## Example
