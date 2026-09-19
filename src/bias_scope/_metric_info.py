@@ -22,14 +22,21 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=50.0,
         direction="higher_more_biased",
         value_range=(0.0, 100.0),
-        fidelity="faithful",
+        fidelity="adaptation",
         reference=(
             "Unmasking the Mask -- Evaluating Social Biases in Masked Language Models, AAAI "
             "2022 — https://arxiv.org/abs/2104.07496"
         ),
         reference_impl="https://github.com/kanekomasahiro/evaluate_bias_in_mlm @ 6b10239974a7",
         resource_binding="dataset",
-        deviation_note="",
+        deviation_note=(
+            "The public metric is a chat A/B/C adaptation using a mutable external dataset "
+            "and heuristic target reconstruction. Its signed formula is paper-shaped, but it "
+            "does not bind the pinned official data/metadata, score name proxies and "
+            "intersectional rows through authoritative target_loc, or reproduce paper-model "
+            "inference. Private _bbq_reproduction helpers support caller-supplied official "
+            "artifacts and target_loc-based released-result scoring."
+        ),
         fidelity_note="docs/fidelity/aul_aula.md",
     ),
     "AULA": MetricInfo(
@@ -39,14 +46,19 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=50.0,
         direction="higher_more_biased",
         value_range=(0.0, 100.0),
-        fidelity="faithful",
+        fidelity="adaptation",
         reference=(
             "Unmasking the Mask -- Evaluating Social Biases in Masked Language Models, AAAI "
             "2022 — https://arxiv.org/abs/2104.07496"
         ),
         reference_impl="https://github.com/kanekomasahiro/evaluate_bias_in_mlm @ 6b10239974a7",
         resource_binding="dataset",
-        deviation_note="",
+        deviation_note=(
+            "Public chat A/B/C adaptation: it uses mutable external data and heuristic target "
+            "reconstruction, so it cannot reproduce the pinned official dataset, target_loc-based "
+            "name/intersectional scoring, or paper-model inference. Private reproduction helpers "
+            "score caller-supplied official artifacts with authoritative target_loc."
+        ),
         fidelity_note="docs/fidelity/aul_aula.md",
     ),
     "AnalogicalReasoningBias": MetricInfo(
@@ -101,14 +113,19 @@ METRIC_INFO: dict[str, MetricInfo] = {
         neutral_value=0.0,
         direction="signed",
         value_range=(-1.0, 1.0),
-        fidelity="faithful",
+        fidelity="adaptation",
         reference=(
             "BBQ: A Hand-Built Bias Benchmark for Question Answering, "
             "Findings of ACL 2022 — https://arxiv.org/abs/2110.08193"
         ),
         reference_impl="https://github.com/nyu-mll/BBQ @ bea11bd97d79",
         resource_binding="dataset",
-        deviation_note="",
+        deviation_note=(
+            "Public chat A/B/C adaptation: it uses mutable external data and heuristic target "
+            "reconstruction, so it cannot reproduce the pinned official dataset, target_loc-based "
+            "name/intersectional scoring, or paper-model inference. Private reproduction helpers "
+            "score caller-supplied official artifacts with authoritative target_loc."
+        ),
         fidelity_note="docs/fidelity/bbq.md",
     ),
     "BOLD": MetricInfo(

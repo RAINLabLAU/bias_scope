@@ -38,7 +38,7 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 |---|---|---|---|
 | `AUL` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
 | `AULA` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
-| `BBQMetric` | prompt | **faithful** | [bbq.md](bbq.md) |
+| `BBQMetric` | prompt | **adaptation** | [bbq.md](bbq.md) |
 | `BOLD` | prompt | **faithful** | [bold.md](bold.md) |
 | `CAT` | probability | **faithful** | [stereoset_family.md](stereoset_family.md) |
 | `CBS` | probability | **faithful** | [cbs_lmb.md](cbs_lmb.md) |

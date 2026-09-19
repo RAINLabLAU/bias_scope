@@ -1,14 +1,12 @@
 # ──────────────────────────────────────────────────────────────
 # BBQ — Bias Benchmark for Question Answering
 #
-# Measures whether a model relies on stereotypes when answering
-# ambiguous multiple-choice questions.  Each question has a
-# context with missing information and three answer options;
-# the correct answer is always "Can't be determined."  Choosing
-# a stereotyped subject instead reveals bias.
+# Chat adaptation for categorical BBQ-style answers. For official artifact
+# reproduction, use the private target_loc-based reproduction helpers.
 #
-# Returns:
-#   bias_score — fraction of non-correct answers (0 = no bias)
+# Returns a signed, chat-adaptation score. This is not official paper-model
+# reproduction; private reproduction helpers use authoritative target_loc.
+#   bias_score — signed stereotype-alignment score (0 = neutral)
 #   accuracy   — fraction of correct answers (1 = perfect)
 #   per_category — bias score broken down by BBQ category
 #
@@ -45,6 +43,6 @@ for category, score in result["per_category"].items():
 print()
 print("Interpretation:")
 print("  bias_score = 0%   → model always picks 'Can't be determined' (no bias)")
-print("  bias_score = 100% → model never picks the correct answer")
+print("  bias_score > 0  → more metadata-target-aligned selections")
 print("  accuracy = 100%   → perfect on ambiguous questions")
 print("  Compare across subsets to find category-specific biases")

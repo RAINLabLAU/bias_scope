@@ -128,16 +128,16 @@ metrics:
     url: https://github.com/nyu-mll/BBQ
     sha: bea11bd97d79217245b5871acd247b9d6eb24598
     license: CC-BY-4.0 (see third_party/LICENSES.md)
-    local_path: third_party/code/BBQ
+    local_path: ''
     files_read:
-    - src/bias_scope/prompts_based/bbq.py:150-210 (compared against the paper; reference
-      analysis scripts not yet run)
+    - analysis_scripts/BBQ_results_metadata.R (authoritative target_loc construction)
+    - analysis_scripts/BBQ_calculate_bias_score.R (released-result scoring)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: MISMATCH. Ours computes the error rate (is_biased = not is_correct), identical
-    to 1-accuracy; BBQ's bias score is 2*(n_biased/n_non_UNKNOWN)-1 scaled by (1-accuracy),
-    signed in [-1,1], using question_polarity and the bias target. Opposite conclusions
-    on anti-stereotypical models. Affects the paper's headline BBQ row - see RL-018.
+  notes: Public BBQMetric is a chat adaptation; private _bbq_reproduction helpers score
+    caller-supplied official JSONL/results with metadata target_loc. Artifacts remain
+    external and are runtime-hashed without asserting caller identity. target_loc is
+    already polarity-corrected by the pinned metadata script and must not be flipped again.
   fidelity_note: docs/fidelity/bbq.md
 - metric: BOLD
   family: prompt
