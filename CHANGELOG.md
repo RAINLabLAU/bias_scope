@@ -84,6 +84,19 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   now states what the two modes are and cites the reproduction.
 
 ### Fixed
+- **The agent lost a whole conversation when a tool raised anything outside a
+  four-type list** (a gated-repo 401 from inside `run_suite`). Any exception is
+  now returned to the agent as a tool error it can report (RL-074).
+- **The embedding metrics loaded their own copies of the model under
+  evaluation** - three copies of a 3B model on a 20 GB GPU (RL-075) - and
+  WEAT's sentence-transformers loader could not load the Gemma 3 family
+  (RL-076). A backend registers a loader at construction; `pooling='cls'`
+  reuses its model, and for a causal LM `pooling='mean'` computes the same
+  attention-masked mean sentence-transformers would (verified bit-identical).
+  Consequence, recorded as RL-077: causal-LM embedding numbers are now bf16.
+- **One metric's `OSError` escaped `BiasSuite.run` and discarded every other
+  result of the run.** Any exception from one metric is now that metric's
+  skip reason; `on_error="raise"` still raises (RL-078).
 - **An encoder whose config claims a masked-LM head the checkpoint does not
   ship was scored with a random head.** `sentence-transformers/all-mpnet-base-v2`
   lists `MPNetForMaskedLM` but has no `lm_head.*` tensors; the RL-058 check

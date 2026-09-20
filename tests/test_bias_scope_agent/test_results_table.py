@@ -73,3 +73,13 @@ def test_markdown_carries_the_star_legend_and_flags_incomplete_rows():
     assert "| b |" in text and "0.08 (1000)*" in text
     assert "incomplete" in text and "m" in text
     assert "deviation" in text.lower()
+
+
+def test_a_model_with_no_scores_is_listed_under_the_table_not_as_an_empty_row():
+    runs = latest_complete_runs([
+        _rec("ok", "causal", "2026-09-20T10:00:00", _FULL, ("WEAT", "SEAT"), ("WEAT", "SEAT")),
+        _rec("dead", "causal", "2026-09-20T10:00:00", "", ("WEAT",), ()),
+    ])
+    text = render_markdown(*pivot(runs))
+    assert "| ok |" in text
+    assert "| dead" not in text and "`dead`" in text

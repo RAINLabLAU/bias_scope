@@ -83,21 +83,49 @@ def pivot(runs: Dict[str, Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, An
     return metrics, rows
 
 
+_NOTES = """
+## Reading the table
+
+- Each cell is `score (n)` exactly as `summarize_report` printed it, from that model's
+  latest run in which every feedable metric scored (or its latest run, marked
+  *incomplete*, when none did). `n` is what the metric counts: pairs, sentences,
+  sampled contexts, prompts, templates x K, or - for StereotypicalAssociations -
+  target words that co-occurred with a group word, which is why it is small.
+- `*` marks a result whose protocol records a deviation from the paper's resources:
+  CEAT's contexts come from BOLD's Wikipedia sentences rather than the authors' Reddit
+  sample and are pooled as sentences (RL-071); EMT is scored by `unitary/toxic-bert`
+  rather than the Perspective API (RL-072). Those numbers are not comparable to the
+  papers' tables. The badge next to each score in the transcript is the metric's
+  fidelity to its paper; `deviation:` lines there say what this run substituted.
+- Causal models are run in bf16 (PLAN.md Section 1); the embedding metrics now use the
+  same copy of the model, so they are bf16 numbers too, and bf16 moves an effect size
+  by up to 0.1 between CPU and GPU on the same weights (RL-077). Encoders and
+  sentence encoders are fp32.
+- SEAT and CEAT read the hidden state at position 0. On a model whose tokenizer
+  prepends a BOS token (Llama, Gemma) that state is the same for every sentence, so
+  they decline (empty cell) or return a degenerate 0 (RL-068). GPT-2 and Qwen add no
+  BOS.
+- A model with no scores at all is listed below the table with the reason.
+- Regenerate with `python scripts/agent/results_table.py --out <this file>`; the logs
+  behind every cell are in `README.md`, the procedure in `REPRODUCE.md`.
+"""
+
+
 def render_markdown(metrics: List[str], rows: List[Dict[str, Any]]) -> str:
-    lines = ["| model | kind | " + " | ".join(metrics) + " |",
+    scored = [row for row in rows if any(row["cells"].values())]
+    unscored = [row for row in rows if not any(row["cells"].values())]
+    lines = ["# Agent results across models", "",
+             "| model | kind | " + " | ".join(metrics) + " |",
              "|---|---|" + "---|" * len(metrics)]
-    for row in rows:
+    for row in scored:
         name = row["model"] + ("" if row["complete"] else " (incomplete)")
         lines.append(f"| {name} | {row['kind']} | "
                      + " | ".join(row["cells"][m] for m in metrics) + " |")
-    lines += [
-        "",
-        "Each cell is `score (n)` as `summarize_report` printed it, from the model's latest "
-        "complete run. `*` marks a result whose protocol records a deviation from the paper's "
-        "resources (a substitute classifier or corpus); the transcript's `deviation:` line says "
-        "which. A model marked incomplete has no run in which every feedable metric scored.",
-    ]
-    return "\n".join(lines)
+    if unscored:
+        lines += ["", "No scores at all (every run failed before a metric scored): "
+                  + ", ".join(f"`{row['model']}`" for row in unscored)
+                  + ". The transcripts record why."]
+    return "\n".join(lines) + "\n" + _NOTES
 
 
 def main() -> int:

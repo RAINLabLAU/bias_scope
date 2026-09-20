@@ -1839,3 +1839,46 @@ words scored (15 and 4) - small, and honest about it.
 
 `ruff check src tests scripts/agent scripts/sources` clean; fast suite green;
 `check_manifest.py` valid.
+
+### Later the same day - twelve models, one table, the logs, and five more defects
+
+By request: run different models and show the table. `RESULTS.md`,
+`README.md` (every conversation verbatim, with commands) and `REPRODUCE.md`
+now live in `results/verification/agent_live/`, all three generated or
+written to be regenerated from the transcripts.
+
+**Complete runs (every feedable metric scored):** bert-base-uncased,
+bert-base-cased, roberta-base (8 of 15, CEAT included now), all-MiniLM-L6-v2,
+all-mpnet-base-v2 (3 of 4), gpt2, gpt2-medium, Qwen2.5-0.5B, -1.5B, -3B
+(9 of 19 each). **Partial by construction:** Llama-3.2-1B (7 of 9) and
+gemma-3-1b-it (8 of 9) - both prepend a BOS token, so position-0 pooling
+gives one vector for every sentence and SEAT/CEAT decline or return a
+degenerate 0 (RL-068; and `sent-bias` has no GPT encoder to take a protocol
+from). **Blocked:** gemma-2-2b-it, gated and not accessible to this account
+(RL-079).
+
+**What the bigger models broke, in the order found.** Llama: a gated-repo
+401 inside `run_suite` escaped the loop's four-type catch and killed the
+conversation (RL-074, fixed; gated cached models run offline). Qwen 3B: out
+of GPU memory - the backend, sentence-transformers and the CLS loader each
+held a copy of the model (RL-075, fixed by sharing the backend's model).
+gemma-3: the sentence-transformers loader wanted an image processor (RL-076,
+fixed: for a causal backend, mean pooling runs on the shared model, and I
+checked it is bit-identical to what sentence-transformers computes on gpt2
+before switching). gemma-3 again: every generation came from the cache, so
+the backend never loaded and the sharing registered inside `_load` never
+happened, and that one metric's OSError discarded the other eight results
+(RL-078, fixed: a loader registered in the constructor; the suite skips a
+metric on any exception). Each fix has a test named after the failure.
+
+**A protocol fact, recorded rather than changed (RL-077).** Sharing the
+backend's model means the embedding metrics on causal LMs now run in the
+bf16 the protocol block always claimed. On gpt2 the same weights, words and
+pooling give WEAT 0.5183 in fp32, 0.4847 in bf16 on CPU, 0.4006 in bf16 on
+the GPU. Every causal row was re-run so the table is one protocol; computing
+embeddings in fp32 regardless of generation dtype is the recommended next
+change, and it is written down as such.
+
+**Process.** Twelve queued runs, five reruns, one model dropped. All
+scripts, tests and REVIEW_LATER entries (RL-074 to RL-079) committed;
+`ruff` clean, fast suite green, manifest valid.

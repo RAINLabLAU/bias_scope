@@ -1727,7 +1727,10 @@ Llama-3.2-1B-Instruct (and any model whose tokenizer prepends a BOS token)
 position 0 *is* the BOS token, whose hidden state under causal attention is
 the same for every sentence, so all "sentence vectors" are identical and SEAT
 and CEAT decline with "standard deviation of association scores is zero".
-GPT-2 and Qwen add no BOS, which is the only reason their SEAT numbers exist. The Qwen
+GPT-2 and Qwen add no BOS, which is the only reason their SEAT numbers exist.
+On gemma-3-1b-it the vectors are near- rather than exactly identical, so
+SEAT passed the zero-variance check and **returned 0 (n=128), badged
+faithful** - a degenerate number, not a finding; `RESULTS.md` says so. The Qwen
 SEAT scores (0.2512, 0.3193) and gpt2's are therefore of uncertain meaning
 even though the statistic is WEAT's.
 **Chosen:** not changed - changing pooling changes the protocol and the
@@ -1906,12 +1909,17 @@ and the protocol block already claimed it. gpt2 and gpt2-medium were re-run so
 every causal row of `RESULTS.md` is computed the same way; the earlier
 transcripts stay as records of the earlier protocol. Qwen numbers are
 unchanged (bf16 checkpoints).
-**Risk if wrong:** a 0.03 shift in an effect size is within what a seed or a
-prompt set moves elsewhere, but it is a protocol change to every causal-LM
-embedding number produced before 2026-09-20 16:00 UTC.
-**To revisit:** whether embedding metrics should force fp32 regardless of
-the generation dtype (May et al. and Guo & Caliskan computed in fp32); if so,
-share the model but cast the hidden states, and record which.
+**Risk if wrong:** larger than first measured. The GPU rerun of gpt2 gave
+WEAT **0.4006** (bf16 on cuda) against 0.4847 (bf16 on cpu) and 0.5183
+(fp32): bf16 makes an effect size of this size device-dependent by 0.1, on
+the same weights, the same words and the same pooling. Every causal-LM
+embedding number in `RESULTS.md` is a bf16-on-cuda number and says so.
+**To revisit (recommended):** compute the embedding metrics in fp32
+regardless of the generation dtype - May et al. and Guo & Caliskan computed
+in fp32, and the rerun shows why: share the model but run the embedding
+forward in fp32 (or cast the shared model's hidden states after an fp32
+autocast), and record the dtype used for embeddings separately in the
+protocol block. Then re-run the causal scenarios once more.
 
 ## RL-078 · fix · 2026-09-20 · gemma-3-1b-it: a cache hit meant the backend never loaded, and one metric's OSError took the other eight with it
 **Encountered:** the second gemma-3-1b-it run, after RL-076. Every generation
