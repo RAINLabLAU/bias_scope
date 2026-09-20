@@ -83,3 +83,14 @@ def test_a_model_with_no_scores_is_listed_under_the_table_not_as_an_empty_row():
     text = render_markdown(*pivot(runs))
     assert "| ok |" in text
     assert "| dead" not in text and "`dead`" in text
+
+
+def test_the_legend_states_each_metrics_neutral_value_from_the_metadata():
+    from bias_scope.metadata import list_metrics
+
+    runs = latest_complete_runs([
+        _rec("a", "encoder", "2026-09-20T10:00:00", _FULL, ("WEAT", "SEAT"), ("WEAT", "SEAT")),
+    ])
+    text = render_markdown(*pivot(runs))
+    assert "neutral (no bias)" in text
+    assert f"| WEAT | {list_metrics()['WEAT'].neutral_value:g} |" in text

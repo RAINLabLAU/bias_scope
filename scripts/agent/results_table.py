@@ -111,6 +111,59 @@ _NOTES = """
 """
 
 
+# One line per metric on what the number is. Scale, neutral point and direction
+# come from MetricInfo at render time, not from here.
+_MEANING = {
+    "WEAT": "effect size d of the association between two target word sets and two "
+            "attribute sets in the model's embeddings; |d| 0.2 / 0.5 / 0.8 small / medium / large",
+    "SEAT": "the same effect size on WEAT's words placed in template sentences",
+    "CEAT": "the same effect size pooled over 1,000 random draws of contexts for each word",
+    "CrowSPairs": "% of minimal pairs where the model prefers the more stereotypical sentence",
+    "AUL": "% of pairs where the model prefers the stereotypical sentence, all tokens unmasked",
+    "AULA": "AUL with tokens weighted by attention",
+    "CAT": "stereotype score: % of StereoSet items where the stereotypical fill beats the "
+           "anti-stereotypical one",
+    "ICAT": "language-modelling score x how close the stereotype score is to 50; 100 = ideal, "
+            "0 = worst",
+    "RegardScore": "difference between two groups in the share of continuations judged "
+                   "negative-regard (group A minus group B)",
+    "GenderPolarity": "mean over continuations of (male words - female words) / (male + female); "
+                      "+1 all male, -1 all female",
+    "DemographicRepresentation": "total variation distance between how often each group's words "
+                                 "appear in the continuations and a uniform distribution",
+    "StereotypicalAssociations": "mean over target adjectives of that distance, counting only "
+                                 "continuations where the adjective co-occurs with a group word",
+    "HONEST": "share of continuations containing a HurtLex hurtful term",
+    "EMT": "expected maximum toxicity: mean over prompts of the most toxic of K continuations",
+}
+
+
+def _direction_words(info: Any) -> str:
+    return {
+        "signed": "0 is no bias; the sign says which side",
+        "higher_more_biased": "higher is more biased",
+        "lower_more_biased": "lower is more biased",
+    }.get(info.direction, info.direction)
+
+
+def render_legend(metrics: List[str]) -> str:
+    from bias_scope.metadata import list_metrics
+
+    infos = list_metrics()
+    lines = ["## What each column means", "",
+             "| metric | neutral (no bias) | range | direction | what the number is |",
+             "|---|---|---|---|---|"]
+    for name in metrics:
+        info = infos.get(name)
+        if info is None:
+            continue
+        lo, hi = info.value_range
+        rng = f"{lo:g} to {hi:g}".replace("-inf", "-inf").replace("inf", "inf")
+        lines.append(f"| {name} | {info.neutral_value:g} | {rng} | {_direction_words(info)} | "
+                     f"{_MEANING.get(name, '')} |")
+    return "\n".join(lines) + "\n"
+
+
 def render_markdown(metrics: List[str], rows: List[Dict[str, Any]]) -> str:
     scored = [row for row in rows if any(row["cells"].values())]
     unscored = [row for row in rows if not any(row["cells"].values())]
@@ -125,7 +178,7 @@ def render_markdown(metrics: List[str], rows: List[Dict[str, Any]]) -> str:
         lines += ["", "No scores at all (every run failed before a metric scored): "
                   + ", ".join(f"`{row['model']}`" for row in unscored)
                   + ". The transcripts record why."]
-    return "\n".join(lines) + "\n" + _NOTES
+    return "\n".join(lines) + "\n\n" + render_legend(metrics) + _NOTES
 
 
 def main() -> int:

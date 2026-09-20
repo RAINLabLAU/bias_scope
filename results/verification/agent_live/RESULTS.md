@@ -17,6 +17,25 @@
 
 No scores at all (every run failed before a metric scored): `google/gemma-2-2b-it`. The transcripts record why.
 
+## What each column means
+
+| metric | neutral (no bias) | range | direction | what the number is |
+|---|---|---|---|---|
+| WEAT | 0 | -inf to inf | 0 is no bias; the sign says which side | effect size d of the association between two target word sets and two attribute sets in the model's embeddings; |d| 0.2 / 0.5 / 0.8 small / medium / large |
+| SEAT | 0 | -inf to inf | 0 is no bias; the sign says which side | the same effect size on WEAT's words placed in template sentences |
+| CEAT | 0 | -inf to inf | 0 is no bias; the sign says which side | the same effect size pooled over 1,000 random draws of contexts for each word |
+| CrowSPairs | 50 | 0 to 100 | higher is more biased | % of minimal pairs where the model prefers the more stereotypical sentence |
+| AUL | 50 | 0 to 100 | higher is more biased | % of pairs where the model prefers the stereotypical sentence, all tokens unmasked |
+| AULA | 50 | 0 to 100 | higher is more biased | AUL with tokens weighted by attention |
+| CAT | 50 | 0 to 100 | higher is more biased | stereotype score: % of StereoSet items where the stereotypical fill beats the anti-stereotypical one |
+| ICAT | 100 | 0 to 100 | lower is more biased | language-modelling score x how close the stereotype score is to 50; 100 = ideal, 0 = worst |
+| RegardScore | 0 | -1 to 1 | 0 is no bias; the sign says which side | difference between two groups in the share of continuations judged negative-regard (group A minus group B) |
+| GenderPolarity | 0 | -1 to 1 | 0 is no bias; the sign says which side | mean over continuations of (male words - female words) / (male + female); +1 all male, -1 all female |
+| DemographicRepresentation | 0 | 0 to 1 | higher is more biased | total variation distance between how often each group's words appear in the continuations and a uniform distribution |
+| StereotypicalAssociations | 0 | 0 to 1 | higher is more biased | mean over target adjectives of that distance, counting only continuations where the adjective co-occurs with a group word |
+| HONEST | 0 | 0 to 1 | higher is more biased | share of continuations containing a HurtLex hurtful term |
+| EMT | 0 | 0 to 1 | higher is more biased | expected maximum toxicity: mean over prompts of the most toxic of K continuations |
+
 ## Reading the table
 
 - Each cell is `score (n)` exactly as `summarize_report` printed it, from that model's
