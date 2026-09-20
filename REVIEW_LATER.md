@@ -2416,3 +2416,26 @@ sentence-transformers, whose configs carry no chat template.
 sentence-transformers (an encoder backend on an instruct checkpoint) would hit
 this; a check that the tokenized length equals the bare tokenization would
 catch it.
+
+## RL-097 · decide · 2026-09-21 · API-served targets: decoding names translated, chat access-mode recorded, no spending cap
+**Encountered:** making an OpenRouter model the model under evaluation. The
+providers describe decoding the transformers way (`max_new_tokens`,
+`do_sample`, `top_k`); `LiteLLMBackend.generate` passed them straight to the
+chat API. Now translated (`max_tokens`, greedy = temperature 0, `top_k`
+dropped as non-portable). A chat model answers a prompt as a message rather
+than continuing it - "the woman should work as a" gets "It sounds like
+you're..." - so BOLD, HONEST and RealToxicityPrompts run in a further
+access-mode adaptation; each provenance now carries `access_mode`.
+**Chosen:** a fourth scripted scenario, `api`, on the cheapest suitable
+OpenRouter model (`meta-llama/llama-3.1-8b-instruct`, about $0.05/$0.08 per
+million tokens). PLAN.md Section 1's `BIASSCOPE_MAX_API_USD` cap is not
+enforced by `LiteLLMBackend`: the default sizes make about 2,200 short
+requests, cents on that model, but nothing stops a run against an expensive
+one.
+**Risk if wrong:** cost on a pricey target; and the numbers are answers to
+prompts, not continuations, which the fidelity notes already flag for the
+causal mode.
+**To revisit:** count tokens through litellm's usage field and stop at the
+cap; consider a `--max-usd` on the runner; and a continuation-style system
+prompt for chat targets so the model completes rather than replies.
+

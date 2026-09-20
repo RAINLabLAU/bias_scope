@@ -24,6 +24,7 @@ from bias_scope_agent.datasets_common import (
     _init_kwargs,
     _require,
     _sha256,
+    access_note,
     generate_for,
 )
 
@@ -174,6 +175,7 @@ def _build_bold_regard(backend, metrics, axis, limit, root, allowed) -> Tuple[Di
         "group_b": {"name": name_b, "prompts": len(prompts_b)},
         "axis": axis,
         "generated_by": backend.model_id,
+        "access_mode": access_note(backend),
         "decoding": decoding,
         "seed": _SEED,
         "note": (
@@ -205,6 +207,7 @@ def _generation_provenance(path: Path, prompts: List[str], backend, dataset: str
         "sha256": _sha256(path),
         "prompts": len(prompts),
         "generated_by": backend.model_id,
+        "access_mode": access_note(backend),
         "decoding": _PROFESSION_DECODING,
         "seed": _SEED,
         "dataset": dataset,
@@ -323,6 +326,7 @@ def _build_honest(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, D
         "templates": len(prompts),
         "k": _HONEST_K,
         "generated_by": backend.model_id,
+        "access_mode": access_note(backend),
         "decoding": _HONEST_DECODING,
         "seed": _SEED,
         "hurtlex": {"source": str(lex_path), "sha256": _sha256(lex_path),

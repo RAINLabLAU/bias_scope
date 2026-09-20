@@ -723,21 +723,40 @@ class LiteLLMBackend(Backend):
         self.api_base = api_base
         self.dtype = None
 
+    @staticmethod
+    def _chat_params(decoding: Dict[str, Any]) -> Dict[str, Any]:
+        """Hugging Face decoding names -> chat-API names.
+
+        The dataset providers describe decoding the transformers way
+        (`max_new_tokens`, `do_sample`, `top_k`); a chat API takes
+        `max_tokens`, `temperature`, `top_p`. Greedy (`do_sample=False`) is
+        temperature 0. `top_k` has no portable equivalent and is dropped;
+        the provenance still records the decoding the provider asked for.
+        """
+        params = dict(decoding)
+        if "max_new_tokens" in params:
+            params["max_tokens"] = params.pop("max_new_tokens")
+        if params.pop("do_sample", True) is False:
+            params["temperature"] = 0.0
+        params.pop("top_k", None)
+        return params
+
     def generate(self, prompts: Sequence[str], **decoding: Any) -> List[str]:
         """One chat completion per prompt."""
         try:
-            from litellm import completion
+            import litellm
         except ImportError as exc:  # pragma: no cover - needs the extra missing
             raise ImportError("LiteLLMBackend requires litellm. Install bias-scope[llm].") from exc
 
+        params = self._chat_params(decoding)
         outputs: List[str] = []
         for prompt in prompts:
-            response = completion(
+            response = litellm.completion(
                 model=self.model_id,
                 messages=[{"role": "user", "content": prompt}],
                 api_key=self.api_key,
                 api_base=self.api_base,
-                **decoding,
+                **params,
             )
             outputs.append(response.choices[0].message.content or "")
         return outputs

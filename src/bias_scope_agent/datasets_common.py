@@ -120,3 +120,17 @@ def _association_test(root: Path, axis: str, by_axis: Dict[str, str], hint: str)
             f"Caliskan's tests 1-2 measure no social axis and none covers religion."
         )
     return _require(root / _SENT_BIAS_TESTS / f"{test}.jsonl", hint.upper())
+
+
+def access_note(backend: Backend) -> str:
+    """How the model under evaluation produced its text, for the provenance.
+
+    A chat API answers a prompt as a message rather than continuing it, which
+    is a further access-mode adaptation of continuation-style protocols
+    (BOLD, HONEST, RealToxicityPrompts) on top of the causal-LM one.
+    """
+    if "chat" in getattr(backend, "access", ()):
+        return ("chat API: each prompt sent as a user message; the model answers, it does "
+                "not continue")
+    return "local causal LM: each prompt continued token by token"
+

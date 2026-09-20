@@ -58,8 +58,28 @@ python scripts/agent/live_conversation.py --scenario causal --model-id gpt2 --de
 
 `--scenario` is the kind of model: `encoder` (a masked LM such as BERT),
 `causal` (a decoder-only LM such as GPT-2, Qwen, Llama), `embedding` (a
-sentence encoder with no LM head). It only chooses the words of the three
-scripted user turns and the dtype (fp32 for encoders, bf16 for causal LMs).
+sentence encoder with no LM head), or `api` (a model served through an API,
+see below). It only chooses the words of the three scripted user turns and,
+for local models, the dtype (fp32 for encoders, bf16 for causal LMs).
+
+**Models served by OpenRouter (or any API litellm knows).** The model under
+evaluation can itself be an API model:
+
+```bash
+python scripts/agent/live_conversation.py --scenario api --model-id openrouter/meta-llama/llama-3.1-8b-instruct
+```
+
+The `openrouter/` prefix makes litellm read `OPENROUTER_API_KEY` from the
+environment; the key never enters the conversation. An API model offers only
+completions and chat, so the embedding and masked-LM metrics are excluded and
+the five generation-based datasets are what can be fed (RegardScore,
+GenderPolarity, DemographicRepresentation, StereotypicalAssociations, HONEST,
+EMT). Each provenance records `access_mode: chat API ...` because a chat model
+answers a prompt rather than continuing it - a further adaptation of the
+continuation protocols BOLD, HONEST and RealToxicityPrompts define. About
+2,200 short requests for the default sizes; on a cheap model that is cents,
+on an expensive one it is not - there is no spending cap in the backend yet
+(REVIEW_LATER RL-097).
 
 The script plays the user. On a terminal it opens the same Textual UI as
 `bias-scope-agent` and you watch the conversation happen: each scripted turn

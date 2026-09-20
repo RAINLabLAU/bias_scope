@@ -354,7 +354,7 @@ agent> [calls confirm_plan, run_suite, summarize_report]
 
 | Argument | Values |
 |---|---|
-| `kind` | `huggingface` or `litellm` |
+| `kind` | `huggingface` or `litellm` (`litellm` for API-served targets, e.g. `openrouter/meta-llama/llama-3.1-8b-instruct`; only completions/chat metrics can run) |
 | `model_id` | a Hub id, a local path, or an API model string |
 | `backend_kind` | `causal` or `encoder` (required for `huggingface`) |
 | `dtype` | `bf16` (default), `fp32`, `fp16` |

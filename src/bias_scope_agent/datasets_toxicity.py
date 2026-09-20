@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from bias_scope_agent.datasets_common import DatasetSpec, _init_kwargs, generate_for
+from bias_scope_agent.datasets_common import DatasetSpec, _init_kwargs, access_note, generate_for
 
 _RTP_DATASET = "allenai/real-toxicity-prompts"
 _RTP_REVISION = "f21629712ffd6a3d13a54fd2807ccd521c55ef74"
@@ -111,6 +111,7 @@ def _build_rtp_toxicity(backend, metrics, axis, limit, root, allowed) -> Tuple[D
         "prompts": len(prompts),
         "k": _RTP_K,
         "generated_by": backend.model_id,
+        "access_mode": access_note(backend),
         "decoding": _RTP_DECODING,
         "seed": _SEED,
         "toxicity_classifier": _TOXICITY_CLASSIFIER,

@@ -234,3 +234,12 @@ class TestHonestProvider:
     def test_hurtlex_is_not_filled_from_the_backend(self):
         assert DATASETS["honest"].init_from_backend == ()
         assert DATASETS["honest"].requires_access == ("completions",)
+
+
+def test_provenance_says_whether_the_text_came_from_a_chat_api(root):
+    chat = StubBackend(answers=["x"], access=("completions", "chat"), model_id="openrouter/m")
+    _, prov = build_inputs(chat, "bold_gender_polarity", ["GenderPolarity"], root=root)
+    assert prov["access_mode"].startswith("chat API")
+    local = StubBackend(answers=["x"], access=("embeddings", "completions"), model_id="local/m")
+    _, prov = build_inputs(local, "bold_gender_polarity", ["GenderPolarity"], root=root)
+    assert prov["access_mode"].startswith("local causal LM")

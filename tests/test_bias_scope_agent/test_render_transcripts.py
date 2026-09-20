@@ -47,3 +47,23 @@ def test_render_carries_command_turns_tools_provenance_and_report():
     assert "[faithful] WEAT: 0.5183 (n=16)" in text
     assert "ValueError: x" in text                     # a rejected call is shown, not hidden
     assert "recommended 1, feedable 1, scored 1" in text
+
+
+class TestApiScenario:
+    """A target served by OpenRouter (or any litellm-routed API) is a fourth
+    scenario: the first turn asks for a litellm backend and says the key is
+    already in the environment, never in the conversation."""
+
+    def test_api_turns_ask_for_a_litellm_backend_and_never_for_a_key(self):
+        from scripts.agent.live_conversation import SCENARIOS, scenario_turns
+
+        assert SCENARIOS["api"]["model_id"].startswith("openrouter/")
+        turns = scenario_turns("api", "cuda")
+        assert "litellm" in turns[0] and "huggingface" not in turns[0]
+        assert "OPENROUTER_API_KEY" in turns[0] and "do not ask" in turns[0].lower()
+        assert len(turns) == 3 and "Run it" in turns[2]
+
+    def test_hf_scenarios_are_unchanged(self):
+        from scripts.agent.live_conversation import scenario_turns
+
+        assert "huggingface backend of kind causal" in scenario_turns("causal", "cuda")[0]

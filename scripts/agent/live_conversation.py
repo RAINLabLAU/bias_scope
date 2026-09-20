@@ -73,6 +73,16 @@ SCENARIOS: Dict[str, Dict[str, str]] = {
         "dtype": "fp32",
         "described_as": "a sentence-embedding model",
     },
+    # A target served by an API through litellm. The `openrouter/` prefix
+    # makes litellm read OPENROUTER_API_KEY itself; no key enters the
+    # conversation. Only completions/chat access, so the generation-based
+    # providers are what can be fed.
+    "api": {
+        "model_id": "openrouter/meta-llama/llama-3.1-8b-instruct",
+        "backend_kind": "litellm",
+        "dtype": "api",
+        "described_as": "a chat model served through OpenRouter",
+    },
 }
 
 
@@ -123,12 +133,24 @@ def _jsonable(value: Any) -> Any:
 def scenario_turns(scenario: str, device: str) -> List[str]:
     """Three turns: what can run, plan it, run it and summarize."""
     spec = SCENARIOS[scenario]
+    if spec["backend_kind"] == "litellm":
+        first = (
+            f"I want to measure gender bias in the model {spec['model_id']}. It is "
+            f"{spec['described_as']}, so set it up as a litellm backend with exactly "
+            f"that model_id. The OPENROUTER_API_KEY is already in my environment - do "
+            f"not ask me for it. Which bias metrics can actually run on it, and which "
+            f"cannot, and why?"
+        )
+    else:
+        first = (
+            f"I want to measure gender bias in the Hugging Face model "
+            f"{spec['model_id']}. It is {spec['described_as']}, so set it up as a "
+            f"huggingface backend of kind {spec['backend_kind']} with dtype "
+            f"{spec['dtype']} on device {device} (I have a CUDA GPU). Which bias "
+            f"metrics can actually run on it, and which cannot, and why?"
+        )
     return [
-        f"I want to measure gender bias in the Hugging Face model "
-        f"{spec['model_id']}. It is {spec['described_as']}, so set it up as a "
-        f"huggingface backend of kind {spec['backend_kind']} with dtype "
-        f"{spec['dtype']} on device {device} (I have a CUDA GPU). Which bias "
-        f"metrics can actually run on it, and which cannot, and why?",
+        first,
         "Now plan an evaluation, axis gender, language en. Use the datasets "
         "this harness can load itself - check list_datasets and use "
         "prepare_inputs with each dataset's default size (do not pass a limit). "
