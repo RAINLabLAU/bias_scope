@@ -119,7 +119,7 @@ def test_run_bootstrap_ci_for_a_single_dimension():
 
 def test_run_multi_dimension_has_no_bootstrap_ci():
     """With multiple dimensions requested, bias_score is a BiasScope-defined
-    mean-of-dimensions composite (RL-046) with no natural per-item list, so
+    mean-of-dimensions composite (RL-092) with no natural per-item list, so
     run() degrades to ci='none', same as WEAT/SEAT/CEAT/CBS/RegardScore."""
     metric = PsycholinguisticNorms()
     completions = [["kind smart", "lazy thief"]]

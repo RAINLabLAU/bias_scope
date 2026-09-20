@@ -72,7 +72,7 @@ over from the previous version of this note):
   every subword's probability against *every* mask position — an
   all-pairs product rather than a one-to-one match, most likely an
   unintentional artifact of the reference's own loop structure rather
-  than a deliberate design). Recorded as `REVIEW_LATER` RL-042 — following
+  than a deliberate design). Recorded as `REVIEW_LATER` RL-088 — following
   the paper's stated one-mask-per-subword design over a reference quirk
   that contradicts it, the same judgment already applied for LPBS's
   RL-012.

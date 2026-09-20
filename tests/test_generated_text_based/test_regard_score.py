@@ -215,7 +215,7 @@ class TestRegardScore:
         """bias_score = (positive_difference - negative_difference) / 2.
         Neither Sheng et al. nor the reference (ewsheng/nlg-bias) defines a
         single scalar; this is BiasScope's own composite, logged as
-        REVIEW_LATER RL-044. All-positive-A vs all-negative-B hits the
+        REVIEW_LATER RL-090. All-positive-A vs all-negative-B hits the
         declared value_range's boundary exactly."""
         mock_regard = self._make_metric(mock_pipeline)
         group_a = [["good", "great"]]

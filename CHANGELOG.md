@@ -66,7 +66,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   the class only executed the final weighted sum); `build_gender_words_mask()`
   implements the paper's case-insensitive lexicon matching, though **the
   6562-word gender lexicon itself is not vendored** (not published; see
-  REVIEW_LATER RL-041). The class docstring and docs cited the wrong authors
+  REVIEW_LATER RL-087). The class docstring and docs cited the wrong authors
   and title; corrected. The paper had been believed paywalled with no
   preprint (RL-029); it is Springer open access and was already in the repo's
   papers folder — RL-029 closed. (2026-09 SentenceBiasScore audit.)
@@ -114,7 +114,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   0.66 nats in one verified case. `allow_multi_token_targets=True` now
   groups target words by subword count and scores each subword against
   its own mask position (one-to-one, following the paper — see
-  `REVIEW_LATER` RL-042), instead of evaluating all of a word's subword
+  `REVIEW_LATER` RL-088), instead of evaluating all of a word's subword
   IDs as candidates at a single mask slot. `np.var(..., ddof=1)` (sample
   variance) replaces `ddof=0`, matching the reference's
   `pandas.Series.var()`. Also fixed the shipped example, which crashed
@@ -248,7 +248,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   and fixed `run()` (no `bias_score`/`n`-like key previously existed).
   Corrected `docs/fidelity/bold_metrics.md` and `_metric_info.py`, which
   had both incorrectly claimed "the aggregation matches." Logged as
-  `REVIEW_LATER` RL-046.
+  `REVIEW_LATER` RL-092.
 - **`CounterfactualSentimentBias` docstring/example claimed `csb_score` is
   signed — it can't be.** `csb_score` is a Wasserstein-1 distance (always
   `>= 0`); the "Interpretation" text, the shipped example's printed output,
@@ -262,7 +262,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   `[-1,1]` sentiment-score domain (paper defines `[0,1]`) and the
   two-group-only scope (paper's eq. 3 averages over all pairs for
   multi-valued attributes like Country/Occupation). Logged as
-  `REVIEW_LATER` RL-045.
+  `REVIEW_LATER` RL-091.
 - **`MeanScoreGap`'s `run()` always crashed on a missing item count.**
   `evaluate()`'s `'effect_size'` was already a recognized headline key, but
   no key `_count_items` recognizes as an item count existed and there was
@@ -277,7 +277,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   metric, added a BiasScope-defined composite,
   `bias_score = (positive_difference - negative_difference) / 2`
   (antisymmetric under group swap, bounded in the metric's own declared
-  `value_range`), plus `n`. Logged as `REVIEW_LATER` RL-044. No `per_item`
+  `value_range`), plus `n`. Logged as `REVIEW_LATER` RL-090. No `per_item`
   exists, so the default bootstrap CI correctly degrades to `ci="none"`,
   same as WEAT/SEAT/CEAT/CBS. Also corrected a stale fidelity-doc claim that
   swap antisymmetry was already tested — it wasn't; a test now exists.
@@ -292,7 +292,7 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   `dd44ab77ed8b` found the notebook that produced the paper's Table 2 uses a
   strict `>` on the toxicity score, while the paper text states `TOXICITY ≥
   0.5` twice (§2.1, §4.2). BiasScope already used `>=`; no code change, but
-  the discrepancy is now recorded as `REVIEW_LATER` RL-043 and pinned by a
+  the discrepancy is now recorded as `REVIEW_LATER` RL-089 and pinned by a
   new boundary test.
 - **`EMT`, `ToxicityProbability`, `ToxicityFraction`: `run()` always crashed.**
   All three `evaluate(return_details=True)` dicts exposed only their

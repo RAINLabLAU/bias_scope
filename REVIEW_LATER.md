@@ -570,7 +570,7 @@ PDF itself carries the licence notice), and a copy was sitting in
 `biasscope papers/Sentencebiasscore.pdf` the whole time. Found and read in
 full during the 2026-09-15 `SentenceBiasScore` audit. `SOURCES.yaml` status
 is now `read`; `fidelity` moved from `unaudited` to `adaptation` (see
-`docs/fidelity/sentence_bias_score.md`). RL-040 and RL-041 below record what
+`docs/fidelity/sentence_bias_score.md`). RL-086 and RL-087 below record what
 the audit found once the paper could actually be read.
 
 ## RL-030 · decide · 2026-08-23 · Phase 4 / Bai et al. IAT epsilon
@@ -692,7 +692,7 @@ than a silently different number. That is the intended failure mode.
 **To revisit:** nothing outstanding; a test now pins each default to the
 faithful path, and the 50 whitespace-path tests name their mode explicitly.
 
-## RL-038 · verify · 2026-09-15 · Phase 1 / CEAT's context sampling follows the paper, not the reference script
+## RL-084 · verify · 2026-09-15 · Phase 1 / CEAT's context sampling follows the paper, not the reference script
 **Encountered:** auditing CEAT from scratch and cloning
 `weiguowilliam/CEAT@497e2958` found that the paper's prose says a stimulus with
 `n_s ≥ N` contexts is sampled **without** replacement across the N iterations,
@@ -716,7 +716,7 @@ script will show spurious disagreement for any stimulus with
 parameter (`"with_replacement"` matching the script as an explicit opt-in) if
 Tier-2 needs exact reference parity rather than paper-text parity.
 
-## RL-039 · verify · 2026-09-15 · Phase 1 / CEAT's p-value follows the paper's formula, not the reference script's
+## RL-085 · verify · 2026-09-15 · Phase 1 / CEAT's p-value follows the paper's formula, not the reference script's
 **Encountered:** same CEAT audit. The paper's Appendix gives a two-sided
 p-value, `2×[1-Φ(|CES/SE|)]`, and says so explicitly ("since we notice that
 some CES are negative, we use a two-tailed p-value"); Table 1's reported
@@ -739,7 +739,7 @@ not reproduce theirs.
 **To revisit:** if a maintainer of `weiguowilliam/CEAT` can confirm which
 version produced Table 1, or a later commit changes the formula.
 
-## RL-040 · decide · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-direction PCA is uncentred, undocumented in the paper
+## RL-086 · decide · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-direction PCA is uncentred, undocumented in the paper
 **Encountered:** implementing `derive_gender_direction()` (Dolci et al. 2023,
 Sec. 3.2: "PCA to reduce their dimensionality to one" over gender word-pair
 difference vectors). A first attempt used standard, mean-centred PCA (as
@@ -764,7 +764,7 @@ to noise on other axes. This is a `decide`, not a verified fact.
 **To revisit:** if reference code, an erratum, or correspondence with the
 authors ever clarifies which PCA convention was used.
 
-## RL-041 · blocked · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-word lexicon is not vendored
+## RL-087 · blocked · 2026-09-15 · Phase 1 / SentenceBiasScore's gender-word lexicon is not vendored
 **Encountered:** Dolci et al. 2023 Sec. 3.3 defines a 6562-word gender lexicon
 `L` (409 + 388 common nouns "selected starting from" Bolukbasi et al. 2016 and
 Zhao et al. 2018, in lower/capitalised x singular/plural forms, plus 5765
@@ -791,7 +791,7 @@ vendoring (PLAN.md Section 1: "do not download or run reference
 implementations from unknown sources without first reading their code and
 license").
 
-## RL-042 · decide · 2026-09-18 · Phase 1 / CBS multi-token target aggregation follows the paper, not the reference's apparent bug
+## RL-088 · decide · 2026-09-18 · Phase 1 / CBS multi-token target aggregation follows the paper, not the reference's apparent bug
 **Encountered:** fixing CBS's whole-word-masking for multi-subword target
 words (`allow_multi_token_targets=True`). Ahn & Oh 2021 §3.2 says to "add as
 many mask tokens as the number of WordPiece tokens and aggregate each
@@ -824,7 +824,7 @@ the paper's own 30-country target list mostly consists of under
 numbers surfaces the all-pairs reading as intentional, switch to matching
 it and note the discrepancy here.
 
-## RL-043 · decide · 2026-09-18 · Phase 1 / ToxicityProbability's `>=` threshold follows the paper, not the reference notebook's `>`
+## RL-089 · decide · 2026-09-18 · Phase 1 / ToxicityProbability's `>=` threshold follows the paper, not the reference notebook's `>`
 **Encountered:** auditing `ToxicityProbability` against
 `allenai/real-toxicity-prompts@dd44ab77ed8b`. The repo has no metric
 module; the TP statistic that produced Table 2 lives only in
@@ -832,7 +832,7 @@ module; the TP statistic that produced Table 2 lives only in
 `len([y for y in x if y > 0.5])` — a **strict** `>`. The paper states the
 threshold inclusively twice (§2.1, §4.2: "TOXICITY ≥ 0.5"). BiasScope's
 `_has_toxic` (`toxicity_probability.py:150`) uses `>=`, matching the paper.
-**Chosen:** keep `>=`. Same precedent as LPBS (RL-012) and CBS (RL-042):
+**Chosen:** keep `>=`. Same precedent as LPBS (RL-012) and CBS (RL-088):
 paper text and reference code disagree with no stated justification;
 follow the paper. A single strict-vs-inclusive operator in a notebook cell
 plausibly reflects a transcription slip, not a deliberate redefinition.
@@ -843,7 +843,7 @@ practice; would only matter for synthetic `score == threshold` inputs.
 **To revisit:** if a future reproduction of Table 2 disagrees specifically
 at the 0.5 boundary, switch to `>` and note it here.
 
-## RL-044 · decide · 2026-09-18 · Phase 1 / RegardScore's `bias_score` is a BiasScope-defined composite, not from the paper or the reference
+## RL-090 · decide · 2026-09-18 · Phase 1 / RegardScore's `bias_score` is a BiasScope-defined composite, not from the paper or the reference
 **Encountered:** auditing `RegardScore`, whose `evaluate()` returned 16
 per-bucket fractions/differences but no key `BiasMetric._split_result`
 recognizes, so `run()` raised `BiasScopeError` unconditionally. Neither
@@ -875,7 +875,7 @@ this ad hoc choice and MeanScoreGap's analogous `n`-key gap at the same
 time — see `run()` also fails there today (found in passing during this
 audit, out of scope to fix here).
 
-## RL-045 · decide · 2026-09-18 · Phase 1 / CounterfactualSentimentBias: stale sign claim fixed; [-1,1] domain and two-group scope now documented, not changed
+## RL-091 · decide · 2026-09-18 · Phase 1 / CounterfactualSentimentBias: stale sign claim fixed; [-1,1] domain and two-group scope now documented, not changed
 **Encountered:** a from-scratch audit of `CounterfactualSentimentBias`
 against Huang et al. 2020. Three findings, all documentation-level (the
 underlying `wasserstein_1` statistic was independently re-verified bit-exact
@@ -919,7 +919,7 @@ multi-valued attribute.
 multi-value convenience wrapper (averaging over all pairs automatically),
 retire this entry's point 3.
 
-## RL-046 · decide · 2026-09-18 · Phase 1 / PsycholinguisticNorms: function-word list and run()'s multi-dimension headline are BiasScope's own choices
+## RL-092 · decide · 2026-09-18 · Phase 1 / PsycholinguisticNorms: function-word list and run()'s multi-dimension headline are BiasScope's own choices
 **Encountered:** fixing PsycholinguisticNorms's aggregation formula (it
 computed a plain mean; Dhamala et al. 2021 §4.4 define
 `sum(sgn(w)w²)/sum(|w|)`, identical in form to the paper's own Gender-Wavg
@@ -936,7 +936,7 @@ choices had no paper precedent to copy exactly.
    as per-group proportions). For a single requested dimension,
    `bias_score` is exactly that dimension's `pn::d` (no judgment call). For
    multiple dimensions, `bias_score = mean(pn::d for d in dimensions)` — a
-   BiasScope-defined composite, analogous to RegardScore's RL-044.
+   BiasScope-defined composite, analogous to RegardScore's RL-090.
 **Chosen:** keep both as documented, defensible choices rather than adding
 a POS-tagger dependency or leaving `run()` broken for the common
 single-dimension case.

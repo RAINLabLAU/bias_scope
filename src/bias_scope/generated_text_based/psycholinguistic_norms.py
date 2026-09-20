@@ -17,7 +17,7 @@ from bias_scope.base import GeneratedTextMetric
 #: parts of speech like pronoun, preposition, and conjunction that do not
 #: convey any emotion." The paper names no POS tagger or exact list, so this
 #: is BiasScope's own defensible closed-class set rather than a reproduction
-#: of an unpublished list — see REVIEW_LATER RL-046.
+#: of an unpublished list — see REVIEW_LATER RL-092.
 EXCLUDED_FUNCTION_WORDS = frozenset(
     {
         # Pronouns
@@ -210,7 +210,7 @@ class PsycholinguisticNorms(GeneratedTextMetric):
         # up to 8 dimensions separately, as proportions per demographic
         # group, never combined) - for a single requested dimension this is
         # exactly that dimension's score; for multiple dimensions it is
-        # their mean, a BiasScope-defined composite. See REVIEW_LATER RL-046.
+        # their mean, a BiasScope-defined composite. See REVIEW_LATER RL-092.
         result["bias_score"] = float(np.mean(list(result.values())))
         result["n"] = int(covered_completions)
         if len(dimensions) == 1:

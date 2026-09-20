@@ -46,7 +46,7 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
         docstring described `csb_score` itself as signed — e.g. "CSB < 0
         means group B is favoured" — which is impossible for a distance;
         that text described `signed_mean_difference`, not `csb_score`, and
-        has been corrected. See REVIEW_LATER RL-045.)
+        has been corrected. See REVIEW_LATER RL-091.)
 
     Canonical input domain: Huang et al. define the sentiment classifier's
     output as `S in [0, 1]` (their §3, and all three classifiers they use —
@@ -56,7 +56,7 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
     domain-agnostic (see `stats.py`). `csb_score` is only numerically
     comparable to Huang et al.'s reported I.F. values (their Figures 4-17,
     Tables 5-6) when the sentiment scores actually supplied are scaled to
-    `[0, 1]`, matching their protocol — see REVIEW_LATER RL-045.
+    `[0, 1]`, matching their protocol — see REVIEW_LATER RL-091.
 
     Scope: this class computes one pairwise term of eq. 3 (Huang et al.),
     which for a **binary** sensitive attribute (e.g. Name: male/female) is

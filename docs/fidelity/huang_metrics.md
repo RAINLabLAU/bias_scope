@@ -83,7 +83,7 @@ computational defect) and found three documentation-level issues:
    unordered pair and averaging yourself; a single call is not itself the
    paper's I.F. for such attributes. Now stated explicitly in the docstring.
 
-All three logged/tracked as `REVIEW_LATER` RL-045.
+All three logged/tracked as `REVIEW_LATER` RL-091.
 
 ## SocialGroupSubstitution — **adaptation**
 

@@ -124,7 +124,7 @@ than the true one. Found during a from-scratch CEAT audit (2026-09-15),
 verified against the reference `weiguowilliam/CEAT@497e2958` for the scoring
 math (which is unaffected — only `run()`'s framework glue was wrong).
 
-**Not changed (documented instead, see `REVIEW_LATER.md` RL-038, RL-039):**
+**Not changed (documented instead, see `REVIEW_LATER.md` RL-084, RL-085):**
 CEAT's context sampling follows the paper's prose (without replacement once a
 stimulus has `n_samples` contexts) rather than the reference script (which
 always samples with replacement); its p-value follows the paper's two-sided
@@ -169,7 +169,7 @@ synthetic case with a known true direction). Uncentred SVD is the reading
 that actually recovers a gender direction, and mirrors Bolukbasi et al. 2016
 (the paper's own cited source for the gender-pair-difference construction),
 whose per-pair-centred vectors are not re-centred globally either. Logged as
-`REVIEW_LATER` RL-040, tag `decide`, since the paper's own text does not
+`REVIEW_LATER` RL-086, tag `decide`, since the paper's own text does not
 disambiguate and no reference code exists to check against.
 
 **Why not fabricate the lexicon.** Dolci et al.'s exact 6562-word list (409 +
@@ -181,7 +181,7 @@ the raw sources would not be their `L`, and presenting a guessed list as "the"
 lexicon would be exactly the unverified claim PLAN.md Section 1 forbids
 ("never invent, estimate, or anchor a published reference value" — the same
 principle extended to an unspecified curated resource, not just a numeric
-result). Logged as `REVIEW_LATER` RL-041, tag `blocked`, with a concrete path
+result). Logged as `REVIEW_LATER` RL-087, tag `blocked`, with a concrete path
 to closing it (vendor Bolukbasi's/Zhao's lists + SSA names with a SHA-256,
 after a license check).
 
@@ -444,7 +444,7 @@ multi-mask prior, which matches the fixed code's internal variance to
 within floating-point tolerance.
 
 **Why (multi-token target aggregation, one-to-one not all-pairs).** See
-`REVIEW_LATER` RL-042: the paper's text supports a one-to-one subword↔mask
+`REVIEW_LATER` RL-088: the paper's text supports a one-to-one subword↔mask
 match; the reference's nested loop instead computes an all-pairs product,
 which has no stated justification and does not match any standard
 whole-word-masking scheme — most plausibly an artifact of the reference's
@@ -537,7 +537,7 @@ for all three classes again; `evaluate()` is unaffected either way.
 ## 2026-09-18 · ToxicityProbability: keep the paper's inclusive `>=` threshold, not the reference notebook's `>`
 
 **Decision.** No code change. `ToxicityProbability._has_toxic` keeps
-`score >= threshold`, and this is now logged as `REVIEW_LATER` RL-043 and
+`score >= threshold`, and this is now logged as `REVIEW_LATER` RL-089 and
 pinned by a new boundary test.
 
 **Why.** A from-scratch audit cloned `allenai/real-toxicity-prompts` @
@@ -546,7 +546,7 @@ The repo has no metric module — the real computation is in
 `notebooks/realtoxicityprompts_results.ipynb`, which uses a strict `>` on
 the toxicity score. Gehman et al. 2020 states the threshold inclusively
 twice (§2.1, §4.2: "TOXICITY ≥ 0.5"). BiasScope already used `>=`,
-matching the paper. Following LPBS's RL-012 and CBS's RL-042 precedent —
+matching the paper. Following LPBS's RL-012 and CBS's RL-088 precedent —
 when a paper's text and its cited reference disagree with no stated
 justification, follow the paper — the existing `>=` is correct and the
 disagreement is recorded rather than silently left unexplained.
@@ -556,11 +556,11 @@ generations whose classifier score lands exactly on the threshold, which
 is unobservable with a continuous classifier in practice but would fail
 the new `test_threshold_boundary_is_inclusive` test.
 
-## 2026-09-18 · RegardScore: fix run() with a BiasScope-defined composite headline (RL-044)
+## 2026-09-18 · RegardScore: fix run() with a BiasScope-defined composite headline (RL-090)
 
 **Decision.** `RegardScore.evaluate()` gains `"bias_score"` =
 `(positive_difference − negative_difference) / 2` and `"n"` = total texts
-scored across both groups. Logged as `REVIEW_LATER` RL-044, since neither
+scored across both groups. Logged as `REVIEW_LATER` RL-090, since neither
 the paper nor its reference define a single scalar for this metric.
 
 **Why.** `run()` was unconditionally broken: none of the 16 existing keys
@@ -598,7 +598,7 @@ itself was, and remains, correct.
 again with the `n > 0` guard failure; `evaluate()`'s existing 6 keys are
 unaffected either way.
 
-## 2026-09-18 · CounterfactualSentimentBias: correct a stale sign claim; document (not change) domain and scope (RL-045)
+## 2026-09-18 · CounterfactualSentimentBias: correct a stale sign claim; document (not change) domain and scope (RL-091)
 
 **Decision.** Fixed the docstring/example/docs claim that `csb_score` is
 signed. Documented, without changing, two pre-existing design choices: the
@@ -629,7 +629,7 @@ a documented defect that can cause a directionally wrong bias report; the
 domain/scope documentation reverting would just remove context, not change
 behavior.
 
-## 2026-09-18 · PsycholinguisticNorms: implement the paper's actual aggregation formula (RL-046)
+## 2026-09-18 · PsycholinguisticNorms: implement the paper's actual aggregation formula (RL-092)
 
 **Decision.** Replace the plain-mean word aggregation with Dhamala et al.
 2021's magnitude-weighted signed formula, `Σsgn(w)w²/Σ|w|` (their §4.4,
@@ -648,7 +648,7 @@ and `_metric_info.py` had both claimed "the aggregation matches" — itself a
 documentation bug, notable because the same doc file correctly transcribes
 the identical formula for Gender-Wavg a few lines above.
 
-Two follow-on choices had no exact paper precedent and are logged as RL-046:
+Two follow-on choices had no exact paper precedent and are logged as RL-092:
 the function-word exclusion list (paper names no POS tagger or exact list),
 and `run()`'s multi-dimension headline (paper never combines VAD/BE5
 dimensions into one number; for a single requested dimension `bias_score`

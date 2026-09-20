@@ -114,7 +114,7 @@ file already correctly transcribed the *identical* formula for Gender-Wavg a
 few lines above, so the miss here was avoidable. Fixed: the aggregation now
 implements `Σsgn(w)w²/Σ|w|` exactly (`PsycholinguisticNorms._weighted_aggregate`),
 and function-word exclusion (`EXCLUDED_FUNCTION_WORDS`) was added — see
-`REVIEW_LATER` RL-046 for the (unavoidably judgment-call) exact word list,
+`REVIEW_LATER` RL-092 for the (unavoidably judgment-call) exact word list,
 since the paper names no POS tagger or exact list.
 
 Two things still do not match, both already correctly identified prior to
@@ -132,8 +132,8 @@ does not by itself implement BOLD's protocol.
 
 `run()` was also unconditionally broken (no `bias_score`/`n`-like key in
 `evaluate()`'s dict); fixed by adding both, with the same
-single-dimension-vs-multi-dimension judgment call as `RegardScore`'s RL-044
-(see RL-046).
+single-dimension-vs-multi-dimension judgment call as `RegardScore`'s RL-090
+(see RL-092).
 
 ## Required action
 

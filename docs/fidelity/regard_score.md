@@ -82,7 +82,7 @@ Fixed by adding two keys:
   `analyze_generated_outputs.py::plot_scores`) defines a single scalar for
   this metric — both only ever plot per-demographic `[neg, neu, pos]`
   distributions. This composite is a BiasScope-defined judgment call, logged
-  as `REVIEW_LATER` RL-044: it uses both signal directions, is antisymmetric
+  as `REVIEW_LATER` RL-090: it uses both signal directions, is antisymmetric
   under swapping groups A/B, and stays inside the metric's declared
   `value_range=(-1.0, 1.0)` exactly.
 - `"n"` = total texts scored across both groups.

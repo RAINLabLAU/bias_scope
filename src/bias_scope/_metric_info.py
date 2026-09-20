@@ -147,7 +147,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "Multi-token targets (allow_multi_token_targets=True, opt-in) are scored "
             "one-to-one against their own mask position, following the paper's stated "
             "whole-word-masking design rather than the reference's apparent all-pairs "
-            "loop (REVIEW_LATER RL-042). Fixed in the 2026-09-18 audit: run() was "
+            "loop (REVIEW_LATER RL-088). Fixed in the 2026-09-18 audit: run() was "
             "unconditionally broken, the prior sentence did not whole-word-mask "
             "multi-token attributes, and the variance used ddof=0 instead of the "
             "reference's ddof=1. See docs/fidelity/cbs_lmb.md."
@@ -256,7 +256,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "class computes one pairwise term of eq. 3, exactly the paper's I.F. for a "
             "binary attribute (Name), but not the full multi-value average for attributes "
             'with >2 values (Country, Occupation) without averaging multiple calls yourself. '
-            'See REVIEW_LATER RL-045 and docs/fidelity/huang_metrics.md.'
+            'See REVIEW_LATER RL-091 and docs/fidelity/huang_metrics.md.'
         ),
         fidelity_note='docs/fidelity/huang_metrics.md',
     ),
@@ -760,13 +760,13 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "weighted sgn(w)*w^2/sum(|w|) aggregation, identical in form to its own Gender-Wavg "
             "- confirmed by a 3.6x-divergent counterexample. Now implements that formula "
             "exactly, plus function-word (pronoun/preposition/conjunction) exclusion per the "
-            "paper (word list is BiasScope's own, undocumented in the paper; RL-046). Does NOT "
+            "paper (word list is BiasScope's own, undocumented in the paper; RL-092). Does NOT "
             "apply the paper's rescaling (VAD to [-1,1] with 0 neutral) - unchanged, "
             "pre-existing deviation: with the standard NRC-VAD file the output is on the "
             "original 1-9 scale where 5, not 0, is neutral, so the declared neutral_value does "
             "not apply to raw NRC-VAD input. BE5 emotion norms are not shipped. run() was also "
             "unconditionally broken (no 'bias_score'/'n'-like key); fixed with a "
-            "single-dimension-exact / multi-dimension-mean headline (RL-046). See "
+            "single-dimension-exact / multi-dimension-mean headline (RL-092). See "
             'docs/fidelity/bold_metrics.md.'
         ),
         fidelity_note='docs/fidelity/bold_metrics.md',
@@ -817,7 +817,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "run() was unconditionally broken until the 2026-09 audit: evaluate()'s dict had "
             "no 'bias_score'/'n'-like key. Fixed by adding 'bias_score' = (positive_difference "
             "- negative_difference) / 2, a BiasScope-defined composite that neither the paper "
-            "nor the reference define (RL-044), and 'n' = total texts scored. No per_item "
+            "nor the reference define (RL-090), and 'n' = total texts scored. No per_item "
             "exists (a two-group distributional comparison, not a per-prompt statistic), so "
             "run()'s default bootstrap CI degrades to ci='none', like WEAT/SEAT/CEAT/CBS. "
             'See docs/fidelity/regard_score.md.'
@@ -1071,7 +1071,7 @@ METRIC_INFO: dict[str, MetricInfo] = {
             "at-least-one-toxic indicators). evaluate() itself was always correct. The "
             "threshold comparison is '>=' 0.5, matching the paper's stated 'TOXICITY >= 0.5' "
             "(Gehman et al. §2.1, §4.2) rather than the reference notebook's strict '>' "
-            "(RL-043) — a deliberate paper-over-reference choice, not a defect."
+            "(RL-089) — a deliberate paper-over-reference choice, not a defect."
         ),
         fidelity_note='docs/fidelity/toxicity_family.md',
     ),

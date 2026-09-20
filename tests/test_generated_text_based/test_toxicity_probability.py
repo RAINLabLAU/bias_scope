@@ -203,7 +203,7 @@ class TestToxicityProbability:
     def test_threshold_boundary_is_inclusive(self):
         """Gehman et al. 2020 §2.1/§4.2 both state 'TOXICITY >= 0.5' (inclusive).
         A score exactly equal to the threshold must count as toxic. See
-        REVIEW_LATER RL-043: the reference notebook uses strict '>' instead,
+        REVIEW_LATER RL-089: the reference notebook uses strict '>' instead,
         which BiasScope deliberately does not follow."""
         tp = ToxicityProbability(api_key="mock_key")
 

@@ -1131,7 +1131,7 @@ recommendation.
 the two `verify` divergences from the reference script, the `run()` fix).
 `_metric_info.py` CEAT `deviation_note` populated (was empty). `sources/SOURCES.yaml`
 CEAT note rewritten. `REVIEW_LATER.md` RL-021 closed as stale (already resolved
-in code before this session); RL-038/RL-039 added for the two `verify` items.
+in code before this session); RL-084/RL-085 added for the two `verify` items.
 `DECISIONS.md` and `CHANGELOG.md` updated.
 
 **Verified:** `tests/test_embeddings/test_ceat.py` 20/20 passed after the fix.
@@ -1141,7 +1141,7 @@ Broader regression (`test_embeddings/`, `test_metadata.py`, `test_run.py`,
 (pre-existing FGB/PGB), 0 failed. `evaluate()`'s CES and p-value are untouched
 by this change — they already matched the reference implementation exactly.
 
-REVIEW_LATER: RL-021 closed; RL-038, RL-039 created (both `verify`).
+REVIEW_LATER: RL-021 closed; RL-084, RL-085 created (both `verify`).
 
 ---
 
@@ -1182,7 +1182,7 @@ the PDF was already in the papers folder. Read in full this session.
   implement Sec. 3.2 and 3.4. `derive_gender_direction` uses **uncentred**
   SVD after a first centred-PCA attempt failed its own known-answer test
   (centring removes the shared signal being sought — verified numerically,
-  documented as REVIEW_LATER RL-040, tag `decide`, no reference code exists
+  documented as REVIEW_LATER RL-086, tag `decide`, no reference code exists
   to settle it definitively). `derive_word_importance` verified against the
   paper's own Fig. 3 ratio (saxophone: 1106/4096 ≈ 27%).
 - New `build_gender_words_mask()` implements Sec. 3.3's case-insensitive
@@ -1190,13 +1190,13 @@ the PDF was already in the papers folder. Read in full this session.
   reconstructed** — it is unpublished and "selected starting from" two
   source lists implies curation this session cannot safely guess (PLAN.md
   Section 1: never invent an unverified resource). Logged as REVIEW_LATER
-  RL-041, tag `blocked`, with a concrete path to closing it.
+  RL-087, tag `blocked`, with a concrete path to closing it.
 - Citation fixed (Dolci, T.; Azzalini, F.; Tanelli, M.; correct title) in the
   class docstring and `docs/api/embeddings/sentence_bias_score.md`.
 - `docs/fidelity/sentence_bias_score.md` rewritten in full against the
   now-read paper and the fixed code. `sources/SOURCES.yaml` entry corrected
   (real section numbers, `local_pdf` path, `paper_status` removed now that
-  it reads normally). `REVIEW_LATER.md` RL-029 closed; RL-040/RL-041 opened.
+  it reads normally). `REVIEW_LATER.md` RL-029 closed; RL-086/RL-087 opened.
   `PLAN.md`'s three stale "SentenceBiasScore paywalled" references corrected
   (Phase 0 retrieval summary, Phase 1 audit-count line, Appendix E table).
   Example rewritten to exercise all three new helpers plus `run()`.
@@ -1207,7 +1207,7 @@ the PDF was already in the papers folder. Read in full this session.
 511 passed after the `MetricInfo` change. `scripts/sources/check_manifest.py`
 passes (55/55 read, matching schema). Updated example runs end to end.
 
-REVIEW_LATER: RL-029 closed; RL-040 (`decide`), RL-041 (`blocked`) created.
+REVIEW_LATER: RL-029 closed; RL-086 (`decide`), RL-087 (`blocked`) created.
 
 ---
 
@@ -1578,7 +1578,7 @@ match the paper's equation and the reference's arithmetic exactly.
    token per subword. Fixed by grouping target words by subword count and
    scoring each subword against its own mask position, one-to-one
    (following the paper's text over the reference's apparent all-pairs
-   loop bug — recorded as `REVIEW_LATER` RL-042, the same judgment
+   loop bug — recorded as `REVIEW_LATER` RL-088, the same judgment
    already applied for LPBS's RL-012).
 5. **Variance convention didn't match the reference.** `np.var(ddof=0)`
    (population variance) vs. the reference's `pandas.Series.var()`
@@ -1718,9 +1718,9 @@ confirmed correct, no defect.** `_has_toxic` implements
 notebook's actual cell uses a **strict** `>` (`len([y for y in x if y >
 0.5])`), contradicting the paper's own text, which states `≥` twice.
 BiasScope already used `>=`, matching the paper — correct under the same
-precedent already applied twice this session (LPBS RL-012, CBS RL-042):
+precedent already applied twice this session (LPBS RL-012, CBS RL-088):
 when paper text and an unexplained reference discrepancy disagree, follow
-the paper. Logged as `REVIEW_LATER` RL-043 and pinned by a new test,
+the paper. Logged as `REVIEW_LATER` RL-089 and pinned by a new test,
 `test_threshold_boundary_is_inclusive`, since nothing previously exercised
 the exact-equality boundary.
 
@@ -1765,7 +1765,7 @@ marked resolved), `docs/fidelity/toxicity_family.md`, and
 **Verdict unchanged: FAITHFUL.** The fix is additive (a new detail key);
 `bias_score` and every existing key are untouched.
 
-## 2026-09-18 · RegardScore from-scratch audit + fix (RL-044)
+## 2026-09-18 · RegardScore from-scratch audit + fix (RL-090)
 
 Read Sheng et al. 2019 fresh and traced `regard_score.py` end to end.
 Independently checked against the reference by cloning
@@ -1792,7 +1792,7 @@ negative_difference) / 2` — bounded in the metric's declared `value_range`,
 antisymmetric under group swap — and `n` (total texts scored). No natural
 `per_item` exists, so `run()`'s default bootstrap CI correctly degrades to
 `ci="none"`, matching WEAT/SEAT/CEAT/CBS's documented behavior. Logged as
-`REVIEW_LATER` RL-044.
+`REVIEW_LATER` RL-090.
 
 **Secondary finding, fixed: a stale fidelity-doc claim.**
 `docs/fidelity/regard_score.md`'s Tier 3 section claimed swap antisymmetry
@@ -1808,7 +1808,7 @@ antisymmetric under group swap — and `n` (total texts scored). No natural
 **1896 passed** (up from 1890, +6, zero regressions).
 
 Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
-RL-044), `docs/fidelity/regard_score.md`, and `_metric_info.py`'s
+RL-090), `docs/fidelity/regard_score.md`, and `_metric_info.py`'s
 `deviation_note`.
 
 **Verdict unchanged: adaptation.** The fix is additive and framework-level
@@ -1910,7 +1910,7 @@ and point to `signed_mean_difference` for direction.
    Occupation: 29) without the caller averaging multiple calls themselves.
    Not previously stated anywhere.
 
-Both logged together as `REVIEW_LATER` RL-045 (a single entry, since both
+Both logged together as `REVIEW_LATER` RL-091 (a single entry, since both
 are the same kind of judgment: keep the current, more general/flexible
 behavior, but stop being silent about it).
 
@@ -1921,7 +1921,7 @@ behavior, but stop being silent about it).
 passed** (up from 1899, +2, zero regressions).
 
 Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
-RL-045), `docs/fidelity/huang_metrics.md`, and `_metric_info.py`'s
+RL-091), `docs/fidelity/huang_metrics.md`, and `_metric_info.py`'s
 `deviation_note`.
 
 **Verdict: FAITHFUL WITH DOCUMENTED EXTENSIONS.** The core W1/I.F.
@@ -1930,7 +1930,7 @@ and makes two previously-silent design choices explicit. Fidelity label
 unchanged at `faithful` in `_metric_info.py` since the underlying
 statistic itself was never wrong — only its documentation was.
 
-## 2026-09-18 · PsycholinguisticNorms from-scratch audit + fix (RL-046)
+## 2026-09-18 · PsycholinguisticNorms from-scratch audit + fix (RL-092)
 
 Read Dhamala, Sun, Kumar, Krishna, Pruksachatkun, Chang & Gupta 2021 (BOLD,
 FAccT '21) §4.4 fresh from the PDF and traced `psycholinguistic_norms.py`
@@ -1958,12 +1958,12 @@ insufficiently careful audit; both corrected as part of this fix.
 emotion"); `_tokenize` did plain regex splitting with no POS filtering.
 Added `EXCLUDED_FUNCTION_WORDS`, a defensible closed-class word list — the
 paper names no exact list or tagger, so this is a judgment call, logged
-along with the run() headline choice below as `REVIEW_LATER` RL-046.
+along with the run() headline choice below as `REVIEW_LATER` RL-092.
 
 **Third finding, fixed: `run()` unconditionally broken.** Same recurring
 defect class as six other metrics fixed this session — `evaluate()`'s dict
 had only per-dimension keys (`pn::valence`, etc.), no `bias_score`/`n`-like
-key. Fixed with the same kind of judgment call `RegardScore`'s RL-044
+key. Fixed with the same kind of judgment call `RegardScore`'s RL-090
 required (no paper precedent for a cross-dimension scalar): for a single
 requested dimension, `bias_score` is exactly that dimension's score (no
 judgment call); for multiple dimensions, it's their mean (a BiasScope
@@ -1987,7 +1987,7 @@ since a single-word completion's weighted formula and plain mean coincide).
 Full suite: **1906 passed** (up from 1901, +5, zero regressions).
 
 Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
-RL-046), `docs/fidelity/bold_metrics.md`, and `_metric_info.py`'s
+RL-092), `docs/fidelity/bold_metrics.md`, and `_metric_info.py`'s
 `deviation_note`.
 
 **Verdict: MATERIALLY DEVIATES → adaptation (after fix).** Before this fix,

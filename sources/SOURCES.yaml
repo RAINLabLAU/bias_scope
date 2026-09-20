@@ -1015,7 +1015,7 @@ metrics:
     now implement Sec. 3.2 and 3.4 (added this session; previously absent, and
     run() crashed unconditionally on every input -- both fixed). Sec. 3.3''s
     6562-word gender lexicon is not published and is not vendored; callers
-    must supply their own (REVIEW_LATER RL-041, blocked). Corrected a wrong
+    must supply their own (REVIEW_LATER RL-087, blocked). Corrected a wrong
     citation (author initials and title) in the class docstring and docs/api
     page. Earlier note (RL-029) said this paper was paywalled with no
     preprint; it is open access (CC-BY-4.0) and was sitting in

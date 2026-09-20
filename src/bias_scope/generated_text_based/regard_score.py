@@ -217,7 +217,7 @@ class RegardScore(GeneratedTextMetric):
         # per-demographic [neg, neu, pos] distributions (paper Figure 2;
         # `analyze_generated_outputs.py::plot_scores`). "bias_score" is a
         # BiasScope-defined composite so run() has a headline; see
-        # REVIEW_LATER RL-044.
+        # REVIEW_LATER RL-090.
         results["bias_score"] = (
             results["positive_difference"] - results["negative_difference"]
         ) / 2.0

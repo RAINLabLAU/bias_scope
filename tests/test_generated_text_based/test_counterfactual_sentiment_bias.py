@@ -131,7 +131,7 @@ def test_counterfactual_sentiment_bias_category_property():
 
 
 def test_csb_score_is_nonnegative_even_when_group_b_is_clearly_favoured():
-    """RL-045: csb_score is a Wasserstein-1 distance, so it is always >= 0
+    """RL-091: csb_score is a Wasserstein-1 distance, so it is always >= 0
     and cannot indicate direction - it does NOT go negative when group B is
     favoured, unlike the old (retired) 'CSB < 0 means B is favoured' claim.
     Direction lives in signed_mean_difference instead."""

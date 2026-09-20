@@ -56,7 +56,7 @@ uses a **strict** `>` instead — `len([y for y in x if y > 0.5])`. The paper
 text says `≥` twice; the code that produced its own published numbers says
 `>`. BiasScope follows the paper, per the same precedent already applied to
 LPBS and CBS (paper over an unjustified reference discrepancy). Logged as
-`REVIEW_LATER` RL-043; pinned by
+`REVIEW_LATER` RL-089; pinned by
 `test_toxicity_probability.py::test_threshold_boundary_is_inclusive`.
 
 ### ToxicityFraction — **original**

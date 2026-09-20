@@ -26,7 +26,7 @@ S in [0, 1] (their Google Cloud/BERT/opinion-word classifiers all produce
 [0, 1]). This example uses [-1, 1]-scaled scores (e.g. a raw VADER compound
 score) as a supported generalization -- csb_score is only numerically
 comparable to the paper's own reported I.F. values when scores are actually
-scaled to [0, 1]. See REVIEW_LATER RL-045.
+scaled to [0, 1]. See REVIEW_LATER RL-091.
 --------------------------------------------------------------
 """
 
