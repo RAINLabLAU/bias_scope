@@ -43,12 +43,7 @@
   transcript (`README.md`) and in the table produced with `--with-counts`; for
   StereotypicalAssociations it is the number of target words that co-occurred with
   a group word, which is small.
-- `*` marks a result whose protocol records a deviation from the paper's resources:
-  CEAT's contexts come from BOLD's Wikipedia sentences rather than the authors' Reddit
-  sample and are pooled as sentences (RL-071); EMT is scored by `unitary/toxic-bert`
-  rather than the Perspective API (RL-072). Those numbers are not comparable to the
-  papers' tables. The badge next to each score in the transcript is the metric's
-  fidelity to its paper; `deviation:` lines there say what this run substituted.
+- `*` marks a **recorded substitution**: see the section below.
 - Causal models are run in bf16 (PLAN.md Section 1); the embedding metrics now use the
   same copy of the model, so they are bf16 numbers too, and bf16 moves an effect size
   by up to 0.1 between CPU and GPU on the same weights (RL-077). Encoders and
@@ -60,6 +55,51 @@
 - A model with no scores at all is listed below the table with the reason.
 - Regenerate with `python scripts/agent/results_table.py --out <this file>`; the logs
   behind every cell are in `README.md`, the procedure in `REPRODUCE.md`.
+
+## What a recorded substitution (`*`) is
+
+A metric's paper names the resources its number depends on: a corpus, a classifier,
+a lexicon. When the harness cannot use that exact resource it puts a stand-in in its
+place, computes the statistic exactly as the paper defines it, and **writes the
+substitution into the result's protocol block** so the number cannot be mistaken for
+the paper's. The agent prints it under the score as a `deviation:` line, and the
+`*` in this table points here. Two substitutions are in effect:
+
+- **CEAT.** The paper (Guo & Caliskan 2021) samples each word's contexts from a
+  Reddit corpus. This harness uses BOLD's Wikipedia sentences (Dhamala et al. 2021,
+  vendored, CC-BY-SA), up to 50 per word, and embeds each word in its own context.
+  Why: the authors' corpus is not vendored and its licence is unrecorded.
+  Recorded in REVIEW_LATER RL-071.
+- **EMT.** The paper (Gehman et al. 2020) scores toxicity with the Perspective API.
+  This harness uses the local classifier `unitary/toxic-bert` at a pinned revision,
+  reading its `toxic` head. Why: no Perspective API key is available. Recorded in
+  REVIEW_LATER RL-072.
+
+Two things follow from this:
+
+- The metric's fidelity badge (`faithful`, `ADAPTATION`, ...) describes the *formula*
+  and stays as it is. A `*` describes the *run*. A starred `faithful` score is a
+  faithful formula computed on a substituted resource, and it is **not comparable to
+  the values in the paper's tables**; it is comparable across the models in this table,
+  which all used the same substitute.
+- Each substitution is reversible. With a Perspective API key EMT can be scored the
+  faithful way; with the authors' corpus CEAT can too. The transcript of every run
+  (`README.md`) shows the `deviation:` line and the provenance (file, sha256, counts)
+  of what was actually used.
+
+## How each column relates to its paper
+
+- **faithful, no star** (WEAT, SEAT, CrowSPairs, AUL, AULA, CAT, ICAT): the paper's
+  formula on the paper's own data, so the value can be read against the paper's
+  reported numbers. Encoders and sentence encoders run in fp32 as the papers did;
+  causal models run in bf16 (see the note above).
+- **ADAPTATION** (RegardScore, GenderPolarity, DemographicRepresentation,
+  StereotypicalAssociations, HONEST): the metric class itself departs from its paper
+  in a documented way - a different access mode, prompt set or scoring path - stated
+  in the class docstring and in `docs/fidelity/`. The prompts these run on here are
+  BOLD's (profession or gender domain) or HONEST's own templates; the provenance in
+  each transcript names them.
+- **`*`**: the recorded substitutions above.
 
 
 ## Cells that changed vs the runs before 2026-09-20T19

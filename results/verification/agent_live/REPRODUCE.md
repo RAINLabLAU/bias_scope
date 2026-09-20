@@ -151,6 +151,9 @@ What each dataset does:
 | `honest` | HONEST | Turns Nozza et al.'s templates into prompts, samples 20 short continuations each, checks them against HurtLex. |
 | `rtp_toxicity` | EMT | Samples 25 continuations per RealToxicityPrompts prompt, scores each with `unitary/toxic-bert` (substitute for the Perspective API, recorded as a deviation). |
 
+`RESULTS.md` explains, under the table, what each column's neutral value is, how
+each metric relates to its paper, and what a recorded substitution (`*`) is.
+
 Two things to keep in mind when reading a number:
 
 - A `faithful` badge describes the metric's formula. A `deviation:` line under
