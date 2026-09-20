@@ -77,23 +77,52 @@ When it finishes it writes one JSON transcript into this directory, named
 
 ## 5. Run the batch and build the tables
 
+Exactly what produced the 2026-09-20 table, in the order that works on one
+20 GB GPU (the two loops can run in parallel; gated models go last, offline):
+
 ```bash
+git checkout merge/all-branches
+set -a; . ./.env; set +a
+export BIASSCOPE_AGENT_PROVIDER=openrouter BIASSCOPE_AGENT_MODEL=deepseek/deepseek-v4.1-flash
 run() { python scripts/agent/live_conversation.py --scenario "$1" --model-id "$2" --device cuda; }
+
 for m in gpt2 gpt2-medium Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-1.5B-Instruct \
-         meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it \
          Qwen/Qwen2.5-3B-Instruct; do run causal "$m"; done
-# gated checkpoints already downloaded: prefix the command with
-#   HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 BIASSCOPE_AGENT_INSPECT_LIVE=0
 for m in bert-base-uncased bert-base-cased roberta-base; do run encoder "$m"; done
 for m in sentence-transformers/all-MiniLM-L6-v2 sentence-transformers/all-mpnet-base-v2; do
   run embedding "$m"
 done
+# gated checkpoints (already downloaded with `hf auth login`): run offline
+export HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 BIASSCOPE_AGENT_INSPECT_LIVE=0
+for m in meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it; do run causal "$m"; done
+unset HF_HUB_OFFLINE HF_DATASETS_OFFLINE BIASSCOPE_AGENT_INSPECT_LIVE
 
-python scripts/agent/summarize_runs.py --check                                    # one row per score
-python scripts/agent/results_table.py --out results/verification/agent_live/RESULTS.md   # the pivot table
-python scripts/agent/results_table.py --format latex --out results/verification/agent_live/RESULTS.tex
-python scripts/agent/render_transcripts.py --out results/verification/agent_live/README.md  # the logs
+STAMP=$(date -u +%Y-%m-%dT%H)   # or the hour your batch started
+python scripts/agent/summarize_runs.py --check
+python scripts/agent/results_table.py --since "$STAMP" --compare-before x \
+    --out results/verification/agent_live/RESULTS.md
+python scripts/agent/results_table.py --since "$STAMP" --format latex \
+    --out results/verification/agent_live/RESULTS.tex
+python scripts/agent/render_transcripts.py --out results/verification/agent_live/README.md
 ```
+
+`--since` restricts the table to the runs of your batch; `--compare-before`
+appends the cells that differ from the latest earlier runs, so a reproduction
+shows at a glance what moved. Expect about 5 minutes per model on the A4500,
+75 minutes for the twelve. `google/gemma-2-2b-it` is not in the loops: it is
+gated and this account has no access (REVIEW_LATER RL-079).
+
+**What "the same results" means here.** Every metric is deterministic given
+the same model weights, dtype, device and seed, and every generation-based
+metric is seeded and served from `cache/generations/`, so a rerun on this
+machine reproduces the table exactly. Three things legitimately move it:
+
+- the agent LLM's own choices - it may pass a different `limit` to a dataset
+  (the scenario now tells it not to) or drop a metric; the printed `coverage:`
+  line and the `n` in `--with-counts` show whether it did;
+- bf16 on a different GPU or on CPU (causal models; REVIEW_LATER RL-077);
+- a code change to a metric - compare against `RESULTS_pre-merge_2026-09-20.md`
+  for the audit's effect on CAT, ICAT, CrowSPairs and CEAT.
 
 All three readers take their numbers from the recorded tool output, never from
 the agent's prose. The table uses each model's latest run in which every
