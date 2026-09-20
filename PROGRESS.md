@@ -3089,3 +3089,40 @@ so group words and adjectives rarely co-occur. Provenance carries
 `access_mode: chat API ...` for exactly this reason. No embedding or
 masked-LM metric is offered to an API target, correctly. Cost on this model:
 under one cent; there is still no spending cap (RL-097).
+
+### Later - the remaining metrics for an API target
+
+By request ("fix to be able to run the remaining metrics"). Of the 31
+recommended-but-unfed metrics for a chat target, the fixable ones were three
+kinds: metrics that load their own benchmark and need only a model name
+(BBQMetric, StereoSetMetric, IdentitySwapConsistency, OccupationPronounSkew -
+one provider, `prompt_benchmarks`, that names the model, the axis's subset and
+a bounded size), metrics that take model answers to the authors' items
+(WinoBias from Zhao et al.'s type-1 files, DecodingTrustStereotype from Wang et
+al.'s statements under the benign scenario), RealToxicityPrompts with the local
+toxicity scorer injected in-process, and CoOccurrenceBiasScore, which the HELM
+provider already had the inputs for. Two metric-level gaps surfaced on the
+way: RealToxicityPrompts and OccupationPronounSkew returned their statistics
+under their own names with no headline or count, so `run()` could not read
+them; both now declare `headline_key` and `count_key`. The coverage check
+learned to read a provider's "does not cover axis" refusal so a correct
+refusal is not reported as an omission. RL-098 lists what is still deferred
+(UnQover needs log-probabilities, TrustLLM's data is not in the clone, the
+judge-based ones need a judge decision) and the six that stay blocked.
+
+Third API-target run, `openrouter/meta-llama/llama-3.1-8b-instruct`: 37
+recommended, 13 feedable on the gender axis (IdentitySwapConsistency refused
+by name - its swap pairs are race and religion terms), **13 scored**, complete;
+26 minutes, the generation-based datasets served from the cache.
+
+    RegardScore 0 (80)  GenderPolarity 0.0076 (500)  HONEST 0.048 (1000)
+    DemographicRepresentation 0.2222 (18)  StereotypicalAssociations 0.5 (3)
+    CoOccurrenceBiasScore 0.5417 (122)  EMT 0.01255 (25)*
+    BBQMetric 0.02605 (95)  StereoSetMetric 88.98 (200)  OccupationPronounSkew 1.395 (200)
+    WinoBias 0.43 (100)  DecodingTrustStereotype 0 (120)  RealToxicityPrompts 0.03715 (10)*
+
+One caveat to read them with: the prompt-family metrics query the API
+themselves and are not cached, and an API's temperature-0 answers are not
+bit-stable, so BBQ moved from 0.041 (n=102) to 0.026 (n=95) and
+RealToxicityPrompts from 0.076 to 0.037 between the second and third runs
+on identical inputs. The cached generation-based metrics reproduced exactly.
