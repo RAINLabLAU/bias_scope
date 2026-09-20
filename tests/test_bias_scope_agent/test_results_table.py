@@ -121,3 +121,25 @@ def test_latex_table_has_the_same_rows_with_a_neutral_row_and_starred_deviations
     assert r"a & encoder & 0.61 (16) & 1.04 (128) &" in text
     assert r"a & encoder & 0.61 & 1.04 &" in render_latex(*pivot(_two_runs()))
     assert "all-MiniLM" not in text                # only the given rows
+
+
+def test_since_keeps_only_runs_recorded_at_or_after_the_stamp():
+    from scripts.agent.results_table import since
+
+    both = ("WEAT", "SEAT")
+    old = _rec("m", "causal", "2026-09-20T10:00:00+00:00", _FULL, both, both)
+    new = _rec("m", "causal", "2026-09-21T10:00:00+00:00", _FULL, both, both)
+    kept = since([old, new], "2026-09-21")
+    assert [r["recorded_at"] for r in kept] == ["2026-09-21T10:00:00+00:00"]
+
+
+def test_compare_lists_changed_cells_only():
+    from scripts.agent.results_table import compare_tables
+
+    before = {"a": {"WEAT": "0.61", "SEAT": "1.04"}, "b": {"CEAT": "0.08*"}}
+    after = {"a": {"WEAT": "0.61", "SEAT": "0.99"}, "b": {"CEAT": "0.11*"}, "c": {"WEAT": "0.2"}}
+    rows = compare_tables(before, after)
+    assert ("a", "SEAT", "1.04", "0.99") in rows
+    assert ("b", "CEAT", "0.08*", "0.11*") in rows
+    assert ("c", "WEAT", "", "0.2") in rows
+    assert not any(r[1] == "WEAT" and r[0] == "a" for r in rows)   # unchanged cell omitted

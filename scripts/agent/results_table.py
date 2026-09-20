@@ -32,6 +32,30 @@ _KIND_ORDER = {"encoder": 0, "embedding": 1, "causal": 2}
 _FAMILY_ORDER = ("embedding", "probability", "generated_text", "prompt")
 
 
+def since(records: List[Dict[str, Any]], stamp: str) -> List[Dict[str, Any]]:
+    """Runs recorded at or after `stamp` (ISO date or datetime prefix)."""
+    return [r for r in records if r.get("recorded_at", "") >= stamp]
+
+
+def compare_tables(before: Dict[str, Dict[str, str]], after: Dict[str, Dict[str, str]]):
+    """(model, metric, old cell, new cell) for every cell that differs."""
+    rows = []
+    for model in sorted(set(before) | set(after)):
+        metrics = set(before.get(model, {})) | set(after.get(model, {}))
+        for metric in sorted(metrics):
+            old = before.get(model, {}).get(metric, "")
+            new = after.get(model, {}).get(metric, "")
+            if old != new:
+                rows.append((model, metric, old, new))
+    return rows
+
+
+def cells_by_model(rows: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
+    """The pivot's rows as {model: {metric: cell}}, counts stripped."""
+    return {row["model"]: {m: _strip_counts(c) for m, c in row["cells"].items() if c}
+            for row in rows}
+
+
 def latest_complete_runs(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """target_model -> its latest complete run, else its latest run, flagged."""
     chosen: Dict[str, Dict[str, Any]] = {}
@@ -246,10 +270,22 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--format", choices=("markdown", "latex"), default="markdown")
     parser.add_argument("--with-counts", action="store_true", help="append (n) to each score")
+    parser.add_argument("--since", default=None, help="only runs recorded at/after this stamp")
+    parser.add_argument("--compare-before", default=None,
+                        help="also print the cells that changed vs runs recorded before --since")
     args = parser.parse_args()
-    table = pivot(latest_complete_runs(_load(args.dir)))
+    records = _load(args.dir)
+    chosen = since(records, args.since) if args.since else records
+    table = pivot(latest_complete_runs(chosen))
     render = render_latex if args.format == "latex" else render_markdown
     text = render(*table, counts=args.with_counts)
+    if args.compare_before and args.since:
+        earlier = [r for r in records if r.get("recorded_at", "") < args.since]
+        before = cells_by_model(pivot(latest_complete_runs(earlier))[1])
+        changed = compare_tables(before, cells_by_model(table[1]))
+        text += "\n\n## Cells that changed vs the runs before " + args.since + "\n\n"
+        text += "| model | metric | before | after |\n|---|---|---|---|\n"
+        text += "\n".join(f"| {m} | {k} | {o} | {n} |" for m, k, o, n in changed) + "\n"
     print(text)
     if args.out:
         args.out.write_text(text + "\n", encoding="utf-8")
