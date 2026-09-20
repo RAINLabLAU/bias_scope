@@ -1820,3 +1820,22 @@ records both. Sampling makes the two BOLD-profession scores depend on the
 seed, which is recorded.
 **To revisit:** offer the prompt domain and the decoding as `prepare_inputs`
 options.
+
+## RL-074 · fix · 2026-09-20 · a tool exception outside a four-type list killed the whole conversation
+**Encountered:** the Llama-3.2-1B run. Inside `run_suite`, WEAT's
+sentence-transformers loader probed the gated repo for a `modules.json` it
+does not have and the Hub answered 401 (`GatedRepoError`, even though the
+local token has access and every weight was cached). `_dispatch_tools` caught
+only `(GateError, KeyError, ValueError, TypeError)`, so the exception escaped,
+`live_conversation.py` died with a traceback at turn 3, and the run - two
+turns of plan and provenance - was lost. The agent never got to report it.
+**Chosen:** a second `except Exception` branch that returns
+`"<Type>: <message>"` as an error tool result, exactly like the listed types.
+Test: `test_loop_scripted_conversation.py::TestAnyToolExceptionIsReturnedToTheAgentNotRaised`.
+The gated models were rerun with `HF_HUB_OFFLINE=1` (everything is cached),
+which is now in `REPRODUCE.md`.
+**Risk if wrong:** a bug in a tool now surfaces as a message to the agent
+rather than a traceback to the developer; the transcript still records the
+error text, and `recommendation_coverage` still marks the run incomplete.
+**To revisit:** sentence-transformers' `modules.json` probe should not fail
+on a cached gated repo; check whether passing the token explicitly fixes it.

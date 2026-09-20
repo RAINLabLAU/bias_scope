@@ -35,6 +35,16 @@ def _text_of(content: Any) -> str:
     )
 
 
+def _error_result(block: Any, content: str) -> Dict[str, Any]:
+    return {
+        "type": "tool_result",
+        "tool_use_id": block.id,
+        "name": block.name,
+        "content": content,
+        "is_error": True,
+    }
+
+
 class AgentLoop:
     def __init__(self, config: AgentConfig, session: AgentSession, client: Optional[Any] = None):
         self.config = config
@@ -99,13 +109,11 @@ class AgentLoop:
                     }
                 )
             except _CAUGHT_TOOL_ERRORS as exc:
-                results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "name": block.name,
-                        "content": str(exc),
-                        "is_error": True,
-                    }
-                )
+                results.append(_error_result(block, str(exc)))
+            except Exception as exc:  # noqa: BLE001 - see the comment below
+                # Anything else a tool raises (a gated-repo 401 from the Hub, an
+                # OOM, a library bug) is still a tool error for the agent to
+                # report, not a reason to lose the whole conversation with a
+                # traceback - which is what happened on a live run (RL-074).
+                results.append(_error_result(block, f"{type(exc).__name__}: {exc}"))
         return results

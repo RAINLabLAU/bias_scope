@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -104,6 +105,7 @@ def main() -> int:
 def _print_coverage(records: List[Dict[str, Any]]) -> None:
     """Recommended vs scored, recomputed from each transcript (not read from
     the file, so runs recorded before the check existed are covered too)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # `scripts.` when run as a file
     from scripts.agent.live_conversation import recommendation_coverage
 
     print("\nrecommended metrics vs metrics actually scored:")

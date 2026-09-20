@@ -445,3 +445,36 @@ class TestTextWrittenAlongsideAToolCallReachesTheUser:
         assert AgentLoop(AgentConfig(), AgentSession(), client=client).run_turn("go") == (
             "just an answer"
         )
+
+
+class TestAnyToolExceptionIsReturnedToTheAgentNotRaised:
+    """RL-074: a gated-repo 401 raised inside run_suite (a
+    `huggingface_hub.GatedRepoError`, not a ValueError) escaped
+    `_dispatch_tools`, killed the live conversation with a traceback and lost
+    the whole run - the agent never got to say "this dataset failed". Any
+    exception a tool raises is a tool error for the agent to report.
+    """
+
+    def test_a_runtime_error_becomes_an_error_tool_result(self):
+        client = FakeClient(
+            [
+                FakeResponse(
+                    content=[tool_use("construct_backend", {"kind": "litellm",
+                                                            "model_id": "x"}, "call-1")],
+                    stop_reason="tool_use",
+                ),
+                FakeResponse(content=[text_block("The backend could not be built.")],
+                             stop_reason="end_turn"),
+            ]
+        )
+        loop = AgentLoop(AgentConfig(), AgentSession(), client=client)
+        with patch("bias_scope_agent.tools.construct_backend",
+                   side_effect=RuntimeError("401 Client Error: gated repo")):
+            reply = loop.run_turn("set up model x")
+        assert reply == "The backend could not be built."
+        second_call = client.messages.calls[1]["messages"]
+        blocks = [b for m in second_call if isinstance(m["content"], list) for b in m["content"]]
+        results = [b for b in blocks if isinstance(b, dict) and b.get("type") == "tool_result"]
+        assert results and results[0]["is_error"] is True
+        assert "RuntimeError" in results[0]["content"]
+        assert "gated repo" in results[0]["content"]
