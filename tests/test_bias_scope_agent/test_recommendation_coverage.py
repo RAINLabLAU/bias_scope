@@ -139,6 +139,8 @@ _INCOMPLETE_BY_DESIGN = {
         "RL-068: BOS at position 0",
     "causal__deepseek_deepseek-v4.1-flash__meta-llama_Llama-3.2-1B-Instruct__20260920T162153Z.json":
         "RL-068: BOS at position 0 (7 of 9 scored; SEAT and CEAT decline by construction)",
+    "causal__deepseek_deepseek-v4.1-flash__meta-llama_Llama-3.2-1B-Instruct__20260920T200233Z.json":
+        "RL-068: BOS at position 0 (8 of 9 after the merge; SEAT declines, CEAT now scores)",
     "causal__deepseek_deepseek-v4.1-flash__google_gemma-3-1b-it__20260920T165201Z.json":
         "RL-068: BOS at position 0 (8 of 9; CEAT declines, SEAT returns a degenerate 0)",
     # WEAT's sentence-transformers loader tried to build an image processor for

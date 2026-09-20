@@ -1,22 +1,20 @@
 # Agent results across models
 
-| model | kind | WEAT | SEAT | CEAT | CrowSPairs | AUL | AULA | CAT | ICAT | RegardScore | GenderPolarity | DemographicRepresentation | StereotypicalAssociations | HONEST | EMT |
+| model | kind | WEAT | SEAT | CEAT | CrowSPairs | AUL | AULA | CAT | ICAT | HONEST | RegardScore | GenderPolarity | DemographicRepresentation | StereotypicalAssociations | EMT |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | *neutral value* | | 0 | 0 | 0 | 50 | 50 | 50 | 50 | 100 | 0 | 0 | 0 | 0 | 0 | 0 |
-| bert-base-cased | encoder | 0.3792 | 0.9246 | 0.4328* | 57.63 | 53.05 | 53.82 | 64.19 | 59.11 |  |  |  |  |  |  |
-| bert-base-uncased | encoder | 0.6113 | 1.044 | 0.203* | 55.73 | 46.56 | 43.89 | 69 | 51.99 |  |  |  |  |  |  |
-| roberta-base | encoder | -0.6074 | 1.099 | 0.7752* | 54.96 | 56.49 | 53.44 | 55.46 | 61.07 |  |  |  |  |  |  |
-| sentence-transformers/all-MiniLM-L6-v2 | embedding | 1.021 | 1.402 | 1.016* |  |  |  |  |  |  |  |  |  |  |  |
-| sentence-transformers/all-mpnet-base-v2 | embedding | 1.257 | 1.042 | 0.804* |  |  |  |  |  |  |  |  |  |  |  |
-| Qwen/Qwen2.5-0.5B-Instruct | causal | 0.847 | 0.2512 | 0.06523* |  |  |  |  |  | 0 | 0.032 | 0.3824 | 0.5 | 0.016 | 0.03202* |
-| Qwen/Qwen2.5-1.5B-Instruct | causal | 0.6307 | 0.3193 | 0.1252* |  |  |  |  |  | -0.025 | 0.034 | 0.2015 | 0.4359 | 0.02 | 0.008042* |
-| Qwen/Qwen2.5-3B-Instruct | causal | -0.993 | 0.3051 | 0.08709* |  |  |  |  |  | 0.025 | 0.02 | 0.2708 | 0.26 | 0.026 | 0.02597* |
-| google/gemma-3-1b-it (incomplete) | causal | 0.04788 | 0 |  |  |  |  |  |  | 0.04 | 0.012 | 0.3182 | 0.4 | 0.0335 | 0.03937* |
-| gpt2 | causal | 0.4006 | -0.05892 | 0.08952* |  |  |  |  |  | 0.025 | 0.044 | 0.2564 | 0.4667 | 0.083 | 0.07369* |
-| gpt2-medium | causal | -0.2031 | -0.1091 | 0.0473* |  |  |  |  |  | 0.04 | 0.0612 | 0.2917 | 0.463 | 0.068 | 0.04463* |
-| meta-llama/Llama-3.2-1B-Instruct (incomplete) | causal | 1.218 |  |  |  |  |  |  |  | 0.02 | 0.01 | 0.1429 | 0.5 | 0.03 | 0.04894* |
-
-No scores at all (every run failed before a metric scored): `google/gemma-2-2b-it`. The transcripts record why.
+| bert-base-cased | encoder | 0.3792 | 0.9246 | 0.3713* | 57.63 | 53.05 | 53.82 | 60.95 | 65.46 |  |  |  |  |  |  |
+| bert-base-uncased | encoder | 0.6113 | 1.044 | 0.6033* | 58.02 | 46.56 | 43.89 | 63.22 | 63.91 |  |  |  |  |  |  |
+| roberta-base | encoder | -0.6074 | 1.099 | 0.5169* | 54.96 | 56.49 | 53.44 | 51.58 | 72.49 |  |  |  |  |  |  |
+| sentence-transformers/all-MiniLM-L6-v2 | embedding | 1.021 | 1.402 | 0.6499* |  |  |  |  |  |  |  |  |  |  |  |
+| sentence-transformers/all-mpnet-base-v2 | embedding | 1.257 | 1.042 | 1.165* |  |  |  |  |  |  |  |  |  |  |  |
+| Qwen/Qwen2.5-0.5B-Instruct | causal | 0.7987 | 0.2512 | 0.349* |  |  |  |  |  | 0.016 | 0 | 0.032 | 0.3824 | 0.5 | 0.03202* |
+| Qwen/Qwen2.5-1.5B-Instruct | causal | 0.9813 | 0.3193 | 0.4531* |  |  |  |  |  | 0.02 | -0.025 | 0.034 | 0.2015 | 0.4359 | 0.008042* |
+| Qwen/Qwen2.5-3B-Instruct | causal | 0.9245 | 0.3051 | 0.2296* |  |  |  |  |  | 0.02333 | 0.025 | 0.02 | 0.2708 | 0.26 | 0.02535* |
+| google/gemma-3-1b-it | causal | 0.04788 | 0 | 0.1943* |  |  |  |  |  | 0.028 | 0 | 0.012 | 0.3182 | 0.4 | 0.01829* |
+| gpt2 | causal | 0.4006 | -0.05892 | 0.1137* |  |  |  |  |  | 0.083 | 0.02 | 0.044 | 0.2564 | 0.4667 | 0.05298* |
+| gpt2-medium | causal | -0.2031 | -0.1091 | -0.01266* |  |  |  |  |  | 0.068 | 0.05 | 0.0612 | 0.2917 | 0.463 | 0.04693* |
+| meta-llama/Llama-3.2-1B-Instruct (incomplete) | causal | 1.218 |  | 0.5765* |  |  |  |  |  | 0.02 | 0.025 | 0.01 | 0.1429 | 0.5 | 0.01062* |
 
 ## What each column means
 
@@ -30,11 +28,11 @@ No scores at all (every run failed before a metric scored): `google/gemma-2-2b-i
 | AULA | 50 | 0 to 100 | higher is more biased | AUL with tokens weighted by attention |
 | CAT | 50 | 0 to 100 | higher is more biased | stereotype score: % of StereoSet items where the stereotypical fill beats the anti-stereotypical one |
 | ICAT | 100 | 0 to 100 | lower is more biased | language-modelling score x how close the stereotype score is to 50; 100 = ideal, 0 = worst |
+| HONEST | 0 | 0 to 1 | higher is more biased | share of continuations containing a HurtLex hurtful term |
 | RegardScore | 0 | -1 to 1 | 0 is no bias; the sign says which side | difference between two groups in the share of continuations judged negative-regard (group A minus group B) |
 | GenderPolarity | 0 | -1 to 1 | 0 is no bias; the sign says which side | mean over continuations of (male words - female words) / (male + female); +1 all male, -1 all female |
 | DemographicRepresentation | 0 | 0 to 1 | higher is more biased | total variation distance between how often each group's words appear in the continuations and a uniform distribution |
 | StereotypicalAssociations | 0 | 0 to 1 | higher is more biased | mean over target adjectives of that distance, counting only continuations where the adjective co-occurs with a group word |
-| HONEST | 0 | 0 to 1 | higher is more biased | share of continuations containing a HurtLex hurtful term |
 | EMT | 0 | 0 to 1 | higher is more biased | expected maximum toxicity: mean over prompts of the most toxic of K continuations |
 
 ## Reading the table
@@ -62,4 +60,44 @@ No scores at all (every run failed before a metric scored): `google/gemma-2-2b-i
 - A model with no scores at all is listed below the table with the reason.
 - Regenerate with `python scripts/agent/results_table.py --out <this file>`; the logs
   behind every cell are in `README.md`, the procedure in `REPRODUCE.md`.
+
+
+## Cells that changed vs the runs before 2026-09-20T19
+
+| model | metric | before | after |
+|---|---|---|---|
+| Qwen/Qwen2.5-0.5B-Instruct | CEAT | 0.06523* | 0.349* |
+| Qwen/Qwen2.5-0.5B-Instruct | WEAT | 0.847 | 0.7987 |
+| Qwen/Qwen2.5-1.5B-Instruct | CEAT | 0.1252* | 0.4531* |
+| Qwen/Qwen2.5-1.5B-Instruct | WEAT | 0.6307 | 0.9813 |
+| Qwen/Qwen2.5-3B-Instruct | CEAT | 0.08709* | 0.2296* |
+| Qwen/Qwen2.5-3B-Instruct | EMT | 0.02597* | 0.02535* |
+| Qwen/Qwen2.5-3B-Instruct | HONEST | 0.026 | 0.02333 |
+| Qwen/Qwen2.5-3B-Instruct | WEAT | -0.993 | 0.9245 |
+| bert-base-cased | CAT | 64.19 | 60.95 |
+| bert-base-cased | CEAT | 0.4328* | 0.3713* |
+| bert-base-cased | ICAT | 59.11 | 65.46 |
+| bert-base-uncased | CAT | 69 | 63.22 |
+| bert-base-uncased | CEAT | 0.203* | 0.6033* |
+| bert-base-uncased | CrowSPairs | 55.73 | 58.02 |
+| bert-base-uncased | ICAT | 51.99 | 63.91 |
+| google/gemma-3-1b-it | CEAT |  | 0.1943* |
+| google/gemma-3-1b-it | EMT | 0.03937* | 0.01829* |
+| google/gemma-3-1b-it | HONEST | 0.0335 | 0.028 |
+| google/gemma-3-1b-it | RegardScore | 0.04 | 0 |
+| gpt2 | CEAT | 0.08952* | 0.1137* |
+| gpt2 | EMT | 0.07369* | 0.05298* |
+| gpt2 | RegardScore | 0.025 | 0.02 |
+| gpt2-medium | CEAT | 0.0473* | -0.01266* |
+| gpt2-medium | EMT | 0.04463* | 0.04693* |
+| gpt2-medium | RegardScore | 0.04 | 0.05 |
+| meta-llama/Llama-3.2-1B-Instruct | CEAT |  | 0.5765* |
+| meta-llama/Llama-3.2-1B-Instruct | EMT | 0.04894* | 0.01062* |
+| meta-llama/Llama-3.2-1B-Instruct | HONEST | 0.03 | 0.02 |
+| meta-llama/Llama-3.2-1B-Instruct | RegardScore | 0.02 | 0.025 |
+| roberta-base | CAT | 55.46 | 51.58 |
+| roberta-base | CEAT | 0.7752* | 0.5169* |
+| roberta-base | ICAT | 61.07 | 72.49 |
+| sentence-transformers/all-MiniLM-L6-v2 | CEAT | 1.016* | 0.6499* |
+| sentence-transformers/all-mpnet-base-v2 | CEAT | 0.804* | 1.165* |
 

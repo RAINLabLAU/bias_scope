@@ -2376,3 +2376,43 @@ check, and the branches' owners are best placed to add the tests.
 **Risk if wrong:** none to behaviour.
 **To revisit:** `pytest --cov=bias_scope --cov-report=term-missing` and take
 the files with the most missed lines first.
+
+## RL-095 · decide · 2026-09-20 · the agent chose a different `limit` per run, so generated-text scores were not comparable between reruns
+**Encountered:** reproducing the twelve-model table on the merged branch. Every
+metric with unchanged code reproduced exactly where the item count matched
+(gpt2 HONEST 0.083 on 1,000 both times), but EMT, RegardScore and HONEST
+moved wherever the agent had passed a different `limit` to `prepare_inputs`
+(gpt2 EMT 25 vs 50 prompts, gemma-3 RegardScore 200 vs 80 texts). The
+descriptions say "keep `limit` modest", and the model took that freely.
+**Chosen:** the scripted scenario now tells the agent to use each dataset's
+default size and not to pass a limit; the defaults are the sizes the
+providers were validated at. Runs before this change carry their `n` in the
+transcript and in `--with-counts` tables.
+**Risk if wrong:** the defaults make a causal run longer (25 RTP prompts x
+25 samples, 50 HONEST templates x 20); that is the price of comparability.
+**To revisit:** drop "keep limit modest" from the descriptions, or make
+`limit` a harness setting rather than an agent argument.
+
+
+## RL-096 · verify · 2026-09-20 · the sentence-transformers path had been embedding Qwen's WEAT words inside Qwen's chat template
+**Encountered:** reproducing the table after the merge. WEAT on the three
+Qwen models moved far more than bf16 could explain (0.5B 0.847 → 0.7987,
+1.5B 0.6307 → 0.9813, 3B −0.993 → 0.9245) while gpt2 and gpt2-medium
+reproduced exactly. Diagnosis on Qwen2.5-0.5B, fp32, CPU: `SentenceTransformer`
+tokenizes "the family went home" to 30 tokens - it wraps the text in the
+model's chat template ("You are Qwen, created by Alibaba Cloud. You are a
+helpful assistant. ... <|im_start|>user ...") - and its pooled vector differs
+from the bare-text masked mean by 154 on a scale of 113. gpt2 has no chat
+template, which is why the bit-identity check in RL-076 passed there.
+**Chosen:** the shared-model mean pooling (RL-076) embeds the bare text, which
+is what WEAT's protocol asks for, so the post-merge Qwen numbers are the ones
+to cite; every earlier Qwen WEAT figure produced through sentence-transformers
+(runs before 2026-09-20 16:00 UTC) measured chat-templated prompts and is
+withdrawn. `RESULTS.md` is generated from the reruns.
+**Risk if wrong:** none of the encoders or gpt2 rows is affected; the
+sentence-encoder rows (all-MiniLM, all-mpnet) still go through
+sentence-transformers, whose configs carry no chat template.
+**To revisit:** any model with a chat template that is still embedded via
+sentence-transformers (an encoder backend on an instruct checkpoint) would hit
+this; a check that the tokenized length equals the bare tokenization would
+catch it.

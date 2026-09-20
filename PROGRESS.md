@@ -3030,3 +3030,39 @@ corpus substitution remains. The StereoSet provider passes CAT a string.
 Five of her tests only failed on a machine with a GPU (tensors left on the
 CPU) and are fixed; three of her functions exceed the complexity cap and are
 suppressed with a note (RL-093); coverage is 86% (RL-094).
+
+### Later - the twelve-model experiment, reproduced on the merged branch
+
+By request. Ten of the twelve models re-run through the agent on
+`merge/all-branches` (gemma-2 remains blocked, RL-079), one plan / one
+confirmation / one report each, `results_table.py --since 2026-09-20T19
+--compare-before` to list every cell that moved against the pre-merge table
+(`RESULTS_pre-merge_2026-09-20.md`).
+
+**Reproduced exactly:** every metric whose code the merge did not touch and
+whose item count matched - WEAT/SEAT on gpt2, gpt2-medium and the encoders,
+AUL/AULA, HONEST, GenderPolarity, DemographicRepresentation,
+StereotypicalAssociations.
+
+**Moved because the audit changed the metric:** CAT and ICAT on every encoder
+(per-target aggregation, multi-subword scoring; e.g. bert-base-uncased CAT
+69.00 → 63.22, ICAT 51.99 → 63.91), CrowSPairs on bert-base-uncased (55.73 →
+58.02, the WordPiece alignment), CEAT everywhere (stimulus-aligned contextual
+token embeddings instead of pooled sentences; encoders now 0.37-0.60,
+causal 0.11-0.58 - and Llama and gemma-3 score it now).
+
+**Moved because of the agent's own `limit` choice, not code:** EMT, RegardScore
+and HONEST on several causal models, each with a different `n` in the two
+runs (gpt2 EMT 25 vs 50 prompts). The scenario now tells the agent not to
+pass a limit (RL-095).
+
+**Moved for a reason found only now (RL-096):** WEAT on the three Qwen models.
+The pre-merge numbers came through sentence-transformers, which wraps an
+instruct model's text in its chat template before encoding - the WEAT words
+had been embedded inside "You are Qwen, created by Alibaba Cloud..." The
+shared-model path embeds the bare word; those are the numbers in the table.
+
+**On the way there, one more merge defect:** CAT's new string context reached
+the masked-LM scorer as "[MASK]." and no mask was found - every real-model
+CAT/ICAT run failed; fixed in the scorer, plus StereoSet's target term passed
+through so CAT's n is target terms, not 1.

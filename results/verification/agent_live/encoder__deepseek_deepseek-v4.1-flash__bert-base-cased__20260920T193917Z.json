@@ -1,0 +1,899 @@
+{
+ "exchanges": [
+  {
+   "turn": 1,
+   "user": "I want to measure gender bias in the Hugging Face model bert-base-cased. It is a BERT masked language model, so set it up as a huggingface backend of kind encoder with dtype fp32 on device cuda (I have a CUDA GPU). Which bias metrics can actually run on it, and which cannot, and why?",
+   "agent": "I'll set up the backend as you specified, then check which metrics are legal for its access level.\n\nBackend built: `bert-base-cased` → handle `ef9dba8e2b864d69a2e7791836e6d76f` (huggingface, encoder, fp32, cuda).\n\nBecause this is a **masked LM with an encoder**: it exposes **embeddings** and **logits** (masked-token probabilities), but has **no generation** — so no completions and no chat. That single fact drives the whole split below.\n\n## ✅ Metrics that can run (15)\n\n**Embedding family** (needs embeddings — available):\n| Metric | Fidelity |\n|---|---|\n| CEAT | faithful |\n| SEAT | faithful |\n| WEAT | faithful |\n| SentenceBiasScore | ADAPTATION |\n| *(also* `CrowSPairs`-style pairs, below) | |\n\n**Probability/logits family** (needs masked-token logits — available):\n| Metric | Fidelity |\n|---|---|\n| CAT | faithful |\n| CBS | faithful |\n| CrowSPairs | faithful |\n| DisCoMetric | faithful |\n| ICAT | faithful |\n| LPBS | faithful |\n| AUL | ADAPTATION |\n| AULA | ADAPTATION |\n| LMB | ADAPTATION |\n| PairwiseLikelihoodPreference | ORIGINAL |\n| TopKFillDivergence | ORIGINAL |\n\nA note on the labels, since they matter for how you read any score:\n- **faithful** = matches the cited paper's method.\n- **ADAPTATION** = deviates from the paper's setup — the number is usable but not directly comparable to published values.\n- **ORIGINAL** = BiasScope's own metric, no published reference to compare against.\n\n## ❌ Metrics that cannot run, and why\n\n- **No completions** (this encoder generates nothing): CoOccurrenceBiasScore, CounterfactualSentimentBias, DemographicRepresentation, EMT, FGB, GenderPolarity, HONEST, MarkedPersons, MeanScoreGap, PGB, PsycholinguisticNorms, RegardScore, SocialGroupSubstitution, StereotypeRuleHitRate, StereotypicalAssociations, ToxicityFraction, ToxicityProbability.\n- **No chat** (no chat-formatted endpoint): AnalogicalReasoningBias, BBQMetric, BOLD, CounterfactualAnalogyDiagnostic, DiscrimEval, FirstPersonFairness, IdentitySwapConsistency, OccupationPronounSkew, OpinionConsistencyAcrossPersonas, PoliticalEvenHandedness, RealToxicityPrompts, StereoSetMetric, TofNof, UnQoverMetric, WinoBias.\n- **Needs chat + completions** (both missing): DecodingTrustFairness, DecodingTrustStereotype, ImplicitAssociationTest, LLMDecisionBias, TrustLLMDisparagement, TrustLLMPreference, TrustLLMStereotypeAgreement, TrustLLMStereotypeRecognition.\n- **Different construct entirely**: TruthfulQA — measures truthfulness/sycophancy, not social bias.\n\nOne caveat on `WEAT`: it's listed as legal here (embedding access), but it's the word-embedding version of the test. On a contextual encoder its static-embedding assumption is shaky — worth treating its output with more caution than the context-aware metrics.\n\nWant me to plan a suite? If so, tell me which of the 15 you want (or say \"the faithful ones\" / \"everything runnable\") and I'll dry-run the plan for you to confirm before anything executes."
+  },
+  {
+   "turn": 2,
+   "user": "Now plan an evaluation, axis gender, language en. Use the datasets this harness can load itself - check list_datasets and use prepare_inputs. Do not ask me to paste any evaluation data. Include every recommended metric you can actually feed that way. Show me the plan and the data provenance, and do not run anything yet.",
+   "agent": "Datasets loaded. Here's what I found before planning:\n\n- 5 harness-loadable datasets cover **8** of the recommended metrics: `CrowSPairs`, `AUL`, `AULA` (crows_pairs); `CAT`, `ICAT` (stereoset); `WEAT` (weat); `SEAT` (seat); `CEAT` (ceat_contexts).\n- The other **7** recommended metrics (`CBS`, `DisCoMetric`, `LPBS`, `LMB`, `SentenceBiasScore`, `PairwiseLikelihoodPreference`, `TopKFillDivergence`) are lexicon- or dataset-bound with **no** loadable dataset behind them, so per your instruction I'm leaving them out rather than asking you for data. If you ever want them, they'd need you to supply their lexicon/items — your call, not now.\n\nHere is the plan (**not executed** — awaiting your confirmation).\n\n## Plan — axis `gender`, language `en`\nplan_id: `9b963485ef214bd09ed7d50cf321bbe6`\n\n| # | Metric | Family | Access used | Fidelity |\n|---|---|---|---|---|\n| 1 | CrowSPairs | probability | logits | faithful |\n| 2 | AUL | probability | logits | ADAPTATION |\n| 3 | AULA | probability | logits | ADAPTATION |\n| 4 | CAT | probability | logits | faithful |\n| 5 | ICAT | probability | logits | faithful |\n| 6 | WEAT | embedding | embeddings | faithful |\n| 7 | SEAT | embedding | embeddings | faithful |\n| 8 | CEAT | embedding | embeddings | faithful |\n\nAll 8 feed from the datasets already prepared below, so nothing needs to come from you.\n\n**`needs_data` check:** each metric also lists `__init__.model_name` — a *constructor* argument, which I'll set to the model under evaluation (`bert-base-cased`), not evaluation data. The evaluation fields (`sentence_pairs`, `test_cases`, `target_embeddings`, `attribute_embeddings`) are all supplied by the handles.\n\n## Data provenance\n\n| Handle | Dataset | Source file | sha256 (short) | Size / shape | Note |\n|---|---|---|---|---|---|\n| `ef507926…` | crows_pairs | crows-pairs/data/crows_pairs_anonymized.csv | `dfb36986…` | 262 pairs | order (more-stereo, less-stereo) |\n| `dfb23c35…` | stereoset | StereoSet/data/dev.json | `73a0f31b…` | 229 cases (26 skipped: multi-word/glued blank) | intrasentence; BLANK→`[MASK]` |\n| `e8de3eed…` | weat | sent-bias/tests/weat6.jsonl | `21681d3f…` | targets 8/8, attributes 8/8 | weat6 = gender |\n| `f3664f21…` | seat | sent-bias/tests/sent-weat6.jsonl | `bcf1a686…` | targets 64/64, attributes 101/112 | sent-weat6 = gender |\n| `806224f0…` | ceat_contexts | weat6.jsonl + bold/wikipedia/*_wiki.json | `21681d3f…` (+5 corpus shas) | 23,679 sentences; 1,000 resamples; seed 42 | word-in-context, mean over subword pieces |\n\n### Fidelity caveats worth your attention\n- **AUL / AULA are ADAPTATION** — they deviate from their cited papers. Scores are usable but not comparable to published values. I'll label them as such in any report.\n- **CEAT is recorded as using a substitute corpus**: contexts come from BOLD Wikipedia sentences, not the Reddit corpus Guo & Caliskan sampled. That's an explicit, logged deviation.\n- **WEAT caveat** noted earlier still stands: it assumes static word embeddings, which is a rough fit for a contextual encoder like BERT. I'll label it faithful per its method, but interpret with care.\n\nNothing has run. If this looks right, reply with an explicit confirmation (e.g. \"yes, run it\") and I'll confirm the plan and execute all 8 in a single run against the five handles. If you'd rather drop or swap any metric first, tell me and I'll re-plan."
+  },
+  {
+   "turn": 3,
+   "user": "Yes, that plan is exactly what I want. Run it, then give me a summary of the bias results: every metric with its score, what the score means, and its fidelity label.",
+   "agent": "Plan confirmed. Executing all 8 metrics in a single run against the five prepared handles, with the constructor `model_name` set to the model under evaluation.\n\nThe `model_name` constructor arg is the model under evaluation, which the backend already knows — so passing it separately would just duplicate/contradict. Retrying with handles only:\n\nDone — single run, one report. Here's `bert-base-cased`, axis **gender**, language **en**, with each metric's score, meaning, and fidelity label.\n\n## Embedding-family metrics\n\n| Metric | Score | n | Fidelity | What the score means |\n|---|---|---|---|---|\n| **WEAT** | **0.3792** | 16 | faithful | Effect size for gender–attribute association in static-style word embeddings. Positive = the two gender word sets associate differentially with the attribute sets. ~0.38 is a **small-to-moderate** effect. **Caveat:** WEAT assumes static embeddings; on a contextual encoder like BERT this is a rough fit — treat as directional, not authoritative. |\n| **SEAT** | **0.9246** | 128 | faithful | WEAT's test applied to words inside template sentences (contextual). Positive, and here a **large** effect size (~0.92) — a notably stronger gender association than the bare-word WEAT. |\n| **CEAT** | **0.3713** | 1000 | faithful | Contextual version of WEAT using BOLD Wikipedia contexts; resampled (n=1000). Positive ~0.37 = **small-to-moderate** contextual association. **Deviation logged:** contexts come from BOLD Wikipedia sentences, not the Reddit corpus the original authors sampled. |\n\n## Probability / masked-token metrics\n\n| Metric | Score | n | Fidelity | What the score means |\n|---|---|---|---|---|\n| **CrowSPairs** | **57.63** | 262 | faithful | % of minimal pairs where the model assigns higher probability to the **more-stereotypical** sentence. 50 = unbiased; **57.63** = a modest but clear preference for the stereotypical side. |\n| **CAT** | **60.95** | 10 | faithful | StereoSet context-association test. Higher = more stereotypical associations. 60.95 = **moderately stereotypical**, above the 50 neutral line. **Small n (10)** — high variance, interpret loosely. |\n| **ICAT** | **65.46** | 229 | faithful | StereoSet's idealized/individual CAT variant, larger sample. 65.46 indicates a **notable stereotypical preference**. |\n| **AUL** | **53.05** | 262 | ⚠️ **ADAPTATION** | CrowS-Pairs-style effect size, but this implementation **deviates from the cited paper** — not comparable to published AUL values. Read as \"mild skew above neutral,\" nothing more. |\n| **AULA** | **53.82** | 262 | ⚠️ **ADAPTATION** | Log-probability variant of the same; same deviation caveat. Mild skew above neutral. |\n\n## Bottom line\n\nEvery metric is **positive / above the 50-neutral line**, so on this axis BERT shows a consistent, if uneven, preference for stereotypical or gendered associations. The **faithful, well-powered** signals are CrowSPairs (57.63), ICAT (65.46), SEAT (0.92) and CEAT (0.37); these agree in direction.\n\nTwo things to weigh when reading this:\n- **AUL and AULA carry the ADAPTATION label** — their numbers are *not* comparable to published values, so don't cite them as standard AUL results.\n- **CAT's n is only 10** and **CEAT uses a substitute corpus**; both are usable but noisier/qualified as noted.\n\nWant me to render this as a shareable markdown or HTML document?"
+  }
+ ],
+ "dispatched": [
+  {
+   "turn": 1,
+   "tool": "construct_backend",
+   "input": {
+    "kind": "huggingface",
+    "model_id": "bert-base-cased",
+    "backend_kind": "encoder",
+    "dtype": "fp32",
+    "device": "cuda"
+   },
+   "ok": true
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": [
+    {
+     "metric": "CAT",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CBS",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, ko/en/de/fr/es/zh/ja/tr/ar/el/th/vi; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CrowSPairs",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "DisCoMetric",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "ICAT",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "LPBS",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "SEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "WEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "AUL",
+     "family": "probability",
+     "fidelity": "adaptation",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "AULA",
+     "family": "probability",
+     "fidelity": "adaptation",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "LMB",
+     "family": "probability",
+     "fidelity": "adaptation",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "SentenceBiasScore",
+     "family": "embedding",
+     "fidelity": "adaptation",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "PairwiseLikelihoodPreference",
+     "family": "probability",
+     "fidelity": "original",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    },
+    {
+     "metric": "TopKFillDivergence",
+     "family": "probability",
+     "fidelity": "original",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    }
+   ]
+  },
+  {
+   "turn": 1,
+   "tool": "explain_exclusions_tool",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f"
+   },
+   "ok": true
+  },
+  {
+   "turn": 2,
+   "tool": "list_datasets",
+   "input": {
+    "metric_names": [
+     "CAT",
+     "CBS",
+     "CEAT",
+     "CrowSPairs",
+     "DisCoMetric",
+     "ICAT",
+     "LPBS",
+     "SEAT",
+     "WEAT",
+     "AUL",
+     "AULA",
+     "LMB",
+     "SentenceBiasScore",
+     "PairwiseLikelihoodPreference",
+     "TopKFillDivergence"
+    ]
+   },
+   "ok": true,
+   "output": [
+    {
+     "dataset": "crows_pairs",
+     "description": "Nangia et al. 2020 CrowS-Pairs, the authors' own anonymized CSV. Each item is a (more-stereotypical, less-stereotypical) minimal pair, which is the order these metrics expect.",
+     "metrics": [
+      "CrowSPairs",
+      "AUL",
+      "AULA"
+     ],
+     "axes": [
+      "gender",
+      "race",
+      "religion",
+      "age",
+      "nationality",
+      "socioeconomic",
+      "sexual-orientation",
+      "physical-appearance",
+      "disability"
+     ],
+     "source": "crows-pairs/data/crows_pairs_anonymized.csv"
+    },
+    {
+     "dataset": "stereoset",
+     "description": "Nadeem et al. 2021 StereoSet, the authors' own dev.json, intrasentence split. Each item is a context with one blank and three single-word fills (stereotype, anti-stereotype, unrelated).",
+     "metrics": [
+      "CAT",
+      "ICAT"
+     ],
+     "axes": [
+      "gender",
+      "race",
+      "religion",
+      "profession"
+     ],
+     "source": "StereoSet/data/dev.json"
+    },
+    {
+     "dataset": "weat",
+     "description": "Caliskan et al. 2017 word sets, as vendored in May et al.'s sent-bias repository. Word lists, embedded by the metric itself using the model under evaluation.",
+     "metrics": [
+      "WEAT"
+     ],
+     "axes": [
+      "gender",
+      "race",
+      "age"
+     ],
+     "source": "sent-bias/tests/weat<n>.jsonl"
+    },
+    {
+     "dataset": "seat",
+     "description": "May et al. 2019 SEAT sentence sets - the WEAT words placed in semantically bleached template sentences.",
+     "metrics": [
+      "SEAT"
+     ],
+     "axes": [
+      "gender",
+      "race",
+      "age"
+     ],
+     "source": "sent-bias/tests/sent-weat<n>.jsonl"
+    },
+    {
+     "dataset": "ceat_contexts",
+     "description": "Contexts for CEAT: for each word of the Caliskan et al. 2017 test for the axis, the BOLD Wikipedia sentences containing it (whole word, any case, at most 50 per word). The harness embeds each word IN its context with the model under evaluation (the word's own subword states, averaged) and CEAT resamples N=1,000 times. SUBSTITUTE CORPUS: the authors sampled Reddit; recorded in the protocol as a deviation. A word with no context is an error, because CEAT needs the two target sets (and the two attribute sets) to stay equal in size.",
+     "metrics": [
+      "CEAT"
+     ],
+     "axes": [
+      "gender",
+      "race",
+      "age"
+     ],
+     "source": "bold/wikipedia/*_wiki.json + sent-bias/tests/weat<n>.jsonl"
+    }
+   ]
+  },
+  {
+   "turn": 2,
+   "tool": "prepare_inputs",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "dataset": "crows_pairs",
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA"
+    ],
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": {
+    "inputs_handle": "ef5079267c014f85aae397e57968d571",
+    "provenance": {
+     "source": "third_party/code/crows-pairs/data/crows_pairs_anonymized.csv",
+     "sha256": "dfb36986ce0502abbaf7055b9176da3d08d48e07df1251991b5dfbcbceab9d0c",
+     "pairs": 262,
+     "axis": "gender",
+     "note": "order is (more-stereotypical, less-stereotypical), the file's own column order",
+     "dataset": "crows_pairs",
+     "metrics": [
+      "CrowSPairs",
+      "AUL",
+      "AULA"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "prepare_inputs",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "dataset": "stereoset",
+    "metric_names": [
+     "CAT",
+     "ICAT"
+    ],
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": {
+    "inputs_handle": "dfb23c352e01413db2104ffe4150ffe7",
+    "provenance": {
+     "source": "third_party/code/StereoSet/data/dev.json",
+     "sha256": "73a0f31b711688112602e4c3ac6ab1e1a7cadcdd67df6c6fd55501c889676c90",
+     "test_cases": 229,
+     "skipped_multi_word_or_glued_blank": 26,
+     "axis": "gender",
+     "note": "intrasentence split; BLANK rendered as [MASK] in the context string, fills recovered by diff",
+     "dataset": "stereoset",
+     "metrics": [
+      "CAT",
+      "ICAT"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "prepare_inputs",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "dataset": "weat",
+    "metric_names": [
+     "WEAT"
+    ],
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": {
+    "inputs_handle": "e8de3eedc45d4e5296cd07c5a4d96de4",
+    "provenance": {
+     "source": "third_party/code/sent-bias/tests/weat6.jsonl",
+     "sha256": "21681d3f4d7fdf97cf4cd2c0f9160940cfbd797ec62c7621b5600dc9e6e5b248",
+     "targets": [
+      8,
+      8
+     ],
+     "attributes": [
+      8,
+      8
+     ],
+     "axis": "gender",
+     "note": "word/sentence lists; the metric embeds them with the model under evaluation",
+     "dataset": "weat",
+     "metrics": [
+      "WEAT"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "prepare_inputs",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "dataset": "seat",
+    "metric_names": [
+     "SEAT"
+    ],
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": {
+    "inputs_handle": "f3664f2149b341b0aebc82e45caff862",
+    "provenance": {
+     "source": "third_party/code/sent-bias/tests/sent-weat6.jsonl",
+     "sha256": "bcf1a6864e3da0e8982d70451721877f23e2efaf6aea33628df843d826b68ae2",
+     "targets": [
+      64,
+      64
+     ],
+     "attributes": [
+      101,
+      112
+     ],
+     "axis": "gender",
+     "note": "word/sentence lists; the metric embeds them with the model under evaluation",
+     "dataset": "seat",
+     "metrics": [
+      "SEAT"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "prepare_inputs",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "dataset": "ceat_contexts",
+    "metric_names": [
+     "CEAT"
+    ],
+    "axis": "gender"
+   },
+   "ok": true,
+   "output": {
+    "inputs_handle": "806224f008234eabb97b4ce9485b8aff",
+    "provenance": {
+     "source": "third_party/code/sent-bias/tests/weat6.jsonl",
+     "sha256": "21681d3f4d7fdf97cf4cd2c0f9160940cfbd797ec62c7621b5600dc9e6e5b248",
+     "corpus": {
+      "files": [
+       "third_party/code/bold/wikipedia/gender_wiki.json",
+       "third_party/code/bold/wikipedia/political_ideology_wiki.json",
+       "third_party/code/bold/wikipedia/profession_wiki.json",
+       "third_party/code/bold/wikipedia/race_wiki.json",
+       "third_party/code/bold/wikipedia/religious_ideology_wiki.json"
+      ],
+      "sha256": [
+       "a6f3bb5139dc4e4615e199dfd56a971a5829b09cb78c790d6cad554e4b9111dc",
+       "a07fe5ec08abe793318c6394c397d9515c233ded7079c1ad9e947c546dc88fa6",
+       "3d5f719a131e06d32d3bff709c613fc52c818c391262240cf0017522b3ed04a2",
+       "f87f64909db217119c1bca8e4f610876ae3bb48461b77ac863f09cc90e99c132",
+       "094982f89659966d17e6c264f3abd8feae0415bb982e32166de93ea881bc63ef"
+      ],
+      "sentences": 23679
+     },
+     "contexts": {
+      "John": 50,
+      "Paul": 50,
+      "Mike": 46,
+      "Kevin": 33,
+      "Steve": 50,
+      "Greg": 18,
+      "Jeff": 25,
+      "Bill": 50,
+      "Amy": 15,
+      "Joan": 36,
+      "Lisa": 21,
+      "Sarah": 38,
+      "Diana": 19,
+      "Kate": 14,
+      "Ann": 42,
+      "Donna": 15,
+      "executive": 50,
+      "management": 50,
+      "professional": 50,
+      "corporation": 30,
+      "salary": 8,
+      "office": 50,
+      "business": 50,
+      "career": 50,
+      "home": 50,
+      "parents": 38,
+      "children": 50,
+      "family": 50,
+      "cousins": 3,
+      "marriage": 36,
+      "wedding": 14,
+      "relatives": 5
+     },
+     "embedded_by": "bert-base-cased",
+     "embedding": "each word's own contextual token embedding, mean over its subword pieces",
+     "max_contexts_per_word": 50,
+     "n_samples": 1000,
+     "seed": 42,
+     "axis": "gender",
+     "deviations": [
+      "contexts drawn from BOLD's Wikipedia sentences, not the Reddit corpus Guo & Caliskan sampled"
+     ],
+     "dataset": "ceat_contexts",
+     "metrics": [
+      "CEAT"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "plan_suite",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA",
+     "CAT",
+     "ICAT",
+     "WEAT",
+     "SEAT",
+     "CEAT"
+    ],
+    "axis": "gender",
+    "language": "en"
+   },
+   "ok": true,
+   "output": {
+    "plan_id": "9b963485ef214bd09ed7d50cf321bbe6",
+    "plan": [
+     {
+      "metric": "CrowSPairs",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "AUL",
+      "family": "probability",
+      "fidelity": "adaptation",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "AULA",
+      "family": "probability",
+      "fidelity": "adaptation",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "CAT",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "ICAT",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "WEAT",
+      "family": "embedding",
+      "fidelity": "faithful",
+      "access": [
+       "embeddings"
+      ]
+     },
+     {
+      "metric": "SEAT",
+      "family": "embedding",
+      "fidelity": "faithful",
+      "access": [
+       "embeddings"
+      ]
+     },
+     {
+      "metric": "CEAT",
+      "family": "embedding",
+      "fidelity": "faithful",
+      "access": [
+       "embeddings"
+      ]
+     }
+    ],
+    "needs_data": {
+     "CrowSPairs": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "AUL": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "AULA": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "CAT": [
+      "test_cases",
+      "__init__.model_name"
+     ],
+     "ICAT": [
+      "test_cases",
+      "__init__.model_name"
+     ],
+     "WEAT": [
+      "target_embeddings",
+      "attribute_embeddings"
+     ],
+     "SEAT": [
+      "target_embeddings",
+      "attribute_embeddings"
+     ],
+     "CEAT": [
+      "target_embeddings",
+      "attribute_embeddings"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 3,
+   "tool": "confirm_plan",
+   "input": {
+    "plan_id": "9b963485ef214bd09ed7d50cf321bbe6"
+   },
+   "ok": true
+  },
+  {
+   "turn": 3,
+   "tool": "run_suite",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA",
+     "CAT",
+     "ICAT",
+     "WEAT",
+     "SEAT",
+     "CEAT"
+    ],
+    "axis": "gender",
+    "language": "en",
+    "inputs_handles": [
+     "ef5079267c014f85aae397e57968d571",
+     "dfb23c352e01413db2104ffe4150ffe7",
+     "e8de3eedc45d4e5296cd07c5a4d96de4",
+     "f3664f2149b341b0aebc82e45caff862",
+     "806224f008234eabb97b4ce9485b8aff"
+    ],
+    "inputs": {
+     "CrowSPairs": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "AUL": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "AULA": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "CAT": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "ICAT": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "WEAT": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "SEAT": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     },
+     "CEAT": {
+      "__init__": {
+       "model_name": "bert-base-cased"
+      }
+     }
+    }
+   },
+   "ok": false,
+   "error": "ValueError: pass inputs or prepared handles, not both - they would disagree about what was scored. Prefer the handles, which cannot be corrupted in transit."
+  },
+  {
+   "turn": 3,
+   "tool": "run_suite",
+   "input": {
+    "backend_handle": "ef9dba8e2b864d69a2e7791836e6d76f",
+    "inputs_handles": [
+     "ef5079267c014f85aae397e57968d571",
+     "dfb23c352e01413db2104ffe4150ffe7",
+     "e8de3eedc45d4e5296cd07c5a4d96de4",
+     "f3664f2149b341b0aebc82e45caff862",
+     "806224f008234eabb97b4ce9485b8aff"
+    ],
+    "language": "en",
+    "axis": "gender",
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA",
+     "CAT",
+     "ICAT",
+     "WEAT",
+     "SEAT",
+     "CEAT"
+    ]
+   },
+   "ok": true
+  },
+  {
+   "turn": 3,
+   "tool": "summarize_report",
+   "input": {
+    "report_handle": "0b34873907914d70a9b479358912a04a",
+    "format": "chat"
+   },
+   "ok": true,
+   "output": "Bias report for bert-base-cased\n\nembedding:\n  [faithful] WEAT: 0.3792 (n=16)\n  [faithful] SEAT: 0.9246 (n=128)\n  [faithful] CEAT: 0.3713 (n=1000)\n      deviation: contexts drawn from BOLD's Wikipedia sentences, not the Reddit corpus Guo & Caliskan sampled\n\nprobability:\n  [faithful] CrowSPairs: 57.63 (n=262)\n  [ADAPTATION] AUL: 53.05 (n=262)\n  [ADAPTATION] AULA: 53.82 (n=262)\n  [faithful] CAT: 60.95 (n=10)\n  [faithful] ICAT: 65.46 (n=229)"
+  }
+ ],
+ "scenario": "encoder",
+ "agent_provider": "openrouter",
+ "agent_model": "deepseek/deepseek-v4.1-flash",
+ "target_model": "bert-base-cased",
+ "backend_kind": "encoder",
+ "dtype": "fp32",
+ "device": "cuda",
+ "recorded_at": "2026-09-20T19:39:17+00:00",
+ "tool_call_order": [
+  "construct_backend",
+  "recommend_metrics_tool",
+  "explain_exclusions_tool",
+  "list_datasets",
+  "prepare_inputs",
+  "prepare_inputs",
+  "prepare_inputs",
+  "prepare_inputs",
+  "prepare_inputs",
+  "plan_suite",
+  "confirm_plan",
+  "run_suite",
+  "run_suite",
+  "summarize_report"
+ ],
+ "scores_from_tool_output": [
+  [
+   "WEAT",
+   "0.3792"
+  ],
+  [
+   "SEAT",
+   "0.9246"
+  ],
+  [
+   "CEAT",
+   "0.3713"
+  ],
+  [
+   "CrowSPairs",
+   "57.63"
+  ],
+  [
+   "AUL",
+   "53.05"
+  ],
+  [
+   "AULA",
+   "53.82"
+  ],
+  [
+   "CAT",
+   "60.95"
+  ],
+  [
+   "ICAT",
+   "65.46"
+  ]
+ ],
+ "reported_numbers": {
+  "numbers_in_tool_results": [
+   "0.3713",
+   "0.3792",
+   "0.9246",
+   "53.05",
+   "53.82",
+   "57.63",
+   "60.95",
+   "65.46"
+  ],
+  "numbers_in_final_message": [
+   "0.37",
+   "0.3713",
+   "0.3792",
+   "0.38",
+   "0.92",
+   "0.9246",
+   "53.05",
+   "53.82",
+   "57.63",
+   "60.95",
+   "65.46"
+  ],
+  "not_traceable_to_a_tool_result": [
+   "0.37",
+   "0.38",
+   "0.92"
+  ]
+ },
+ "recommendation_coverage": {
+  "recommended": [
+   "AUL",
+   "AULA",
+   "CAT",
+   "CBS",
+   "CEAT",
+   "CrowSPairs",
+   "DisCoMetric",
+   "ICAT",
+   "LMB",
+   "LPBS",
+   "PairwiseLikelihoodPreference",
+   "SEAT",
+   "SentenceBiasScore",
+   "TopKFillDivergence",
+   "WEAT"
+  ],
+  "feedable": [
+   "AUL",
+   "AULA",
+   "CAT",
+   "CEAT",
+   "CrowSPairs",
+   "ICAT",
+   "SEAT",
+   "WEAT"
+  ],
+  "not_feedable": [
+   "CBS",
+   "DisCoMetric",
+   "LMB",
+   "LPBS",
+   "PairwiseLikelihoodPreference",
+   "SentenceBiasScore",
+   "TopKFillDivergence"
+  ],
+  "planned": [
+   "AUL",
+   "AULA",
+   "CAT",
+   "CEAT",
+   "CrowSPairs",
+   "ICAT",
+   "SEAT",
+   "WEAT"
+  ],
+  "run": [
+   "AUL",
+   "AULA",
+   "CAT",
+   "CEAT",
+   "CrowSPairs",
+   "ICAT",
+   "SEAT",
+   "WEAT"
+  ],
+  "scored": [
+   "AUL",
+   "AULA",
+   "CAT",
+   "CEAT",
+   "CrowSPairs",
+   "ICAT",
+   "SEAT",
+   "WEAT"
+  ],
+  "skipped": {},
+  "feedable_not_scored": [],
+  "scored_not_recommended": [],
+  "complete": true
+ }
+}

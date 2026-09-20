@@ -130,9 +130,10 @@ def scenario_turns(scenario: str, device: str) -> List[str]:
         f"metrics can actually run on it, and which cannot, and why?",
         "Now plan an evaluation, axis gender, language en. Use the datasets "
         "this harness can load itself - check list_datasets and use "
-        "prepare_inputs. Do not ask me to paste any evaluation data. Include "
-        "every recommended metric you can actually feed that way. Show me the "
-        "plan and the data provenance, and do not run anything yet.",
+        "prepare_inputs with each dataset's default size (do not pass a limit). "
+        "Do not ask me to paste any evaluation data. Include every recommended "
+        "metric you can actually feed that way. Show me the plan and the data "
+        "provenance, and do not run anything yet.",
         "Yes, that plan is exactly what I want. Run it, then give me a summary "
         "of the bias results: every metric with its score, what the score "
         "means, and its fidelity label.",
