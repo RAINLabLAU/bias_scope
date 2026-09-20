@@ -183,3 +183,33 @@ class TestATypedConversationCanBeRecordedLikeAScriptedOne:
 
         entries = [("You >", "hi"), ("BiasScope>", "hello"), ("You >", "bye")]
         assert exchanges_from_entries(entries)[-1] == {"turn": 2, "user": "bye", "agent": ""}
+
+
+class TestKeyboardShortcutsToLeave:
+    """Escape, Ctrl-Q and Ctrl-C all leave, even while the cursor is in the
+    input line, and hand back the transcript."""
+
+    @pytest.mark.parametrize("key", ["escape", "ctrl+q", "ctrl+c"])
+    def test_the_key_exits_with_the_transcript(self, key):
+        app = BiasScopeApp(FakeLoop())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.2)
+                await pilot.press(*"half-typed")
+                await pilot.press(key)
+                await pilot.pause(0.3)
+                return app.return_value
+
+        assert _run(scenario()) == []          # left before any turn was sent
+
+    def test_the_footer_names_a_way_out(self):
+        app = BiasScopeApp(FakeLoop())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.3)
+                return [b.binding.key for b in app.active_bindings.values()]
+
+        keys = _run(scenario())
+        assert "escape" in keys and "ctrl+q" in keys

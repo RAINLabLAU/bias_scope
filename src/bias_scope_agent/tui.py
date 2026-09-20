@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Footer, Header, Input, Markdown, Static
 
@@ -42,7 +43,12 @@ class BiasScopeApp(App):
     #prompt:focus { border: tall #4ade80; }
     Footer { background: #1e293b; }
     """
-    BINDINGS = [("ctrl+c", "quit", "Quit")]
+    # priority=True: the keys work while the cursor is in the input line.
+    BINDINGS = [
+        Binding("escape", "quit", "Quit", priority=True),
+        Binding("ctrl+q", "quit", "Quit", priority=True),
+        Binding("ctrl+c", "quit", "Quit", priority=True, show=False),
+    ]
     # Textual focuses the first focusable widget on start; without this the
     # scrolling transcript took the keystrokes and nothing could be typed.
     AUTO_FOCUS = "#prompt"
@@ -74,7 +80,8 @@ class BiasScopeApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         yield VerticalScroll(id="log", can_focus=False)
-        yield Input(placeholder="You >  ask about a model, ask for a plan, confirm it", id="prompt")
+        yield Input(placeholder="You >  ask about a model, ask for a plan, confirm it  (Esc quits)",
+                    id="prompt")
         yield Footer()
 
     def action_quit(self) -> None:

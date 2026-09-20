@@ -239,7 +239,7 @@ own. To type the turns yourself *and* still get a recorded transcript:
 python scripts/agent/live_conversation.py --interactive
 ```
 
-Type `exit` (or Ctrl-C) when done; the transcript is written to this directory
+Type `exit` (or press Esc, Ctrl-Q or Ctrl-C) when done; the transcript is written to this directory
 with `scenario: interactive`, and the same table and log tools read it.
 
 Ask it about a model, ask for a plan, confirm, and it runs the same tools in
