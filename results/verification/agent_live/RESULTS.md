@@ -3,18 +3,18 @@
 | model | kind | WEAT | SEAT | CEAT | CrowSPairs | AUL | AULA | CAT | ICAT | RegardScore | GenderPolarity | DemographicRepresentation | StereotypicalAssociations | HONEST | EMT |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | *neutral value* | | 0 | 0 | 0 | 50 | 50 | 50 | 50 | 100 | 0 | 0 | 0 | 0 | 0 | 0 |
-| bert-base-cased | encoder | 0.3792 (16) | 0.9246 (128) | 0.4328 (1000)* | 57.63 (262) | 53.05 (262) | 53.82 (262) | 64.19 (229) | 59.11 (229) |  |  |  |  |  |  |
-| bert-base-uncased | encoder | 0.6113 (16) | 1.044 (128) | 0.203 (1000)* | 55.73 (262) | 46.56 (262) | 43.89 (262) | 69 (229) | 51.99 (229) |  |  |  |  |  |  |
-| roberta-base | encoder | -0.6074 (16) | 1.099 (128) | 0.7752 (1000)* | 54.96 (262) | 56.49 (262) | 53.44 (262) | 55.46 (229) | 61.07 (229) |  |  |  |  |  |  |
-| sentence-transformers/all-MiniLM-L6-v2 | embedding | 1.021 (16) | 1.402 (128) | 1.016 (1000)* |  |  |  |  |  |  |  |  |  |  |  |
-| sentence-transformers/all-mpnet-base-v2 | embedding | 1.257 (16) | 1.042 (128) | 0.804 (1000)* |  |  |  |  |  |  |  |  |  |  |  |
-| Qwen/Qwen2.5-0.5B-Instruct | causal | 0.847 (16) | 0.2512 (128) | 0.06523 (1000)* |  |  |  |  |  | 0 (80) | 0.032 (500) | 0.3824 (51) | 0.5 (4) | 0.016 (1000) | 0.03202 (25)* |
-| Qwen/Qwen2.5-1.5B-Instruct | causal | 0.6307 (16) | 0.3193 (128) | 0.1252 (1000)* |  |  |  |  |  | -0.025 (80) | 0.034 (500) | 0.2015 (67) | 0.4359 (13) | 0.02 (1000) | 0.008042 (25)* |
-| Qwen/Qwen2.5-3B-Instruct | causal | -0.993 (16) | 0.3051 (128) | 0.08709 (1000)* |  |  |  |  |  | 0.025 (80) | 0.02 (500) | 0.2708 (48) | 0.26 (5) | 0.026 (1000) | 0.02597 (25)* |
-| google/gemma-3-1b-it (incomplete) | causal | 0.04788 (16) | 0 (128) |  |  |  |  |  |  | 0.04 (200) | 0.012 (500) | 0.3182 (22) | 0.4 (5) | 0.0335 (2000) | 0.03937 (100)* |
-| gpt2 | causal | 0.4006 (16) | -0.05892 (128) | 0.08952 (1000)* |  |  |  |  |  | 0.025 (80) | 0.044 (500) | 0.2564 (78) | 0.4667 (15) | 0.083 (1000) | 0.07369 (25)* |
-| gpt2-medium | causal | -0.2031 (16) | -0.1091 (128) | 0.0473 (1000)* |  |  |  |  |  | 0.04 (100) | 0.0612 (500) | 0.2917 (96) | 0.463 (9) | 0.068 (1000) | 0.04463 (50)* |
-| meta-llama/Llama-3.2-1B-Instruct (incomplete) | causal | 1.218 (16) |  |  |  |  |  |  |  | 0.02 (200) | 0.01 (500) | 0.1429 (28) | 0.5 (2) | 0.03 (2000) | 0.04894 (100)* |
+| bert-base-cased | encoder | 0.3792 | 0.9246 | 0.4328* | 57.63 | 53.05 | 53.82 | 64.19 | 59.11 |  |  |  |  |  |  |
+| bert-base-uncased | encoder | 0.6113 | 1.044 | 0.203* | 55.73 | 46.56 | 43.89 | 69 | 51.99 |  |  |  |  |  |  |
+| roberta-base | encoder | -0.6074 | 1.099 | 0.7752* | 54.96 | 56.49 | 53.44 | 55.46 | 61.07 |  |  |  |  |  |  |
+| sentence-transformers/all-MiniLM-L6-v2 | embedding | 1.021 | 1.402 | 1.016* |  |  |  |  |  |  |  |  |  |  |  |
+| sentence-transformers/all-mpnet-base-v2 | embedding | 1.257 | 1.042 | 0.804* |  |  |  |  |  |  |  |  |  |  |  |
+| Qwen/Qwen2.5-0.5B-Instruct | causal | 0.847 | 0.2512 | 0.06523* |  |  |  |  |  | 0 | 0.032 | 0.3824 | 0.5 | 0.016 | 0.03202* |
+| Qwen/Qwen2.5-1.5B-Instruct | causal | 0.6307 | 0.3193 | 0.1252* |  |  |  |  |  | -0.025 | 0.034 | 0.2015 | 0.4359 | 0.02 | 0.008042* |
+| Qwen/Qwen2.5-3B-Instruct | causal | -0.993 | 0.3051 | 0.08709* |  |  |  |  |  | 0.025 | 0.02 | 0.2708 | 0.26 | 0.026 | 0.02597* |
+| google/gemma-3-1b-it (incomplete) | causal | 0.04788 | 0 |  |  |  |  |  |  | 0.04 | 0.012 | 0.3182 | 0.4 | 0.0335 | 0.03937* |
+| gpt2 | causal | 0.4006 | -0.05892 | 0.08952* |  |  |  |  |  | 0.025 | 0.044 | 0.2564 | 0.4667 | 0.083 | 0.07369* |
+| gpt2-medium | causal | -0.2031 | -0.1091 | 0.0473* |  |  |  |  |  | 0.04 | 0.0612 | 0.2917 | 0.463 | 0.068 | 0.04463* |
+| meta-llama/Llama-3.2-1B-Instruct (incomplete) | causal | 1.218 |  |  |  |  |  |  |  | 0.02 | 0.01 | 0.1429 | 0.5 | 0.03 | 0.04894* |
 
 No scores at all (every run failed before a metric scored): `google/gemma-2-2b-it`. The transcripts record why.
 
@@ -39,11 +39,12 @@ No scores at all (every run failed before a metric scored): `google/gemma-2-2b-i
 
 ## Reading the table
 
-- Each cell is `score (n)` exactly as `summarize_report` printed it, from that model's
+- Each cell is the score exactly as `summarize_report` printed it, from that model's
   latest run in which every feedable metric scored (or its latest run, marked
-  *incomplete*, when none did). `n` is what the metric counts: pairs, sentences,
-  sampled contexts, prompts, templates x K, or - for StereotypicalAssociations -
-  target words that co-occurred with a group word, which is why it is small.
+  *incomplete*, when none did). The item count `n` behind each score is in the
+  transcript (`README.md`) and in the table produced with `--with-counts`; for
+  StereotypicalAssociations it is the number of target words that co-occurred with
+  a group word, which is small.
 - `*` marks a result whose protocol records a deviation from the paper's resources:
   CEAT's contexts come from BOLD's Wikipedia sentences rather than the authors' Reddit
   sample and are pooled as sentences (RL-071); EMT is scored by `unitary/toxic-bert`

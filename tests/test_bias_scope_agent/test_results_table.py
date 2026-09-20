@@ -69,8 +69,9 @@ def test_markdown_carries_the_star_legend_and_flags_incomplete_rows():
         _rec("b", "embedding", "2026-09-20T10:00:00", _DEVIATING, ("CEAT",), ("CEAT",)),
         _rec("m", "embedding", "2026-09-20T11:00:00", _PARTIAL, ("WEAT", "SEAT"), ("WEAT", "SEAT")),
     ])
-    text = render_markdown(*pivot(runs))
+    text = render_markdown(*pivot(runs), counts=True)
     assert "| b |" in text and "0.08 (1000)*" in text
+    assert "0.08*" in render_markdown(*pivot(runs))          # counts off by default
     assert "incomplete" in text and "m" in text
     assert "deviation" in text.lower()
 
@@ -113,9 +114,10 @@ def test_markdown_table_starts_with_a_neutral_value_row():
 def test_latex_table_has_the_same_rows_with_a_neutral_row_and_starred_deviations():
     from scripts.agent.results_table import render_latex
 
-    text = render_latex(*pivot(_two_runs()))
+    text = render_latex(*pivot(_two_runs()), counts=True)
     assert r"\begin{tabular}" in text and r"\toprule" in text
     assert "neutral value &  & 0 & 0 & 0" in text
     assert r"0.08 (1000)$^{*}$" in text            # the deviation star, LaTeX-safe
     assert r"a & encoder & 0.61 (16) & 1.04 (128) &" in text
+    assert r"a & encoder & 0.61 & 1.04 &" in render_latex(*pivot(_two_runs()))
     assert "all-MiniLM" not in text                # only the given rows
