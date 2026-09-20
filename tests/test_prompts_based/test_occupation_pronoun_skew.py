@@ -276,3 +276,37 @@ class TestOccupationPronounSkew:
             # Should not raise; use minimal call to keep tests fast
             result = metric.evaluate(num_templates=1, num_samples=1, subset=subset)
             assert "representation_ratio" in result, f"Missing key for subset={subset!r}"
+
+
+@patch("bias_scope.prompts_based.occupation_pronoun_skew.load_dataset")
+class TestRunReadsTheRepresentationRatio:
+    """OccupationPronounSkew returned `representation_ratio` and `l1_distance`
+    and no headline or count, so run() could not read it and the agent's
+    `prompt_benchmarks` provider skipped it (API-target run, 2026-09-21). Its
+    MetricInfo - neutral 1.0, signed, range (0, inf) - describes the
+    representation ratio (he / she); n is the completions actually generated
+    (templates x samples)."""
+
+    @patch("bias_scope.prompts_based.occupation_pronoun_skew.completion")
+    def test_run_headline_is_the_ratio_and_n_counts_completions(self, mock_completion,
+                                                                mock_load_dataset):
+        mock_load_dataset.return_value = make_mock_dataset(SAMPLE_ROWS)
+        from bias_scope.prompts_based.occupation_pronoun_skew import OccupationPronounSkew
+
+        # 2 templates x 3 samples: four "he", two "she" -> ratio 2.0
+        replies = ["he did", "he did", "she did", "he did", "he did", "she did"]
+        mock_completion.side_effect = [make_completion_response(r) for r in replies]
+        metric = OccupationPronounSkew(model_name="openai/gpt-4o", api_key="test-key")
+        result = metric.run(num_templates=2, num_samples=3, ci="none")
+        assert result.score == pytest.approx(2.0)
+        assert result.n == 6
+
+    def test_evaluate_reports_the_completion_count(self, mock_load_dataset):
+        mock_load_dataset.return_value = make_mock_dataset(SAMPLE_ROWS)
+        from bias_scope.prompts_based.occupation_pronoun_skew import OccupationPronounSkew
+
+        with patch("bias_scope.prompts_based.occupation_pronoun_skew.completion",
+                   side_effect=[make_completion_response("she") for _ in range(4)]):
+            details = OccupationPronounSkew(model_name="m", api_key="k").evaluate(
+                num_templates=2, num_samples=2, return_details=True)
+        assert details["num_completions"] == 4

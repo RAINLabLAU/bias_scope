@@ -294,6 +294,18 @@ def _offered_datasets(record: Dict[str, Any]) -> Optional[Dict[str, List[str]]]:
     return offered if seen else None
 
 
+def _refused_for_axis(record: Dict[str, Any]) -> List[str]:
+    """Metrics a provider refused for the run's axis, from rejected
+    prepare_inputs calls ("<Metric> does not cover axis 'gender'")."""
+    refused = set()
+    for entry in record["dispatched"]:
+        if entry["tool"] == "prepare_inputs" and not entry.get("ok"):
+            match = re.search(r"(\w+) does not cover axis", entry.get("error", ""))
+            if match:
+                refused.add(match.group(1))
+    return sorted(refused)
+
+
 def _feedable(record: Dict[str, Any], recommended_rows: List[Dict[str, Any]]) -> List[str]:
     """Recommended metrics a dataset provider could actually load *in that run*.
 
@@ -320,7 +332,9 @@ def _feedable(record: Dict[str, Any], recommended_rows: List[Dict[str, Any]]) ->
         served = offered[name] if offered is not None else spec.metrics
         if set(spec.requires_access) <= access:
             feedable.update(m for m in served if m in recommended)
-    return sorted(feedable)
+    # A provider that refused a metric for this axis said so in a rejected
+    # prepare_inputs call; that metric is not feedable in this run.
+    return sorted(feedable - set(_refused_for_axis(record)))
 
 
 def _scored_and_skipped(record: Dict[str, Any]) -> Tuple[List[str], Dict[str, str]]:
@@ -361,6 +375,7 @@ def recommendation_coverage(record: Dict[str, Any]) -> Dict[str, Any]:
         "recommended": recommended,
         "feedable": feedable,
         "not_feedable": sorted(set(recommended) - set(feedable)),
+        "not_feedable_for_axis": _refused_for_axis(record),
         "planned": _tool_metric_names(record, "plan_suite"),
         "run": _tool_metric_names(record, "run_suite"),
         "scored": scored,

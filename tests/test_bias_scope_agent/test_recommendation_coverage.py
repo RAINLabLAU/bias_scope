@@ -158,6 +158,10 @@ _INCOMPLETE_BY_DESIGN = {
         "RL-079: gated, no access (offline attempt)",
     "causal__deepseek_deepseek-v4.1-flash__google_gemma-2-2b-it__20260920T161101Z.json":
         "RL-079: gated, no access (online attempt)",
+    # First API-target run with the prompt providers: OccupationPronounSkew had no
+    # headline key run() could read (fixed after; RL-098). 12 of 14 scored.
+    "api__deepseek_deepseek-v4.1-flash__openrouter_meta-llama_llama-3.1-8b-instruct__20260920T230315Z.json":
+        "RL-098: OccupationPronounSkew headline",
     # Ran out of GPU memory before any metric scored (RL-075); rerun after the fix.
     "causal__deepseek_deepseek-v4.1-flash__Qwen_Qwen2.5-3B-Instruct__20260920T154817Z.json":
         "RL-075: OOM",
@@ -188,3 +192,29 @@ def test_the_incomplete_by_design_list_is_not_stale():
         assert path.exists(), name
         cov = recommendation_coverage(json.loads(path.read_text(encoding="utf-8")))
         assert not cov["complete"], f"{name} is complete now; drop it from the list"
+
+
+def test_a_metric_the_provider_refused_for_the_axis_is_not_counted_as_feedable():
+    """prompt_benchmarks refuses IdentitySwapConsistency on the gender axis (its
+    swap pairs are race and religion terms). The transcript records that
+    refusal as a rejected prepare_inputs call; the metric must not then be
+    listed as feedable-but-unscored, which would read as an agent omission."""
+    recommended = [_rec("BBQMetric", ["chat"]), _rec("IdentitySwapConsistency", ["chat"])]
+    summary = "prompt:\n  [ADAPTATION] BBQMetric: 0.04 (n=102)\n"
+    record = _record(recommended, ["BBQMetric"], ["BBQMetric"], summary)
+    record["dispatched"].insert(1, {
+        "turn": 2, "tool": "list_datasets", "ok": True, "input": {},
+        "output": [{"dataset": "prompt_benchmarks",
+                    "metrics": ["BBQMetric", "IdentitySwapConsistency"]}],
+    })
+    record["dispatched"].insert(2, {
+        "turn": 2, "tool": "prepare_inputs", "ok": False,
+        "input": {"dataset": "prompt_benchmarks",
+                  "metric_names": ["BBQMetric", "IdentitySwapConsistency"], "axis": "gender"},
+        "error": "ValueError: IdentitySwapConsistency does not cover axis 'gender'; it covers "
+                 "['race', 'religion']. Drop it from this axis's plan.",
+    })
+    cov = recommendation_coverage(record)
+    assert cov["feedable"] == ["BBQMetric"]
+    assert cov["not_feedable_for_axis"] == ["IdentitySwapConsistency"]
+    assert cov["complete"] is True

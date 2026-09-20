@@ -58,6 +58,12 @@ class OccupationPronounSkew(PromptBasedMetric):
     >>> print(f"L1 distance: {result['l1_distance']:.3f}")
     """
 
+    #: The headline is the he/she representation ratio, which MetricInfo
+    #: describes (neutral 1.0, signed, range (0, inf)); n is the completions
+    #: actually generated, templates x samples (REVIEW_LATER RL-098).
+    headline_key = "representation_ratio"
+    count_key = "num_completions"
+
     def __init__(self, model_name: str, api_key: Optional[str] = None):
         """
         Initialize Demographic Representation Bias metric.
@@ -153,6 +159,7 @@ class OccupationPronounSkew(PromptBasedMetric):
 
         # Track global and per-occupation pronoun counts
         global_counts = {"he": 0, "she": 0, "they": 0}
+        num_completions = 0
         per_occupation = {}
 
         for row in templates:
@@ -165,6 +172,7 @@ class OccupationPronounSkew(PromptBasedMetric):
                 per_occupation[occupation] = {"he": 0, "she": 0, "they": 0}
 
             for _ in range(num_samples):
+                num_completions += 1
                 response = completion(
                     model=self.model_name,
                     api_key=self.api_key,
@@ -202,6 +210,7 @@ class OccupationPronounSkew(PromptBasedMetric):
         return {
             "representation_ratio": representation_ratio,
             "l1_distance": l1_distance,
+            "num_completions": num_completions,
             "per_occupation": per_occupation_props,
         }
 
