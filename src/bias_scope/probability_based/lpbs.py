@@ -35,9 +35,16 @@ class LPBS(ProbabilityMetric):
     the model's unconditional preference for one target word over the other, and
     dividing by ``p_prior`` removes it.
 
-    Targets may be **word sets** (``["he", "him"]``). Probabilities are summed
-    within a set before the log, matching the authors' code
-    (`lib/bias_calculator.py:51-65`).
+    The clearest paper-level case uses singleton target lists such as ``["he"]``
+    and ``["she"]``. Targets may also be **word sets** (``["he", "him"]``);
+    probabilities are summed within a set before the log, matching the authors'
+    reference code (`lib/bias_calculator.py:51-65`).
+
+    LPBS operates on masked-token probabilities. Target and attribute candidates
+    must be valid under the supplied scorer/tokenization policy. This class does
+    not automatically compose multi-word or multi-WordPiece candidate scores;
+    pass only single-token candidates unless the supplied scorer explicitly
+    defines another policy outside the canonical LPBS path.
 
     Interpretation:
         0     no association beyond the model's prior
@@ -72,8 +79,11 @@ class LPBS(ProbabilityMetric):
             templates (Sequence[str]): Templates containing both ``[TARGET]``
                 and ``[ATTRIBUTE]``, e.g. ``"[TARGET] is a [ATTRIBUTE]."``
             target_a (Sequence[str]): First target word set, e.g. ``["he"]``.
+                The singleton case is the paper's clearest LPBS setting.
             target_b (Sequence[str]): Second target word set, e.g. ``["she"]``.
-            attributes (Sequence[str]): Attribute words to score.
+                Multi-target sets use the reference-code sum-before-log behavior.
+            attributes (Sequence[str]): Attribute words to score. Each attribute
+                is inserted into the template before querying the target mask.
             fill_probabilities (Callable): Called as
                 ``fill_probabilities(sentence, candidates, mask_ordinal=0)`` and
                 returning ``{word: probability}`` at the ``mask_ordinal``-th
@@ -82,14 +92,16 @@ class LPBS(ProbabilityMetric):
             return_details (bool): Return the full breakdown instead of a float.
 
         Returns:
-            float | Dict[str, Any]: The mean LPBS over (template, attribute)
-            pairs, or a dict with ``bias_score``, ``per_item``, ``breakdown``,
-            ``n``, and the per-target increased log probability scores.
+            float | Dict[str, Any]: The BiasScope mean over
+            ``(template, attribute)`` pairs, or a dict with ``bias_score``,
+            ``per_item``, ``breakdown``, ``n``, and the per-target increased log
+            probability scores.
 
         Raises:
-            ValueError: If a template lacks a slot, an input sequence is empty,
-                `fill_probabilities` is not callable, or a returned probability
-                is not positive.
+            ValueError: If a template lacks exactly one slot of each kind, an
+                input sequence is empty, a target or attribute is not a
+                canonical single token, `fill_probabilities` is not callable, or
+                a returned probability is not positive.
 
         Examples:
             >>> table = {("[MASK] is a programmer.", 0): {"he": 0.4, "she": 0.1},
@@ -101,8 +113,9 @@ class LPBS(ProbabilityMetric):
             >>> round(score, 6)
             1.386294
         """
-        self._validate_inputs(templates, target_a, target_b, attributes,
-                             fill_probabilities)
+        self._validate_inputs(
+            templates, target_a, target_b, attributes, fill_probabilities
+        )
 
         candidates = list(target_a) + list(target_b)
         per_item: List[float] = []
@@ -171,8 +184,16 @@ class LPBS(ProbabilityMetric):
 
     # ── helpers ───────────────────────────────────────────────────────────
     @staticmethod
-    def _validate_inputs(templates, target_a, target_b, attributes, fill_probabilities):
+    def _validate_inputs(templates, target_a, target_b, attributes, fill_probabilities):  # noqa: E501, C901 - RL-093
         """Every input is present, non-empty, and shaped as documented."""
+        for name, values in (
+            ("templates", templates),
+            ("target_a", target_a),
+            ("target_b", target_b),
+            ("attributes", attributes),
+        ):
+            if isinstance(values, str):
+                raise ValueError(f"{name} must be a sequence of strings, not a string")
         if not templates:
             raise ValueError("templates must contain at least one template")
         if not target_a:
@@ -187,10 +208,47 @@ class LPBS(ProbabilityMetric):
                 "fill_probabilities(sentence, candidates, mask_ordinal=0)"
             )
         for template in templates:
-            if TARGET_SLOT not in template:
-                raise ValueError(f"template {template!r} must contain {TARGET_SLOT}")
-            if ATTRIBUTE_SLOT not in template:
-                raise ValueError(f"template {template!r} must contain {ATTRIBUTE_SLOT}")
+            if not isinstance(template, str):
+                raise ValueError(f"templates entries must be strings, got {template!r}")
+            if not template:
+                raise ValueError("templates entries must be non-empty strings")
+            target_count = template.count(TARGET_SLOT)
+            attribute_count = template.count(ATTRIBUTE_SLOT)
+            if target_count != 1:
+                raise ValueError(
+                    f"template {template!r} must contain exactly one {TARGET_SLOT}; "
+                    f"found {target_count}"
+                )
+            if attribute_count != 1:
+                raise ValueError(
+                    f"template {template!r} must contain exactly one {ATTRIBUTE_SLOT}; "
+                    f"found {attribute_count}"
+                )
+
+        for name, values in (
+            ("target_a", target_a),
+            ("target_b", target_b),
+            ("attributes", attributes),
+        ):
+            for value in values:
+                if not isinstance(value, str):
+                    raise ValueError(f"{name} entries must be strings, got {value!r}")
+                if value.strip() != value or not value:
+                    raise ValueError(
+                        f"{name} entry {value!r} must be a non-empty canonical token"
+                    )
+                if any(char.isspace() for char in value):
+                    raise ValueError(
+                        f"{name} entry {value!r} is multi-word. LPBS expects "
+                        "masked-token candidates; provide a scorer/tokenization "
+                        "policy before using multi-token candidates."
+                    )
+                if value.startswith("##"):
+                    raise ValueError(
+                        f"{name} entry {value!r} looks like a continuation wordpiece. "
+                        "LPBS does not automatically compose multi-WordPiece "
+                        "candidate probabilities."
+                    )
 
     @staticmethod
     def _probabilities(

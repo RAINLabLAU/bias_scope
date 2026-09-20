@@ -4,6 +4,7 @@ CBS - Categorical Bias Score.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -46,7 +47,11 @@ class CBS(ProbabilityMetric):
     Normalization:
         P'(n | template, attr) = P(n | template with attr) / P(n | prior template)
 
-        The prior template replaces the attribute placeholder with [MASK].
+        The prior template replaces the attribute placeholder with as many
+        mask tokens as the attribute has subwords (Ahn & Oh 2021 sec 3.2's
+        whole-word-masking adaptation), so the prior sentence differs from
+        the target sentence only in whether the attribute is filled in or
+        masked, not also in length.
 
     Final score:
         CBS = average over all templates and attributes of:
@@ -56,7 +61,10 @@ class CBS(ProbabilityMetric):
         - Designed for masked LMs (BERT, RoBERTa).
         - Each template must contain exactly one mask token for the target slot.
         - Templates must include an attribute placeholder (default: "{attr}").
-        - Target words are single-token by default.
+        - Target words are single-token by default; pass
+          allow_multi_token_targets=True to whole-word-mask multi-subword
+          target words the same way (one mask token per subword, aggregated
+          by summing the per-subword log-probabilities).
     """
 
     def __init__(
@@ -114,7 +122,8 @@ class CBS(ProbabilityMetric):
         Returns:
             float | Dict[str, float]:
                 - float: CBS score
-                - dict: { "cbs": ..., "details": {...} }
+                - dict: { "bias_score": ..., "cbs": ..., "per_item": [...],
+                          "n": ..., "details": {...} }
         """
         self._validate_inputs(templates, target_words, attribute_words, placeholder)
 
@@ -129,25 +138,35 @@ class CBS(ProbabilityMetric):
         breakdown: Dict[str, Dict[str, float | str]] = {}
 
         for template in templates:
-            # If attribute placeholder is before the target mask in the template,
-            # then replacing placeholder with [MASK] creates a prior prompt where
-            # target mask becomes the 2nd mask occurrence. Otherwise it is the 1st.
-            target_mask_ordinal_in_prior = self._target_mask_ordinal_in_prior(
-                template, placeholder
-            )
+            # If the attribute placeholder is after the target mask in the
+            # template, the target's mask tokens are the first occurrences
+            # once both are expanded into the prior sentence; otherwise they
+            # come after the (whole-word-masked) attribute's mask tokens.
+            target_before_attr = self._target_before_attribute(template, placeholder)
 
             for attr in attribute_words:
-                prompt_target = template.replace(placeholder, attr)
-                prompt_prior = template.replace(placeholder, self.mask_token)
+                attribute_token_ids = self.tokenizer.encode(
+                    attr, add_special_tokens=False
+                )
+                attribute_num = max(1, len(attribute_token_ids))
 
                 log_norm_probs = self._log_normalized_target_scores(
-                    prompt_target=prompt_target,
-                    prompt_prior=prompt_prior,
+                    template=template,
+                    placeholder=placeholder,
+                    attr=attr,
+                    attribute_num=attribute_num,
                     target_token_id_lists=target_token_id_lists,
-                    target_mask_ordinal_in_prior=target_mask_ordinal_in_prior,
+                    target_before_attr=target_before_attr,
                 )
 
-                var_value = float(np.var(log_norm_probs))
+                # Sample variance (ddof=1), matching the reference's
+                # pandas .var(); undefined for a single target, so fall back
+                # to 0.0 (no variance with one observation) rather than NaN.
+                var_value = (
+                    float(np.var(log_norm_probs, ddof=1))
+                    if len(log_norm_probs) > 1
+                    else 0.0
+                )
                 top_idx = int(np.argmax(log_norm_probs))
                 top_target = target_words[top_idx]
 
@@ -164,10 +183,10 @@ class CBS(ProbabilityMetric):
             return cbs_score
 
         return {
-            # `cbs` is the headline `run()` looks for.
             "bias_score": cbs_score,
-            "n": len(templates) * len(attribute_words),
             "cbs": cbs_score,
+            "per_item": variances,
+            "n": len(variances),
             "details": breakdown,
         }
 
@@ -215,50 +234,85 @@ class CBS(ProbabilityMetric):
 
         return ids
 
-    def _target_mask_ordinal_in_prior(self, template: str, placeholder: str) -> int:
+    def _target_before_attribute(self, template: str, placeholder: str) -> bool:
         placeholder_pos = template.index(placeholder)
         target_mask_pos = template.index(self.mask_token)
-        return 1 if placeholder_pos < target_mask_pos else 0
+        return target_mask_pos < placeholder_pos
 
     def _log_normalized_target_scores(
         self,
-        prompt_target: str,
-        prompt_prior: str,
+        template: str,
+        placeholder: str,
+        attr: str,
+        attribute_num: int,
         target_token_id_lists: List[List[int]],
-        target_mask_ordinal_in_prior: int,
+        target_before_attr: bool,
     ) -> np.ndarray:
         """
-        Compute one log-normalized score per target word.
+        Whole-word-masked log-normalized scores per target word (Ahn & Oh
+        2021 sec 3.2): a target word split into W subwords gets W mask
+        tokens at the target slot (one per subword), and the W per-subword
+        log P_target - log P_prior differences are summed (the paper's
+        "aggregate each token's probability by multiplying" restated in log
+        space). The attribute is whole-word-masked the same way in the
+        prior sentence -- matching the reference's `attribute_mask`
+        construction -- so the prior sentence has the same length as the
+        target sentence except for the attribute being masked instead of
+        filled in.
 
-        Single-token target:
-            logP'(n) = logP_target(n) - logP_prior(n)
-
-        Multi-token target (approximation):
-            score(target_word) = sum_j [logP_target(t_j) - logP_prior(t_j)]
+        Target words are grouped by subword count: each group needs its own
+        sentence pair (different number of target mask tokens) and gets one
+        forward pass, shared across every target word in the group.
         """
-        logits_target = self._mask_logits(prompt_target, mask_ordinal=0)
-        logits_prior = self._mask_logits(
-            prompt_prior, mask_ordinal=target_mask_ordinal_in_prior
-        )
+        scores = np.empty(len(target_token_id_lists), dtype=float)
 
-        logp_target = torch.log_softmax(logits_target, dim=-1)
-        logp_prior = torch.log_softmax(logits_prior, dim=-1)
+        groups: Dict[int, List[int]] = defaultdict(list)
+        for idx, ids in enumerate(target_token_id_lists):
+            groups[len(ids)].append(idx)
 
-        scores: List[float] = []
-        for ids in target_token_id_lists:
-            ids_tensor = torch.tensor(ids, device=self.device)
-            score = float(
-                (logp_target[ids_tensor] - logp_prior[ids_tensor]).sum().item()
-            )
-            scores.append(score)
+        for k, indices in groups.items():
+            target_masks = " ".join([self.mask_token] * k)
+            prompt_target = template.replace(
+                self.mask_token, target_masks, 1
+            ).replace(placeholder, attr)
 
-        return np.array(scores, dtype=float)
+            attribute_masks = " ".join([self.mask_token] * attribute_num)
+            prompt_prior = template.replace(
+                self.mask_token, target_masks, 1
+            ).replace(placeholder, attribute_masks)
 
-    def _mask_logits(self, prompt: str, mask_ordinal: int = 0) -> torch.Tensor:
+            if target_before_attr:
+                target_ordinals_prior = list(range(k))
+            else:
+                target_ordinals_prior = list(
+                    range(attribute_num, attribute_num + k)
+                )
+
+            logits_target = self._mask_logits_multi(prompt_target, list(range(k)))
+            logits_prior = self._mask_logits_multi(prompt_prior, target_ordinals_prior)
+
+            logp_target = [torch.log_softmax(lg, dim=-1) for lg in logits_target]
+            logp_prior = [torch.log_softmax(lg, dim=-1) for lg in logits_prior]
+
+            for idx in indices:
+                ids = target_token_id_lists[idx]
+                score = 0.0
+                for pos, token_id in enumerate(ids):
+                    score += float(
+                        logp_target[pos][token_id].item()
+                        - logp_prior[pos][token_id].item()
+                    )
+                scores[idx] = score
+
+        return scores
+
+    def _mask_logits_multi(
+        self, prompt: str, ordinals: List[int]
+    ) -> List[torch.Tensor]:
         """
-        Return logits at a specific mask occurrence in the tokenized prompt.
-
-        mask_ordinal is zero-based among all [MASK] tokens in the prompt.
+        Return logits at the given zero-based [MASK] occurrences in the
+        tokenized prompt, one forward pass shared across all requested
+        ordinals.
         """
         inputs = self.tokenizer(prompt, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -269,17 +323,24 @@ class CBS(ProbabilityMetric):
         mask_positions = (inputs["input_ids"] == self.mask_token_id).nonzero(
             as_tuple=False
         )
-        if mask_positions.numel() == 0:
+        n_masks = mask_positions.shape[0]
+        if n_masks == 0:
             raise ValueError("Mask token not found after tokenization (unexpected).")
 
-        if mask_ordinal < 0 or mask_ordinal >= mask_positions.shape[0]:
-            raise ValueError(
-                f"Requested mask_ordinal={mask_ordinal}, but prompt has "
-                f"{mask_positions.shape[0]} mask tokens."
-            )
+        result = []
+        for ordinal in ordinals:
+            if ordinal < 0 or ordinal >= n_masks:
+                raise ValueError(
+                    f"Requested mask_ordinal={ordinal}, but prompt has {n_masks} "
+                    "mask tokens."
+                )
+            mask_index = mask_positions[ordinal, 1].item()
+            result.append(logits[0, mask_index, :])
+        return result
 
-        mask_index = mask_positions[mask_ordinal, 1].item()
-        return logits[0, mask_index, :]
+    def _mask_logits(self, prompt: str, mask_ordinal: int = 0) -> torch.Tensor:
+        """Single-ordinal convenience wrapper around _mask_logits_multi."""
+        return self._mask_logits_multi(prompt, [mask_ordinal])[0]
 
     def _log_normalized_probs(
         self,
@@ -288,7 +349,7 @@ class CBS(ProbabilityMetric):
         target_token_ids: List[int],
     ) -> np.ndarray:
         """
-        Backward-compatible helper for single-mask use.
+        Backward-compatible helper for single-mask, single-token use.
 
         log P'(n) = log P_target(n) - log P_prior(n)
         """

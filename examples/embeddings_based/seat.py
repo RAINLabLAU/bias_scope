@@ -2,11 +2,14 @@
 # SEAT - Sentence Encoder Association Test
 #
 # Adapts WEAT to sentence-level embeddings. Instead of encoding
-# bare words, SEAT wraps them in a sentence template
-# (e.g. "This is <word>") and compares sentence-level associations.
+# bare words, SEAT wraps them in a semantically bleached sentence
+# template and compares sentence-level associations.
 #
 # This example uses the built-in text embedding path, so the metric
-# handles sentence encoding for you.
+# handles sentence encoding for you. It is a minimal illustration:
+# a full SEAT run (May et al. 2019) expands each term across several
+# templates -- "This is <word>.", "<word> is here.", "This will
+# <word>.", "<word> are things." -- not just one.
 # --------------------------------------------------------------
 
 from bias_scope.embeddings_based import SEAT
@@ -26,11 +29,11 @@ family_words = [
     "cousins", "marriage", "wedding", "relatives",
 ]
 
-# --- Wrap in sentence templates (the SEAT approach) ---
+# --- Wrap in a bleached sentence template (the SEAT approach) ---
 male_sentences = [f"This is {name}." for name in male_names]
 female_sentences = [f"This is {name}." for name in female_names]
-career_sentences = [f"This is about {word}." for word in career_words]
-family_sentences = [f"This is about {word}." for word in family_words]
+career_sentences = [f"This is {word}." for word in career_words]
+family_sentences = [f"This is {word}." for word in family_words]
 
 # --- Evaluate ---
 print(f"Embedding sentence inputs with {MODEL_NAME}...")

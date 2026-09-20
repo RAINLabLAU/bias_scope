@@ -78,63 +78,75 @@ def _compute_similarity_measure(
     return np.mean(cos_attr1) - np.mean(cos_attr2)
 
 
-def _compute_random_effects_weights(
-    weat_scores: list[float], sample_size: int
-) -> np.ndarray:
+def _weat_effect_components(
+    target1: np.ndarray,
+    target2: np.ndarray,
+    attr1: np.ndarray,
+    attr2: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """Return WEAT target associations, pooled SD, and effect size (PRIVATE).
+
+    This is deliberately only the shared WEAT mathematics: cosine association
+    values and the ``ddof=1`` standardized mean difference.  It has no public
+    result formatting or permutation-test behaviour.
     """
-    Compute random-effects model weights for CEAT (PRIVATE).
-
-    Guo & Caliskan 2021 define the combined effect size as the weighted mean
-
-        CES = Σ v_i · ES_i / Σ v_i
-
-    where ``v_i`` is the inverse of (in-sample variance ``V_i`` + between-sample
-    variance ``σ²_between``). This is the DerSimonian-Laird estimator of
-    ``τ² = σ²_between``, computed in full: fixed-effect weights, the Q
-    statistic, the C term, then ``τ² = max(0, (Q − df) / C)``.
-
-    Parameters
-    ----------
-    weat_scores : list of float
-        WEAT scores from random samples
-
-    Returns
-    -------
-    np.ndarray
-        Normalized weights summing to 1.0
-
-    Notes
-    -----
-    Per-sample within-variance uses the standard large-sample expression for
-    the variance of a standardised mean difference at equal group sizes:
-
-        V_i = 2/n + ES_i² / (4n − 4)
-
-    Weights are normalised to sum to 1, so `CES` is a weighted mean.
-    """
-    if len(weat_scores) == 1:
-        return np.array([1.0], dtype=float)
-
-    n_per_group = float(sample_size)
-    within_variances = np.array(
-        [
-            (2.0 / n_per_group) + (float(score) ** 2 / max(1.0, (4.0 * n_per_group - 4.0)))
-            for score in weat_scores
-        ],
+    scores1 = np.asarray(
+        [_compute_similarity_measure(word, attr1, attr2) for word in target1],
         dtype=float,
     )
-
-    fixed_weights = 1.0 / np.maximum(within_variances, 1e-10)
-    fixed_mean = float(np.sum(fixed_weights * np.array(weat_scores)) / np.sum(fixed_weights))
-    q_stat = float(np.sum(fixed_weights * (np.array(weat_scores) - fixed_mean) ** 2))
-    c_term = float(
-        np.sum(fixed_weights)
-        - (np.sum(fixed_weights**2) / np.sum(fixed_weights))
+    scores2 = np.asarray(
+        [_compute_similarity_measure(word, attr1, attr2) for word in target2],
+        dtype=float,
     )
-    tau_squared = max(0.0, (q_stat - (len(weat_scores) - 1)) / c_term) if c_term > 0 else 0.0
+    pooled = np.concatenate((scores1, scores2))
+    if pooled.size < 2:
+        raise ValueError("Need at least 2 target embeddings to compute a WEAT effect size.")
+    pooled_sd = float(np.std(pooled, ddof=1))
+    if not np.isfinite(pooled_sd) or pooled_sd < 1e-10:
+        raise ValueError(
+            "Standard deviation of association scores is zero or near-zero; "
+            "the WEAT effect size is undefined."
+        )
+    effect_size = float((np.mean(scores1) - np.mean(scores2)) / pooled_sd)
+    return scores1, scores2, pooled_sd, effect_size
 
-    # Calculate inverse-variance weights with a DerSimonian-Laird style random effect.
-    weights = 1.0 / np.maximum(within_variances + tau_squared, 1e-10)
 
-    # Normalize to sum to 1
-    return weights / weights.sum()
+def _ceat_random_effects(effect_sizes: np.ndarray, variances: np.ndarray) -> dict:
+    """Fit CEAT's DerSimonian--Laird random-effects model (PRIVATE)."""
+    effect_sizes = np.asarray(effect_sizes, dtype=float)
+    variances = np.asarray(variances, dtype=float)
+    if effect_sizes.ndim != 1 or variances.ndim != 1 or effect_sizes.size != variances.size:
+        raise ValueError("effect_sizes and variances must be one-dimensional arrays of equal length.")  # noqa: E501
+    if effect_sizes.size == 0 or not np.isfinite(effect_sizes).all():
+        raise ValueError("effect_sizes must be a non-empty finite array.")
+    if not np.isfinite(variances).all() or np.any(variances <= 0):
+        raise ValueError("CEAT sample variances must be finite and positive.")
+
+    fixed_weights = 1.0 / variances
+    fixed_weight_sum = float(np.sum(fixed_weights))
+    fixed_mean = float(np.sum(fixed_weights * effect_sizes) / fixed_weight_sum)
+    q_stat = float(np.sum(fixed_weights * (effect_sizes - fixed_mean) ** 2))
+    c_term = float(fixed_weight_sum - np.sum(fixed_weights**2) / fixed_weight_sum)
+    if effect_sizes.size == 1:
+        tau_squared = 0.0
+    elif not np.isfinite(c_term) or c_term <= 0:
+        raise ValueError("CEAT random-effects denominator is non-positive.")
+    else:
+        tau_squared = max(0.0, (q_stat - (effect_sizes.size - 1)) / c_term)
+
+    random_weights = 1.0 / (variances + tau_squared)
+    weight_sum = float(np.sum(random_weights))
+    if not np.isfinite(weight_sum) or weight_sum <= 0:
+        raise ValueError("CEAT random-effects weights are invalid.")
+    effect_size = float(np.sum(random_weights * effect_sizes) / weight_sum)
+    standard_error = float(np.sqrt(1.0 / weight_sum))
+    return {
+        "effect_size": effect_size,
+        "standard_error": standard_error,
+        "between_context_variance": float(tau_squared),
+        "random_effect_weights": random_weights,
+        "fixed_effect_mean": fixed_mean,
+        "fixed_effect_weights": fixed_weights,
+        "Q": q_stat,
+        "c": c_term,
+    }

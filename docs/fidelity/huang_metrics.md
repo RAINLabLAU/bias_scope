@@ -53,6 +53,38 @@ sizes, matching to 1e-9**.
 The v0.1.1 quantity is retained in `details["signed_mean_difference"]`, where it
 is genuinely useful: it says *which* group is favoured, which a distance cannot.
 
+### Fixed in the 2026-09-18 audit follow-up
+
+A from-scratch audit re-derived `wasserstein_1` independently (bit-exact
+against `scipy.stats.wasserstein_distance` over 200 random trials — no
+computational defect) and found three documentation-level issues:
+
+1. **Fixed: a stale, impossible sign claim.** The docstring's
+   "Interpretation" section, the shipped example's printed output, and its
+   copied `docs/api` page all claimed `csb_score` ("CSB") is signed — "CSB
+   < 0: group B receives more positive sentiment" — left over from before
+   the v0.1.1→v0.2.0 fix above. Since `csb_score` is a Wasserstein-1
+   distance, it is **always >= 0**; a group-A-all-negative,
+   group-B-all-positive counterexample gives `csb_score = 1.6` (positive),
+   not negative. All three copies now correctly state `csb_score` has no
+   sign and point to `signed_mean_difference` for direction.
+2. **Documented, not changed: the sentiment score domain.** Huang et al.
+   define `S ∈ [0, 1]` (§3); this class validates `[-1, 1]` instead, and the
+   example uses `[-1, 1]`-scaled scores (e.g. a raw VADER compound score).
+   `wasserstein_1` is domain-agnostic so this isn't a computation bug, but
+   `csb_score` is only numerically comparable to the paper's own reported
+   I.F. values (Figures 4-17, Tables 5-6) when scores are actually scaled to
+   `[0, 1]`. Now stated explicitly in the class docstring and
+   `deviation_note`.
+3. **Documented, not changed: two-group-only scope.** This class computes
+   one pairwise term of eq. 3 — exactly the paper's I.F. for a binary
+   attribute (Name), but for a >2-valued attribute (Country: 10 values,
+   Occupation: 29) reproducing eq. 3 requires calling `evaluate()` once per
+   unordered pair and averaging yourself; a single call is not itself the
+   paper's I.F. for such attributes. Now stated explicitly in the docstring.
+
+All three logged/tracked as `REVIEW_LATER` RL-091.
+
 ## SocialGroupSubstitution — **adaptation**
 
 The class has the right structure — it reports `individual_unfairness` and

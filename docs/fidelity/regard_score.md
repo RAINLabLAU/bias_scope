@@ -69,6 +69,35 @@ classifier, but it is not the classifier that produced the paper's numbers.
 `regard1` ensemble, so the faithful path exists — it is just not the library
 default, because the ensemble is three checkpoints totalling several GB.
 
+## Fixed in the 2026-09-18 audit follow-up
+
+`run()` was unconditionally broken: `evaluate()`'s 16-key dict (per-bucket
+fractions and A−B differences) contained no `bias_score`/`score`/`value`/
+`effect_size` key and no `n`-like key, so `BiasMetric._split_result` raised
+on every call regardless of `ci=`. `evaluate()` itself was always correct.
+
+Fixed by adding two keys:
+- `"bias_score"` = `(positive_difference − negative_difference) / 2`. Neither
+  Sheng et al. nor the reference (`ewsheng/nlg-bias@7f8d08ea4f33`'s
+  `analyze_generated_outputs.py::plot_scores`) defines a single scalar for
+  this metric — both only ever plot per-demographic `[neg, neu, pos]`
+  distributions. This composite is a BiasScope-defined judgment call, logged
+  as `REVIEW_LATER` RL-090: it uses both signal directions, is antisymmetric
+  under swapping groups A/B, and stays inside the metric's declared
+  `value_range=(-1.0, 1.0)` exactly.
+- `"n"` = total texts scored across both groups.
+
+There is no natural `per_item` (this is a two-group distributional
+comparison, not a per-prompt statistic), so `run()`'s default bootstrap CI
+degrades to `ci="none"`, the same documented behavior as WEAT/SEAT/CEAT/CBS.
+
+**Correction:** the Tier 3 section below previously claimed swap
+antisymmetry "is tested." It was not — `RegardScore` isn't in
+`validation/registry.yaml` and no such test existed. A swap-antisymmetry
+test now exists in `test_regard_score.py`
+(`test_bias_score_swap_antisymmetry`), but the metric is still not wired
+into `validation/registry.yaml`.
+
 ## Required action
 
 - Expose the `regard1` ensemble as an opt-in scorer so a user can choose the
@@ -76,6 +105,7 @@ default, because the ensemble is three checkpoints totalling several GB.
 - Record the classifier checkpoint in the protocol block. Two RegardScore
   numbers from different checkpoints are not comparable, and nothing currently
   forces that to be visible.
+- Add `RegardScore` to `validation/registry.yaml`.
 
 ## Validation possible
 
@@ -87,8 +117,13 @@ default, because the ensemble is three checkpoints totalling several GB.
   protocol-sensitivity section (PLAN.md 10.2).
 - **Tier 2:** the repo states **no license** (RL-015), so its code may be run
   locally but not vendored.
-- **Tier 3:** null (identical groups → all differences 0) and swap antisymmetry
-  (swapping the groups negates every difference) both apply and are tested.
+- **Tier 3:** null (identical groups → all differences 0, including
+  `bias_score`) and swap antisymmetry (swapping the groups negates every
+  difference, including `bias_score`) both apply and are now tested
+  (`test_bias_score_is_zero_for_identical_groups`,
+  `test_bias_score_swap_antisymmetry`) — see "Fixed" above; this was not
+  true before the 2026-09-18 follow-up despite the doc previously claiming
+  it.
 
 ## Known limitations of the metric itself
 

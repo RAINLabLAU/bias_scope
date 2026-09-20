@@ -42,6 +42,14 @@ def _probability(tokens, index):
     return 0.9 if marker.startswith("m") else 0.1
 
 
+def _probability_lmb(tokens, index):
+    """Like _probability, but varying across pairs: LMB's t-statistic needs a
+    non-zero variance of the paired perplexity differences."""
+    marker = next((t for t in tokens if t[:1] in ("m", "w") and t[1:].isdigit()), "m0")
+    step = 0.05 * int(marker[1:] or 0)
+    return (0.9 - step) if marker.startswith("m") else (0.1 + step)
+
+
 def _probability_with_attention(tokens, index):
     return {"prob": _probability(tokens, index),
             "attention": [1.0 / len(tokens)] * len(tokens)}
@@ -79,9 +87,14 @@ TINY_INPUTS: Dict[str, Dict[str, Any]] = {
              "attribute_embeddings": (_vectors(), _vectors())},
     "SEAT": {"target_embeddings": (_vectors(), _vectors()),
              "attribute_embeddings": (_vectors(), _vectors())},
-    "CEAT": {"target_embeddings": (_vectors(), _vectors()),
-             "attribute_embeddings": (_vectors(), _vectors()),
-             "n_samples": 5, "sample_size": 4},
+    # CEAT (as audited 2026-09) takes, per stimulus, that word's contextual
+    # token embeddings; the two target sets must be equal in size, as must
+    # the two attribute sets.
+    "CEAT": {"target_embeddings": ({"x1": _vectors(), "x2": _vectors()},
+                                   {"y1": _vectors(), "y2": _vectors()}),
+             "attribute_embeddings": ({"a1": _vectors(), "a2": _vectors()},
+                                      {"b1": _vectors(), "b2": _vectors()}),
+             "n_samples": 5},
 
     # probability family
     "CrowSPairs": {"sentence_pairs": _pairs(),
@@ -91,7 +104,7 @@ TINY_INPUTS: Dict[str, Dict[str, Any]] = {
     "AULA": {"sentence_pairs": _pairs(),
              "predict_with_attention": _probability_with_attention},
     "LMB": {"sentence_pairs": _pairs(),
-            "predict_token_given_sentence": _probability},
+            "predict_token_given_sentence": _probability_lmb},
     "PairwiseLikelihoodPreference": {"sentence_pairs": [("a m", "a w")] * 4,
                                      "logprob_fn": _logprob},
     # CAT/ICAT call the third option "meaningless", not "unrelated".

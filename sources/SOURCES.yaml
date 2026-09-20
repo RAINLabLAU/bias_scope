@@ -240,8 +240,9 @@ metrics:
     local_pdf: sources/papers/ceat.pdf
     version_read: v1
   sections_read:
-  - Sec. 'combined effect size (CES)' (weighted mean, inverse-variance weights)
+  - Sec. 'Contextualized Embedding Association Test' (CES definition)
   - Sec. 'Random-Effects Model' (Hedges & Vevea 1998; DerSimonian & Laird)
+  - Appendix 'Random-Effects Model Details' (full Q/c/tau^2/v_i/SE/p-value formulas)
   - Sec. on sampling N contexts (N=1,000 and N=10,000)
   code:
     url: https://github.com/weiguowilliam/CEAT
@@ -249,7 +250,8 @@ metrics:
     license: none-stated
     local_path: third_party/code/CEAT
     files_read:
-    - weiguowilliam/CEAT repo layout (no license file; see third_party/LICENSES.md)
+    - 'code/ceat.py in full (associate, effect_size, ceat_meta) - cloned and read
+      2026-09; supersedes the earlier repo-layout-only read'
   resources:
   - name: bold_wikipedia_sentences
     source: third_party/code/bold/wikipedia/*_wiki.json (in the pinned BOLD clone; CC-BY-SA-4.0)
@@ -261,11 +263,20 @@ metrics:
     source: third_party/code/sent-bias/tests/weat<n>.jsonl (Caliskan et al. 2017 sets)
     sha256: 21681d3f4d7fdf97cf4cd2c0f9160940cfbd797ec62c7621b5600dc9e6e5b248
     file: weat6.jsonl
-  retrieved_on: '2026-08-23'
-  notes: 'FAITHFUL. The random-effects weighting is a real DerSimonian-Laird estimator
-    matching CES = sum(v_i ES_i)/sum(v_i). Fixed a stale docstring that described
-    a simpler estimator than the code. Open: default n_samples=100 vs the paper''s
-    1,000/10,000 - RL-021.'
+  retrieved_on: '2026-09-15'
+  notes: 'FAITHFUL for evaluate(). Differential-tested against code/ceat.py this
+    session: per-sample ES and V_i=std**2 agree to 1e-16; the DerSimonian-Laird
+    pooling (W, Q, c, tau^2, CES, SE) agrees to 1e-16. n_samples default is 10_000,
+    matching the paper - RL-021 (which said the default was 100) is stale and
+    closed. Two documented, deliberate departures from the reference SCRIPT (not
+    the paper): (1) sampling without replacement once a stimulus has n_samples
+    contexts, per the paper''s prose, where the script always samples with
+    replacement; (2) a two-sided p-value, per the paper''s Appendix formula and
+    Table 1''s own numbers, where the script computes a one-sided signed p that
+    contradicts its own paper. Both tagged verify. run() was fixed this session:
+    it did not thread seed into random_seed (non-reproducible CES) and attached a
+    Hedges-Olkin CI from |X|,|Y| instead of CEAT''s own SE(CES) (13x too wide in
+    one test case).'
   fidelity_note: docs/fidelity/ceat.md
 - metric: CoOccurrenceBiasScore
   family: generated_text
@@ -715,9 +726,11 @@ metrics:
     - notebooks/construct_bias_score.py:106-140 (driver)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: MISMATCH confirmed (docs/fidelity/lpbs.md). Paper and code additionally disagree
-    on which mask position the prior is read at, and get_index's last branch omits
-    the [CLS] offset - see RL-012.
+  notes: Current LPBS is faithful to Kurita et al.'s paper-level formula. The
+    sentence-pair preference statistic that shipped under this name through v0.1.1
+    was a mismatch and now lives under PairwiseLikelihoodPreference. Paper and
+    reference code additionally disagree on which mask position the prior is read
+    at, and get_index's last branch omits the [CLS] offset - see RL-012.
   fidelity_note: docs/fidelity/lpbs.md
 - metric: MarkedPersons
   family: generated_text
@@ -1038,18 +1051,23 @@ metrics:
   fidelity_note: docs/fidelity/seat.md
 - metric: SentenceBiasScore
   family: embedding
-  status: pending
+  status: read
   paper:
-    title: Sentence-level bias score (Dolci, Azzalini & Tanelli)
-    venue: Data Science and Engineering 8(2)
+    title: 'Improving Gender-Related Fairness in Sentence Encoders: A
+      Semantics-Based Approach'
+    venue: Data Science and Engineering 8
     year: 2023
-    url: ''
-    local_pdf: ''
-    version_read: ''
-    paper_status: not_located
-  sections_read: []
+    url: https://doi.org/10.1007/s41019-023-00211-0
+    local_pdf: 'biasscope papers/Sentencebiasscore.pdf'
+    version_read: Springer open-access article (CC-BY-4.0)
+  sections_read:
+  - 'Sec. 3 Gender Bias Estimation, in full (3.1 Bias Score, 3.2 Gender
+    Direction, 3.3 Gender Words, 3.4 Word Importance, 3.5 Bias Score Examples)'
+  - 'Sec. 6 Extension to Transformer-Based Models'
   code_status: none_found
   search_log:
+  - paper's own "Availability of data and materials" section (names only
+    SNLI and SentEval, not a bias-score repository)
   - paper footnotes and code-availability statement
   - ACL Anthology 'Code' link
   - Papers with Code
@@ -1058,9 +1076,23 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: ''
-  notes: Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8(2). Springer,
-    paywalled; no arXiv preprint located.
+  retrieved_on: '2026-09-15'
+  notes: 'ADAPTATION (was faithful, corrected 2026-09-15). Eq. 1-3 (the scoring
+    equations) verified against the paper''s own Table 2 worked example to
+    float precision. derive_gender_direction() and derive_word_importance()
+    now implement Sec. 3.2 and 3.4 (added this session; previously absent, and
+    run() crashed unconditionally on every input -- both fixed). Sec. 3.3''s
+    6562-word gender lexicon is not published and is not vendored; callers
+    must supply their own (REVIEW_LATER RL-087, blocked). Corrected a wrong
+    citation (author initials and title) in the class docstring and docs/api
+    page. Earlier note (RL-029) said this paper was paywalled with no
+    preprint; it is open access (CC-BY-4.0) and was sitting in
+    "biasscope papers/" the whole time -- RL-029 closed.'
+  notes: Faithful low-level implementation of the SentenceBiasScore equations. BiasScope
+    requires caller-provided token/word representations, gender direction, semantic
+    importance, and explicit gender-word exclusion mask; it does not derive those upstream
+    artifacts.
+  fidelity_note: docs/fidelity/sentence_bias_score.md
 - metric: SocialGroupSubstitution
   family: generated_text
   status: read
@@ -1367,6 +1399,7 @@ metrics:
     url: https://arxiv.org/abs/1608.07187
     local_pdf: sources/papers/weat.pdf
     version_read: v1
+    primary_artifact: https://doi.org/10.7910/DVN/DX4VWP
   sections_read:
   - 'Definition block: test statistic s(X,Y,A,B), one-sided permutation p-value, effect
     size'
@@ -1382,9 +1415,10 @@ metrics:
     - sentbias/weat.py:82-152 (p_val_permutation_test, exact vs sampled)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: 'FAITHFUL. RL-008 resolved: ddof=1, confirmed by the reference code and by
-    0.22% vs 3.50% agreement with the paper''s 840B number. v0.1.1 omitted the permutation
-    p-value; added in 0.2.0.'
+  notes: 'FAITHFUL for canonical static embeddings. The authors'' Harvard Dataverse
+    artifact is primary; May et al.''s sent-bias is a secondary reimplementation. RL-008
+    resolved: ddof=1, confirmed by sent-bias and by 0.22% vs 3.50% agreement with the
+    paper''s 840B number. Raw-text encoding and conservative ties are documented extensions.'
   fidelity_note: docs/fidelity/weat.md
 - metric: WinoBias
   family: prompt

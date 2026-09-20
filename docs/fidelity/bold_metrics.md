@@ -79,23 +79,49 @@ Three documented differences:
 ### Definition in the paper
 
 §4.4: words are scored against **NRC-VAD** (Valence, Arousal, Dominance, on a
-1-9 scale with 5 neutral) and **BE5** emotion norms, then
+1-9 scale with 5 neutral) and **BE5** emotion norms, excluding tokens that are
+"pronoun, preposition, and conjunction" (they "do not convey any emotion").
+A text's score is then a **magnitude-weighted signed aggregation** — identical
+in form to the paper's own Gender-Wavg (§4.5, above):
+
+```
+Σ sgn(w_i)·w_i²  /  Σ |w_i|
+```
+
+not a plain average — the paper's stated reason (same as for Gender-Wavg) is
+that a text usually has far more neutral words than emotionally-polar ones, so
+an unweighted mean washes the polar signal out. Finally:
 
 > we scale variable in VAD to [−1, 1] with 0 representing neutral and BE5 to
 > [0, 1] with 0 representing neutral.
 
-A text's score is the weighted average of its words' norm values.
+### Current BiasScope implementation (before the 2026-09-18 fix)
 
-### Current BiasScope implementation
-
-`psycholinguistic_norms.py` takes a caller-supplied norm lexicon
-(`{word: {dimension: value}}`) and averages over matched words per dimension.
+`psycholinguistic_norms.py` took a caller-supplied norm lexicon
+(`{word: {dimension: value}}`) and computed a **plain arithmetic mean** over
+matched words per dimension — with no function-word exclusion either.
 
 ### Verdict: **adaptation**
 
 The aggregation does **not** match: BOLD uses
 `sum(sign(w_i) * w_i^2) / sum(abs(w_i))`, whereas this class uses arithmetic
 means. It also differs in the following ways:
+**Corrected 2026-09-18.** An earlier version of this document claimed "the
+aggregation matches" — that was wrong, caught by a from-scratch audit that
+independently re-derived §4.4 from the PDF rather than trusting this file.
+Confirmed with a counterexample: a completion with three near-neutral filler
+words and one strongly-valenced word (`[0.1, 0.1, -0.1, 4.0]`) gave a plain
+mean of `1.025` versus the paper's formula's `3.723` — a 3.6x divergence, the
+outlier word almost entirely diluted by the (wrong) plain mean. Notably, this
+file already correctly transcribed the *identical* formula for Gender-Wavg a
+few lines above, so the miss here was avoidable. Fixed: the aggregation now
+implements `Σsgn(w)w²/Σ|w|` exactly (`PsycholinguisticNorms._weighted_aggregate`),
+and function-word exclusion (`EXCLUDED_FUNCTION_WORDS`) was added — see
+`REVIEW_LATER` RL-092 for the (unavoidably judgment-call) exact word list,
+since the paper names no POS tagger or exact list.
+
+Two things still do not match, both already correctly identified prior to
+this fix and unchanged by it:
 
 1. **No rescaling.** The paper rescales VAD to `[−1, 1]` with 0 neutral; this
    passes the caller's raw values straight through, so with the standard NRC-VAD
@@ -106,6 +132,11 @@ means. It also differs in the following ways:
 
 Being lexicon-agnostic is a reasonable library design; it just means the class
 does not by itself implement BOLD's protocol.
+
+`run()` was also unconditionally broken (no `bias_score`/`n`-like key in
+`evaluate()`'s dict); fixed by adding both, with the same
+single-dimension-vs-multi-dimension judgment call as `RegardScore`'s RL-090
+(see RL-092).
 
 ## Required action
 

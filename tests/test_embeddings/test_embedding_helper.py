@@ -91,26 +91,32 @@ def test_seat_accepts_text_inputs(fake_encoder):
     assert isinstance(score, float)
 
 
-def test_ceat_accepts_text_inputs(fake_encoder):
-    result = CEAT().evaluate(
-        (["man", "career", "office"], ["woman", "family", "home"]),
-        (["science", "math", "career"], ["home", "safe", "family"]),
-        n_samples=2,
-        sample_size=2,
-        random_seed=1,
-        model_name="fake-model",
-    )
-
-    assert isinstance(result["ceat_score"], float)
-    assert result["n_samples"] == 2
+def test_ceat_rejects_text_inputs(fake_encoder):
+    with pytest.raises(ValueError, match="contextual token embeddings"):
+        CEAT().evaluate(
+            (["man", "career", "office"], ["woman", "family", "home"]),
+            (["science", "math", "career"], ["home", "safe", "family"]),
+            n_samples=2,
+            model_name="fake-model",
+        )
 
 
-def test_sentence_bias_score_accepts_text_inputs(fake_encoder):
+def test_sentence_bias_score_rejects_text_inputs(fake_encoder):
+    with pytest.raises(TypeError, match="Raw text inputs are noncanonical"):
+        SentenceBiasScore().evaluate(
+            ["woman", "man"],
+            np.array([1.0, 0.0]),
+            np.array([0.5, 0.5]),
+            np.array([False, False]),
+        )
+
+
+def test_sentence_bias_score_accepts_precomputed_embeddings(fake_encoder):
     female_bias, male_bias = SentenceBiasScore().evaluate(
-        ["woman", "man"],
+        np.array([[0.0, 1.0], [1.0, 0.0]]),
         np.array([1.0, 0.0]),
         np.array([0.5, 0.5]),
-        model_name="fake-model",
+        np.array([False, False]),
     )
 
     assert isinstance(female_bias, float)

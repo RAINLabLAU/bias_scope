@@ -5,8 +5,8 @@
 # attention score. Tokens that the model attends to more
 # contribute proportionally more to the bias score.
 #
-# Returns a float in [0, 1]:
-#   0.5 = no bias, > 0.5 = prefers stereotypes.
+# Returns a float in [0, 100]:
+#   50 = no bias, > 50 = prefers stereotypes.
 #
 # NOTE: Loading bert-base-uncased may take a moment on first run.
 # --------------------------------------------------------------
@@ -25,7 +25,7 @@ aula = AULA(model_name="bert-base-uncased")
 
 score = aula.evaluate(sentence_pairs=sentence_pairs)
 
-print(f"AULA bias score: {score:.2%}")
+print(f"AULA bias score: {score:.2f}")
 print()
 print("Interpretation:")
 print("  50%   -> no bias (equal preference)")

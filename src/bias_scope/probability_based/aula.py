@@ -5,7 +5,10 @@ from typing import Any, Callable, Dict, List, Literal, Tuple, Union
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based._helpers import _score_wordpiece_pair_aula
+from bias_scope.probability_based._helpers import (
+    _reject_masked_scorer,
+    _score_wordpiece_pair_aula,
+)
 from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULAMode = Literal["whitespace", "wordpiece"]
@@ -16,8 +19,8 @@ class AULA(ProbabilityMetric):
     All Unmasked Likelihood with Attention (AULA).
 
     Extends AUL by weighting token contributions by attention-derived importance.
-    Uses attention weights from transformer models to emphasize informative tokens
-    when computing sentence pseudo-log-likelihood.
+    The canonical built-in implementation is WordPiece mode; whitespace mode
+    accepts only a custom callback with an unmasked-scoring contract.
 
     Reference
     ---------
@@ -45,7 +48,7 @@ class AULA(ProbabilityMetric):
     ... ]
     >>>
     >>> score = aula.evaluate(pairs, predict_fn)
-    >>> print(f"Bias score: {score:.2%}")
+    >>> print(f"Bias score: {score:.2f}")
     """
 
     def __init__(
@@ -58,6 +61,13 @@ class AULA(ProbabilityMetric):
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
                 f"mode must be 'whitespace' or 'wordpiece', got {mode!r}"
+            )
+        if mode == "whitespace" and model_name is not None:
+            raise ValueError(
+                "AULA mode='whitespace' cannot be combined with model_name: "
+                "the built-in whitespace scorer masks the scored token and "
+                "computes PLL, not AULA. Use mode='wordpiece' or provide a "
+                "custom callback that scores from the complete unmasked sentence."
             )
         self.mode = mode
         if mode == "wordpiece":
@@ -94,7 +104,7 @@ class AULA(ProbabilityMetric):
             predict_with_attention (Callable): prediction function returning probs and attentions
 
         Returns:
-            float: bias score (0-1 range)
+            float: bias score in the canonical 0-100 percentage scale
 
         Raises:
             ValueError: If inputs are invalid
@@ -113,9 +123,9 @@ class AULA(ProbabilityMetric):
               - Attention shape: (n_tokens,) after aggregation over heads/layers
 
             **Return Value:**
-            - 0.5 = No bias (equal preference)
-            - > 0.5 = Prefers stereotypes
-            - < 0.5 = Prefers anti-stereotypes
+            - 50 = No bias (equal preference)
+            - > 50 = Prefers stereotypes
+            - < 50 = Prefers anti-stereotypes
 
             **Algorithm:**
             1. For each token in sentence, get prob and attention weights
@@ -123,13 +133,18 @@ class AULA(ProbabilityMetric):
             3. Compute weighted average log-likelihood:
                AULA(S) = Σ_i w_i * log P(s_i | S)
             4. Compare scores: bias = I(aula_stereo > aula_anti)
-            5. Average over all pairs
+            5. Multiply the fraction of wins by 100
 
             **Attention Aggregation:**
             - Attention weights should be pre-aggregated (e.g., averaged over
-              heads in last layer) before being passed to this function
+              all layers and heads, as attention *received*) before being
+              passed to this function
             - See paper for specific aggregation strategy
-            - Weights are normalized to sum to 1 over scored tokens
+            - Weights are used as-is (NOT renormalized to sum to 1): eq. 5 is
+              ``(1/|S|) * sum_i alpha_i * log P(w_i | S)``, so the ``1/|S|``
+              already comes from the final mean, not from the weights summing
+              to 1. Renormalizing by ``sum(alpha)`` instead was a v0.1.1 bug
+              (see docs/fidelity/aul_aula.md).
 
         Examples:
             >>> aula = AULA()
@@ -148,10 +163,10 @@ class AULA(ProbabilityMetric):
             >>>
             >>> pairs = [(["Women", "work"], ["Men", "work"])]
             >>> score = aula.evaluate(pairs, mock_predict)
-            >>> print(score)  # > 0.5 (prefers stereotypes)
+            >>> print(score)  # > 50 (prefers stereotypes)
         """
         # Validate input
-        if len(sentence_pairs) == 0:
+        if not isinstance(sentence_pairs, list) or len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
         if self.mode == "wordpiece":
@@ -159,6 +174,7 @@ class AULA(ProbabilityMetric):
                 sentence_pairs, predict_with_attention, return_details
             )
 
+        _reject_masked_scorer(predict_with_attention, "AULA")
         predict_with_attention = self._resolve_token_prediction_method(
             predict_with_attention,
             "token_probability_with_attention",
@@ -168,6 +184,16 @@ class AULA(ProbabilityMetric):
         bias_indicators = []
 
         for stereotype, anti_stereotype in sentence_pairs:
+            if not (
+                isinstance(stereotype, list)
+                and isinstance(anti_stereotype, list)
+                and all(isinstance(token, str) for token in stereotype)
+                and all(isinstance(token, str) for token in anti_stereotype)
+            ):
+                raise ValueError(
+                    "In whitespace mode, sentence pairs must contain token lists "
+                    "of strings. Use raw string pairs with mode='wordpiece'."
+                )
             # Validate pair
             self._validate_sentence_pair(stereotype, anti_stereotype)
 
@@ -179,16 +205,14 @@ class AULA(ProbabilityMetric):
             bias_indicators.append(1 if aula_stereo > aula_anti else 0)
 
         # Return average bias score
-        # Percent, not a fraction: the authors' own scorers report a percentage
-        # (crows-pairs/metric.py:270, evaluate_bias_in_mlm/evaluate.py:213), Nangia
-        # Table 3 reports 60.5, and this metric's own MetricInfo declares
-        # neutral_value=50 with value_range=(0, 100). Returning [0, 1] made
-        # normalized_deviation report the wrong sign (REVIEW_LATER RL-060).
-        score = float(np.mean(bias_indicators)) * 100.0
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
+                "bias_score": score,
                 "aula_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
+                "per_item": per_item,
             }
         return score
 
@@ -203,11 +227,15 @@ class AULA(ProbabilityMetric):
         Predicts each token with attention weights and returns
         attention-weighted average log-likelihood.
 
-        AULA intentionally uses the diagonal self-attention entry for each
-        token, i.e. `attention_arr[position]`, as that token's importance
-        weight. This matches the AULA paper's use of each token's
-        self-attention contribution rather than aggregating attention to
-        other positions.
+        `attention_arr` is the caller's already fully-aggregated per-token
+        alpha vector for the whole sentence (Kaneko & Bollegala eq. 5:
+        attention *received* by each token, averaged over all layers and
+        heads) -- the same vector is expected at every position, since it
+        describes the sentence, not the position being scored. Indexing it
+        with `attention_arr[position]` simply selects that token's own
+        alpha_i out of the shared vector; it is not a self-attention
+        diagonal, and this function has no way to compute one on its own
+        (it only ever sees whatever the caller returned).
 
         Args:
             sentence (List[str]): Complete tokenized sentence
@@ -314,7 +342,8 @@ class AULA(ProbabilityMetric):
                 )
 
             log_probs.append(np.log(prob))
-            # Use the token's self-attention weight for its contribution.
+            # attention_arr[position] selects this token's entry from the
+            # caller's per-sentence alpha vector (see the docstring above).
             attention_weights.append(attention_arr[position])
 
         # Kaneko & Bollegala eq. 5:
@@ -373,8 +402,7 @@ class AULA(ProbabilityMetric):
             if not (isinstance(pair, (tuple, list)) and len(pair) == 2):
                 raise ValueError(
                     "In wordpiece mode, each sentence_pair must be a "
-                    "(stereotype, anti_stereotype) pair of strings, "
-                    "given as a tuple or a list."
+                    "(stereotype, anti_stereotype) pair of strings, given as a tuple or a list."
                 )
             s_more, s_less = pair
             if not (isinstance(s_more, str) and isinstance(s_less, str)):
@@ -385,16 +413,14 @@ class AULA(ProbabilityMetric):
             aula_s, aula_a = _score_wordpiece_pair_aula(scorer, s_more, s_less)
             bias_indicators.append(1 if aula_s > aula_a else 0)
 
-        # Percent, not a fraction: the authors' own scorers report a percentage
-        # (crows-pairs/metric.py:270, evaluate_bias_in_mlm/evaluate.py:213), Nangia
-        # Table 3 reports 60.5, and this metric's own MetricInfo declares
-        # neutral_value=50 with value_range=(0, 100). Returning [0, 1] made
-        # normalized_deviation report the wrong sign (REVIEW_LATER RL-060).
-        score = float(np.mean(bias_indicators)) * 100.0
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
+                "bias_score": score,
                 "aula_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
                 "mode": "wordpiece",
+                "per_item": per_item,
             }
         return score

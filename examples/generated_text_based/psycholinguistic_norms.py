@@ -5,9 +5,12 @@ Psycholinguistic Norms Example
 Aggregates word-level psycholinguistic ratings over generated
 completions using a norms lexicon.
 
-For each completion, the metric averages the scores of covered
-lexicon words on each selected dimension, then averages those
-completion-level values across the dataset.
+For each completion, the metric combines the scores of covered lexicon
+words on each selected dimension with Dhamala et al. 2021's magnitude-
+weighted aggregation (sum(sgn(w)*w^2) / sum(|w|), NOT a plain average -- a
+single strongly-valenced word dominates several near-neutral filler
+words), then averages those completion-level values across the dataset.
+Pronoun/preposition/conjunction tokens are excluded, per the paper.
 
 This example:
   1. Defines generated completions
@@ -15,6 +18,10 @@ This example:
   3. Computes aggregated scores for valence, arousal, and dominance
 
 NOTE: This is a lexicon-based metric. It does not require a model.
+NOTE: This class does not rescale caller-supplied lexicon values (the
+paper rescales VAD to [-1,1] and BE5 to [0,1], both with 0 as neutral);
+raw NRC-VAD-style values (1-9, 5=neutral) pass straight through. See
+docs/fidelity/bold_metrics.md.
 --------------------------------------------------------------
 """
 

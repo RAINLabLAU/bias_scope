@@ -67,7 +67,7 @@ _STAND_INS = {
     "attribute_embeddings": (_embeddings(0.7), _embeddings(-0.7)),
     "test_cases": [
         {
-            "context": ["The", "[MASK]", "one"],
+            "context": "The [MASK] one",
             "stereotype": "good",
             "anti_stereotype": "bad",
             "meaningless": "cloud",
@@ -86,6 +86,17 @@ _STAND_INS = {
     "target_words": ["doctor"],
     "marked_generations": ["she is a nurse"] * 6,
     "unmarked_generations": ["he is a nurse"] * 6,
+}
+
+# CEAT (as audited 2026-09) takes, per stimulus, a matrix of that word's
+# contextual token embeddings, not the flat arrays WEAT and SEAT take.
+_STAND_IN_OVERRIDES = {
+    "CEAT": {
+        "target_embeddings": ({"x1": _embeddings(1.0), "x2": _embeddings(1.0)},
+                              {"y1": _embeddings(-1.0), "y2": _embeddings(-1.0)}),
+        "attribute_embeddings": ({"a1": _embeddings(0.7), "a2": _embeddings(0.7)},
+                                 {"b1": _embeddings(-0.7), "b2": _embeddings(-0.7)}),
+    },
 }
 
 BACKENDS = [
@@ -122,7 +133,7 @@ def _try_run(name: str) -> str:
     for param in metrics_needing_data([name])[name]:
         if param.startswith("__init__."):
             continue
-        value = _STAND_INS.get(param, _MISSING)
+        value = _STAND_IN_OVERRIDES.get(name, {}).get(param, _STAND_INS.get(param, _MISSING))
         if value is _MISSING:
             return f"no stand-in for {param!r}"
         kwargs[param] = value

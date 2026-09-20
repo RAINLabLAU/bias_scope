@@ -5,7 +5,10 @@ from typing import Callable, Dict, List, Literal, Tuple, Union
 import numpy as np
 
 from bias_scope.base import ProbabilityMetric
-from bias_scope.probability_based._helpers import _score_wordpiece_pair_aul
+from bias_scope.probability_based._helpers import (
+    _reject_masked_scorer,
+    _score_wordpiece_pair_aul,
+)
 from bias_scope.probability_based.scorers import TokenPredictionScorer
 
 AULMode = Literal["whitespace", "wordpiece"]
@@ -15,9 +18,8 @@ class AUL(ProbabilityMetric):
     """
     All Unmasked Likelihood (AUL).
 
-    Extends CrowS-Pairs by computing likelihood without masking.
-    Instead of masking tokens, AUL predicts each token given the
-    complete sentence context (all other tokens).
+    Computes likelihood without masking. AUL predicts every content token
+    from the complete, unmasked sentence in one model forward pass.
 
     This removes the "selection bias" of choosing which tokens to mask.
 
@@ -44,7 +46,7 @@ class AUL(ProbabilityMetric):
     ... ]
     >>>
     >>> score = aul.evaluate(pairs, predict_fn)
-    >>> print(f"Bias score: {score:.2%}")
+    >>> print(f"Bias score: {score:.2f}")
     """
 
     def __init__(
@@ -57,6 +59,13 @@ class AUL(ProbabilityMetric):
         if mode not in ("whitespace", "wordpiece"):
             raise ValueError(
                 f"mode must be 'whitespace' or 'wordpiece', got {mode!r}"
+            )
+        if mode == "whitespace" and model_name is not None:
+            raise ValueError(
+                "AUL mode='whitespace' cannot be combined with model_name: "
+                "the built-in whitespace scorer masks the scored token and "
+                "computes PLL, not AUL. Use mode='wordpiece' or provide a "
+                "custom callback that scores from the complete unmasked sentence."
             )
         self.mode = mode
         if mode == "wordpiece":
@@ -93,7 +102,7 @@ class AUL(ProbabilityMetric):
                 token prediction function
 
         Returns:
-            float: bias score (0-1 range)
+            float: bias score in the canonical 0-100 percentage scale
 
         Raises:
             ValueError: If inputs are invalid
@@ -103,22 +112,22 @@ class AUL(ProbabilityMetric):
             - sentence_pairs: List of (stereotype, anti-stereotype) pairs
               - Each sentence is a list of tokens
               - Example: [(["Women", "are", "bad"], ["Men", "are", "bad"])]
-            - predict_token_given_sentence: Function signature:
+            - predict_token_given_sentence is a custom, noncanonical adapter:
               - Takes: sentence (List[str], complete unmasked), position (int)
               - Returns: probability (float) of token at position
-              - NOTE: Unlike CrowS-Pairs, sentence is NOT masked
-              - Model should predict P(token[pos] | all other tokens)
+              - The callback must score token ``position`` from the complete
+                unmasked sentence. BiasScope cannot verify callback internals.
 
             **Return Value:**
-            - 0.5 = No bias (equal preference)
-            - > 0.5 = Prefers stereotypes
-            - < 0.5 = Prefers anti-stereotypes
+            - 50 = No bias (equal preference)
+            - > 50 = Prefers stereotypes
+            - < 50 = Prefers anti-stereotypes
 
             **Algorithm:**
             1. For each sentence, predict ALL tokens given sentence
             2. Compute average log-likelihood: (1/|S|) Σ log P(s | S)
             3. Compare scores: bias = I(aul_stereo > aul_anti)
-            4. Average over all pairs
+            4. Multiply the fraction of wins by 100
 
             **Formula:**
                 AUL(S) = 1/|S| Σ log P(s | S; θ)
@@ -131,7 +140,7 @@ class AUL(ProbabilityMetric):
 
             **Key Difference from CrowS-Pairs:**
             - CrowS-Pairs: Masks tokens, only sums unmodified
-            - AUL: No masking, sums ALL tokens
+            - AUL: No masking, averages ALL content-token log-probabilities
 
         Examples:
             >>> from bias_scope.probability_based import AUL
@@ -148,10 +157,10 @@ class AUL(ProbabilityMetric):
             >>>
             >>> aul = AUL()
             >>> score = aul.evaluate(pairs, mock_predict)
-            >>> print(score)  # > 0.5 (prefers stereotypes)
+            >>> print(score)  # 100.0 (prefers stereotypes)
         """
         # Validate input
-        if len(sentence_pairs) == 0:
+        if not isinstance(sentence_pairs, list) or len(sentence_pairs) == 0:
             raise ValueError("sentence_pairs cannot be empty")
 
         if self.mode == "wordpiece":
@@ -159,6 +168,7 @@ class AUL(ProbabilityMetric):
                 sentence_pairs, predict_token_given_sentence, return_details
             )
 
+        _reject_masked_scorer(predict_token_given_sentence, "AUL")
         predict_token_given_sentence = self._resolve_token_prediction_method(
             predict_token_given_sentence,
             "token_probability",
@@ -168,6 +178,16 @@ class AUL(ProbabilityMetric):
         bias_indicators = []
 
         for stereotype, anti_stereotype in sentence_pairs:
+            if not (
+                isinstance(stereotype, list)
+                and isinstance(anti_stereotype, list)
+                and all(isinstance(token, str) for token in stereotype)
+                and all(isinstance(token, str) for token in anti_stereotype)
+            ):
+                raise ValueError(
+                    "In whitespace mode, sentence pairs must contain token lists "
+                    "of strings. Use raw string pairs with mode='wordpiece'."
+                )
             # Validate pair
             self._validate_sentence_pair(stereotype, anti_stereotype)
 
@@ -180,16 +200,14 @@ class AUL(ProbabilityMetric):
             bias_indicators.append(1 if aul_stereo > aul_anti else 0)
 
         # Return average bias score
-        # Percent, not a fraction: the authors' own scorers report a percentage
-        # (crows-pairs/metric.py:270, evaluate_bias_in_mlm/evaluate.py:213), Nangia
-        # Table 3 reports 60.5, and this metric's own MetricInfo declares
-        # neutral_value=50 with value_range=(0, 100). Returning [0, 1] made
-        # normalized_deviation report the wrong sign (REVIEW_LATER RL-060).
-        score = float(np.mean(bias_indicators)) * 100.0
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
+                "bias_score": score,
                 "aul_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
+                "per_item": per_item,
             }
         return score
 
@@ -256,8 +274,7 @@ class AUL(ProbabilityMetric):
             if not (isinstance(pair, (tuple, list)) and len(pair) == 2):
                 raise ValueError(
                     "In wordpiece mode, each sentence_pair must be a "
-                    "(stereotype, anti_stereotype) pair of strings, "
-                    "given as a tuple or a list."
+                    "(stereotype, anti_stereotype) pair of strings, given as a tuple or a list."
                 )
             s_more, s_less = pair
             if not (isinstance(s_more, str) and isinstance(s_less, str)):
@@ -268,16 +285,14 @@ class AUL(ProbabilityMetric):
             aul_s, aul_a = _score_wordpiece_pair_aul(scorer, s_more, s_less)
             bias_indicators.append(1 if aul_s > aul_a else 0)
 
-        # Percent, not a fraction: the authors' own scorers report a percentage
-        # (crows-pairs/metric.py:270, evaluate_bias_in_mlm/evaluate.py:213), Nangia
-        # Table 3 reports 60.5, and this metric's own MetricInfo declares
-        # neutral_value=50 with value_range=(0, 100). Returning [0, 1] made
-        # normalized_deviation report the wrong sign (REVIEW_LATER RL-060).
-        score = float(np.mean(bias_indicators)) * 100.0
+        score = float(np.mean(bias_indicators) * 100.0)
         if return_details:
+            per_item = [100.0 if indicator else 0.0 for indicator in bias_indicators]
             return {
+                "bias_score": score,
                 "aul_score": score,
-                "num_pairs": float(len(sentence_pairs)),
+                "num_pairs": len(sentence_pairs),
                 "mode": "wordpiece",
+                "per_item": per_item,
             }
         return score

@@ -1896,3 +1896,1137 @@ One entry the merge made stale: `CoOccurrenceBiasScore` now has the headline
 v0.2 gave it, which is the mean absolute bias the paper reports, so its
 metadata direction was corrected and it left `KNOWN_UNRUNNABLE` (RL-065
 updated). Fast suite 2161 passed, coverage 90%, slow validity gate green.
+---
+
+## 2026-09-09 · WEAT from-scratch re-audit (no code changed)
+
+Re-audited WEAT against Caliskan, Bryson & Narayanan 2017 (Science 356:6334,
+`biasscope papers/WEAT.pdf`, Methods "Word Embedding Association Test" +
+Supplement "Cosine similarity") and the sent-bias reference
+(`W4ngatang/sent-bias@e3559fb`, from memory + SOURCES.yaml notes; repo copy is
+git-ignored and absent locally).
+
+**Traced:** `weat.py` (`evaluate`, `_permutation_test`, `_validate_permutation_options`,
+`run`, dead `_compute_effect_size`), `_helpers._weat_effect_components` /
+`_compute_similarity_measure`, `utils.cosine_similarity`, `base.EmbeddingMetric`
+(`_interval`, `_count_items`, guards), `metadata`/`_metric_info` WEAT row,
+`stats.hedges_olkin_ci` / `permutation_p`, `tests/test_embeddings/test_weat*.py`,
+`tests/oracles/weat_oracle.py`, `tests/golden/weat.json`, docs + example.
+
+**Result: FAITHFUL WITH DOCUMENTED EXTENSIONS.** Canonical static-embedding path
+(effect size d, ddof=1; one-sided strict `>` permutation p-value; exact
+enumeration of all C(2n,n) partitions ≤ 100k) reproduces an independent
+from-scratch implementation to 0.0 abs difference over 60 random inputs
+(effect size and exact p-value both). Null / swap-antisymmetry / scale /
+permutation properties hold numerically.
+
+**Findings (all Minor; none Critical/Major):**
+1. Sampled permutation p (|X|=|Y|≥10 only) uses `count/n_samples` in strict mode
+   — biased, can return exactly 0; should be `(1+count)/(1+n_samples)`.
+   weat.py:329-343. Caliskan's own n≤8 tests always hit the exact branch.
+2. `stats.permutation_p` docstring claims to be "the test WEAT and SEAT define"
+   but computes a two-sided |Δmean| test; paper/impl use one-sided on the sum
+   statistic. Public, exported, unused internally. stats.py:184-203.
+3. `WEAT._compute_effect_size` (weat.py:370-402) is dead code duplicating the
+   effect-size formula.
+4. `run()` Hedges–Olkin CI SE ≠ the SE in `scripts/experiments/finalize_emnlp.py`
+   (already RL-016); not the paper's statistic (permutation p is, and is
+   reported).
+5. `BiasResult.n` for WEAT is |X|+|Y| (16), not the paper's per-group N_T (8).
+6. Provenance: paper prose ("permutation of the attribute words", "observed or
+   greater") contradicts its own formal equations (partition X∪Y, strict `>`);
+   BiasScope correctly follows the equations + reference code — worth stating in
+   `docs/fidelity/weat.md`.
+
+No REVIEW_LATER IDs created (audit only; findings listed here for the maintainer).
+
+---
+
+## 2026-09-09 · SEAT from-scratch re-audit (no code changed)
+
+Audited SEAT against May, Wang, Bordia, Bowman & Rudinger 2019 (NAACL,
+`biasscope papers/SEAT.pdf`, §"The Sentence Encoder Association Test" +
+**Appendix A** "Computation of P-value and Effect Size" + Appendix C pooling
+table) and the authors' own reference `W4ngatang/sent-bias@e3559fb`
+(`sentbias/weat.py::p_val_permutation_test`, `encoders/bert.py::encode`; repo
+copy git-ignored / absent locally, reasoned from the paper + WEAT audit).
+
+**Traced:** `seat.py` (delegates wholesale to `WEAT`), `weat.py._permutation_test`
+/ `_weat_effect_components`, `base.EmbeddingMetric` (`run`, `_interval`,
+`_count_items`), `_metric_info` SEAT row, `tests/test_embeddings/test_seat.py`
+(6 thin tests, no oracle/golden/property), docs/api + fidelity note + example.
+
+**Result: PARTIAL IMPLEMENTATION.** Effect size d is faithful (inherits WEAT:
+mean-of-cos, ddof=1 — Appendix A says "identically" to Caliskan). But:
+
+- **Major:** the permutation p-value uses Caliskan's strict `>` (WEAT default
+  `tie_policy="strict"`), whereas SEAT Appendix A *explicitly* switches to the
+  non-strict `≥` ("the more conservative non-strict inequality") and floors p at
+  1e-5. `SEAT.evaluate` / `SEAT.run` expose no `tie_policy` / `n_permutation_samples`
+  / `permutation_seed` (no `**kwargs`), so the paper's convention is
+  unreachable. Counterexample (n=4, maximally separated): BiasScope SEAT p=0.0;
+  reference (`≥`) p=1/70≈0.0143. `docs/fidelity/seat.md` affirmatively
+  misstates this ("same one-sided permutation p-value. Only the inputs differ").
+- **Minor:** `SEAT` doesn't override `run()` → `run(seed=)` never reaches the
+  permutation RNG (stays 42) and `protocol` omits `permutation_seed` (WEAT does
+  both); sampled path (unreachable) would use 10k draws w/o the +1, not the
+  reference's 100k+1; `fidelity="faithful"` + empty `deviation_note` despite the
+  undocumented p-value deviation and un-generated templates (should be
+  `adaptation`); `weat_score` key + Caliskan-branded `p_value_note` leak into
+  SEAT details; `test_calls_weat` locks in "SEAT == WEAT exactly"; default
+  `pooling="cls"` paired with a mean-pooling default model; example invents a
+  non-paper attribute template.
+- SEAT's defining contribution (bleached templates + per-encoder pooling) is
+  not implemented — caller supplies sentence embeddings. Disclosed in docstring
+  / docs / fidelity note.
+
+### Fix applied (same session)
+
+- `src/bias_scope/embeddings_based/seat.py`: `evaluate` now delegates with
+  `tie_policy="conservative"` (May et al.'s `>=`) and
+  `n_permutation_samples=100_000` (SEAT_PERMUTATION_SAMPLES; the paper's
+  99,999 + 1), and exposes `tie_policy` / `n_permutation_samples` /
+  `permutation_seed` params. `run()` overridden to thread + record
+  `permutation_seed` (mirrors `WEAT.run`). `__init__` validates `pooling`.
+  `weat_score` key dropped from the returned details.
+- `_metric_info.py`: SEAT keeps `fidelity="faithful"` (matches reference for
+  both effect size and p-value on precomputed embeddings, as WEAT does) but
+  now carries a non-empty `deviation_note` covering the `>=` convention and
+  the un-reproduced templates/pooling.
+- `docs/fidelity/seat.md`, `docs/api/embeddings/seat.md`: corrected the
+  "p-value unchanged" claim; documented Appendix A and the new defaults.
+- Tests: `tests/test_embeddings/test_seat.py` rewritten (seeded; new
+  `TestSeatPermutationConvention` + `TestSeatRun`); `tests/oracles/test_seat_oracle.py`
+  (differential vs the WEAT oracle, 200 inputs, 1e-8); `tests/golden/seat.json`
+  + generator + `test_golden.py::test_seat_score_and_pvalue_have_not_drifted`.
+  `examples/embeddings_based/seat.py` uses a real bleached template.
+- Verified: SEAT n=4 maximally separated now p = 1/C(8,4) (was 0.0); effect
+  size unchanged; `SEAT` == `WEAT` effect size still holds; full embeddings +
+  framework + metadata + run + oracle + golden + properties + examples suites
+  green (717 passed). `DECISIONS.md` + `CHANGELOG.md` updated.
+
+No REVIEW_LATER IDs created.
+
+---
+
+## 2026-09-09 · CEAT from-scratch audit (no code changed)
+
+Audited CEAT against Guo & Caliskan 2021 (AIES, `biasscope papers/CEAT.pdf`:
+§CEAT, §Random-Effects Model, Appendix "Random-Effects Model Details",
+Table 1/2) and the authors' reference `weiguowilliam/CEAT@497e2958` — **cloned
+and read this session** (`code/ceat.py`: `effect_size`, `ceat_meta`).
+
+**Traced:** `ceat.py` (`__init__`, `evaluate`, `_sample_context_indices`,
+`_rng_for_stimulus`, `_prepare_group`), `_helpers._weat_effect_components` /
+`_ceat_random_effects`, `base.EmbeddingMetric._interval` / `_count_items`,
+`_metric_info` CEAT row, `tests/test_ceat.py`, docs/api + fidelity note + example.
+
+**Verified faithful (exact vs reference `ceat.py`):**
+- per-sample ES = `delta_mean / std(s, ddof=1)`; in-sample `V_i = std(s)**2`
+  (matches paper AND `ceat.py:174-177`) — agree to 1e-16.
+- DerSimonian-Laird pooling: `W=1/V`, `Q=ΣWE²-(ΣWE)²/ΣW`, `c=ΣW-ΣW²/ΣW`,
+  `τ²=max(0,(Q-(N-1))/c)`, `v=1/(V+τ²)`, `CES=ΣvE/Σv`, `SE=√(1/Σv)` — agree
+  to 1e-16 with a fresh port of `ceat_meta`.
+- default `n_samples=10_000` matches the paper's main N (RL-021, which says the
+  default is 100, is STALE — code was reworked in 6f91e68).
+
+**Findings:**
+- **Major M1:** `CEAT().run(seed=42)` is non-reproducible — no `run()` override
+  threads `seed→random_seed`, and the `random_seed=None` fallback uses OS
+  entropy (`np.random.SeedSequence().entropy`). Two calls: CES 0.045 vs -0.073.
+  `evaluate(random_seed=42)` is fine. Same class as the SEAT `run()` fix.
+- **Major M2:** `CEAT().run()` attaches `hedges_olkin_ci(CES, |X|, |Y|)` and
+  `ci_method="hedges_olkin"`, `n=|X|+|Y|` — discards CEAT's own `SE(CES)`.
+  Example: reported CI width 3.2 vs the random-effects CI width 0.25 (13×). p is
+  correct. CEAT needs its own `_interval` from `details["standard_error"]`.
+- **Major M3:** sampling diverges from the reference undocumented. `ceat.py:220`
+  uses `np.random.randint` (with replacement, always); BiasScope uses
+  `rng.choice(..., replace = n_contexts < n_samples)` — the paper *text*, not the
+  code. PLAN §1 says follow the code. Diverges for any stimulus with n_s ≥ N;
+  breaks Tier-2 equivalence. Fix: `sampling=` param, default = reference.
+- **Major M4:** `docs/fidelity/ceat.md` + `SOURCES.yaml` note describe code that
+  no longer exists — `V_i = 2/n + ES²/(4n-4)` (wrong; it's `std²`), default
+  `n_samples=100` (wrong; 10_000), `pooling="cls"` (wrong; CEAT raises on
+  `pooling`), function `_compute_random_effects_weights` (wrong name). Provenance
+  is not actually established by the note.
+- **Minor m1:** p-value is two-sided `2[1-Φ(|z|)]` (matches paper Appendix +
+  Table 1); reference `ceat.py:261` is `norm.sf(z)` — one-sided, signed, no abs
+  — an apparent bug in the reference script. BiasScope's choice is correct;
+  document it (`verify`).
+- **Minor:** per-stimulus SHA-seeded RNG (extension, statistically equivalent);
+  one degenerate sample aborts the whole run (reference yields nan); `|A|=|B|`
+  not enforced though the paper requires it; `CEAT().run()` has zero test
+  coverage.
+
+**Verdict: FAITHFUL WITH DOCUMENTED EXTENSIONS for `evaluate()`** (core CES +
+meta-analysis are an exact reproduction of the reference). `run()` carries M1+M2;
+M3 + M4 undocumented. CWE-extraction pipeline not implemented (disclosed).
+
+No REVIEW_LATER IDs created; RL-021 should be closed as stale.
+
+---
+
+## 2026-09-15 · CEAT `run()` fix (Major findings M1/M2 from the CEAT audit)
+
+Fixed the two Major, code-level findings from the 2026-09-09 CEAT audit above;
+left the two `verify`-tagged reference-script divergences (sampling scheme,
+p-value formula) documented rather than changed, per that audit's own
+recommendation.
+
+**Test-first:** added `TestCeatRun` to `tests/test_embeddings/test_ceat.py`
+(6 tests) proving, before the fix: `run(seed=)` doesn't reach `random_seed`
+(non-reproducible), `ci_method` is `"hedges_olkin"` on the wrong basis, and
+`n` is `|X|+|Y|` not `n_samples`. 5 of 6 failed pre-fix as expected.
+
+**Fix:**
+- `CEAT.run()` — new override threading/recording `random_seed` (mirrors
+  `WEAT.run`/`SEAT.run`).
+- `CEAT._interval()` — new override returning
+  `(CES - Z_95*SE, CES + Z_95*SE)`, `"random_effects"`, from
+  `details["standard_error"]` (stashed via a new `_call_evaluate` override),
+  falling back to the base behaviour only if `standard_error` is absent.
+- `CEAT._count_items()` — new override: `n = n_samples` when present.
+- `bias_scope.result.make_protocol` / `PROTOCOL_KEYS` — added a `random_seed`
+  field (distinct from `permutation_seed`, which is WEAT/SEAT's permutation-test
+  seed) so `CEAT.run`'s `protocol_kwargs["random_seed"]` has somewhere to go.
+
+**Docs/metadata brought in sync with the code** (M4 from the audit):
+`docs/fidelity/ceat.md` rewritten against the current implementation (correct
+`V_i` formula, correct `n_samples=10_000` default, correct function names,
+the two `verify` divergences from the reference script, the `run()` fix).
+`_metric_info.py` CEAT `deviation_note` populated (was empty). `sources/SOURCES.yaml`
+CEAT note rewritten. `REVIEW_LATER.md` RL-021 closed as stale (already resolved
+in code before this session); RL-084/RL-085 added for the two `verify` items.
+`DECISIONS.md` and `CHANGELOG.md` updated.
+
+**Verified:** `tests/test_embeddings/test_ceat.py` 20/20 passed after the fix.
+Broader regression (`test_embeddings/`, `test_metadata.py`, `test_run.py`,
+`test_framework.py`, `oracles/`, `golden/`, `properties/`, `test_examples/`,
+`test_multilingual.py`): 752 passed, 1 skipped (fairlearn), 1 xfailed
+(pre-existing FGB/PGB), 0 failed. `evaluate()`'s CES and p-value are untouched
+by this change — they already matched the reference implementation exactly.
+
+REVIEW_LATER: RL-021 closed; RL-084, RL-085 created (both `verify`).
+
+---
+
+## 2026-09-15 · SentenceBiasScore from-scratch audit + fix
+
+Audited SentenceBiasScore against Dolci, Azzalini & Tanelli 2023 (Data
+Science and Engineering, `biasscope papers/Sentencebiasscore.pdf`) — full §3
+"Gender Bias Estimation" and §6. **Provenance correction:** the paper was
+believed paywalled with no preprint (RL-029) and the class carried
+`fidelity: unaudited`; it is actually Springer open access (CC-BY-4.0) and
+the PDF was already in the papers folder. Read in full this session.
+
+**Audit found (verdict at the time: PARTIAL IMPLEMENTATION):**
+- **Critical:** `SentenceBiasScore().run()` raised `BiasScopeError`
+  unconditionally on every input — `evaluate(..., return_details=True)`'s
+  dict keys matched none of `_split_result`'s recognised headline-score names.
+- **Major:** the paper's actual methodology (PCA gender direction, Sec 3.2;
+  max-pooling word importance, Sec 3.4; 6562-word gender lexicon, Sec 3.3)
+  was not implemented anywhere — only the trivial final weighted sum
+  (Eq. 1-3) was, which itself was verified faithful against the paper's own
+  Table 2 worked example ("She likes the new pink dress": female_bias
+  0.07550, male_bias -0.01858, matching to the paper's own rounding).
+- **Major:** wrong citation (author initials, fabricated title) in the class
+  docstring and docs/api page.
+- **Major:** `sources/SOURCES.yaml`'s reading record cited section numbers
+  ("2.3, 2.3.1-2.3.3") that don't exist in the actual paper (real structure:
+  §3.1-3.4); `local_pdf` was empty despite the PDF being present locally.
+
+### Fix applied (same session)
+
+- `SentenceBiasScore.evaluate`'s dict gains `bias_score` (= `absolute_bias`,
+  the paper's Eq. 3), `breakdown` (`female_bias`/`male_bias`), and integer
+  `n` — `run()` now works. `MetricInfo` updated: `direction=
+  "higher_more_biased"`, `value_range=(0, inf)`, `fidelity="adaptation"`
+  (was `"faithful"`, which overstated the remaining lexicon gap).
+- New `derive_gender_direction()` (PCA of gender word-pair difference
+  vectors) and `derive_word_importance()` (max-pooling selection counts)
+  implement Sec. 3.2 and 3.4. `derive_gender_direction` uses **uncentred**
+  SVD after a first centred-PCA attempt failed its own known-answer test
+  (centring removes the shared signal being sought — verified numerically,
+  documented as REVIEW_LATER RL-086, tag `decide`, no reference code exists
+  to settle it definitively). `derive_word_importance` verified against the
+  paper's own Fig. 3 ratio (saxophone: 1106/4096 ≈ 27%).
+- New `build_gender_words_mask()` implements Sec. 3.3's case-insensitive
+  matching, but **the 6562-word lexicon is deliberately not vendored or
+  reconstructed** — it is unpublished and "selected starting from" two
+  source lists implies curation this session cannot safely guess (PLAN.md
+  Section 1: never invent an unverified resource). Logged as REVIEW_LATER
+  RL-087, tag `blocked`, with a concrete path to closing it.
+- Citation fixed (Dolci, T.; Azzalini, F.; Tanelli, M.; correct title) in the
+  class docstring and `docs/api/embeddings/sentence_bias_score.md`.
+- `docs/fidelity/sentence_bias_score.md` rewritten in full against the
+  now-read paper and the fixed code. `sources/SOURCES.yaml` entry corrected
+  (real section numbers, `local_pdf` path, `paper_status` removed now that
+  it reads normally). `REVIEW_LATER.md` RL-029 closed; RL-086/RL-087 opened.
+  `PLAN.md`'s three stale "SentenceBiasScore paywalled" references corrected
+  (Phase 0 retrieval summary, Phase 1 audit-count line, Appendix E table).
+  Example rewritten to exercise all three new helpers plus `run()`.
+
+**Verified:** `tests/test_embeddings/test_sentence_bias_score.py` 37/37 pass
+(16 new: `TestSentenceBiasScoreRun`, `TestDeriveGenderDirection`,
+`TestDeriveWordImportance`, `TestBuildGenderWordsMask`). `test_metadata.py`
+511 passed after the `MetricInfo` change. `scripts/sources/check_manifest.py`
+passes (55/55 read, matching schema). Updated example runs end to end.
+
+REVIEW_LATER: RL-029 closed; RL-086 (`decide`), RL-087 (`blocked`) created.
+
+---
+
+## 2026-09-15 · CrowS-Pairs from-scratch audit (no code changed)
+
+Audited CrowS-Pairs against Nangia, Vania, Bhalerao & Bowman 2020 (EMNLP,
+`biasscope papers/crowspair.pdf`: §3 "Measuring Bias in MLMs", Eq. 1, Table 2,
+Appendix A/B/C) and the authors' reference `nyu-mll/crows-pairs@8aaac11c`
+(`metric.py`) — **cloned and read this session**.
+
+**Traced:** `crows_pairs.py` (`evaluate`, `_evaluate_wordpiece`, `_compute_pll`),
+`_helpers.py` (`_categorize_tokens`, `_score_wordpiece_pair_crows`,
+`_filter_special_aligned_positions`), `scorers.py::WordPieceBertScorer`
+(`encode`, `align_unmodified`, `pll_over_positions`), `base.py::BiasMetric._interval`,
+`_metric_info.py`, `tests/test_probability_based/test_crows_pairs.py`,
+`scripts/experiments/emnlp_reproduction.py::_crows_pair_from_row`, docs, example.
+
+**Verified faithful (default `mode="wordpiece"`), against the actual reference
+script:** per-position masking (`pll_over_positions` masks exactly one position
+per model call, from the *original* `input_ids`, matching `get_log_prob_unigram`
++ the "skip CLS/SEP, mask one at a time" loop in `mask_unigram`); SUM (not
+mean) over masked positions; strict `>` comparison; unmodified-token alignment
+via `difflib.SequenceMatcher` `equal` opcodes (matches `get_span` exactly);
+tie handling (0 toward the stereotype-preference count either way, but the
+tied item still counts toward `n` — mathematically identical to the reference's
+`neutral`/`N` bookkeeping, verified by hand-tracing both). `MetricInfo`
+(`neutral_value=50`, `range=(0,100)`, `direction="higher_more_biased"`)
+matches the paper exactly.
+
+**Findings:**
+- **Major:** `run(..., ci="wald")` silently returns `ci=None, ci_method="none"`
+  for CrowS-Pairs (and any metric without `details["per_item"]"`) — confirmed
+  by execution. `base.py::BiasMetric._interval`'s early return
+  (`if ci == "none" or per_item is None or not per_item: return None,"none",None`)
+  fires before the `ci == "wald"` branch is ever reached, even though
+  `wald_ci(score, n)` needs no per-item data. CrowS-Pairs' score is exactly a
+  Bernoulli proportion (% preferring the stereotyping sentence out of N
+  pairs) — the textbook case for a Wald interval — but it's unreachable.
+- **Minor:** tie threshold differs from the reference *script*. BiasScope
+  compares raw floats (`pll_s > pll_a`); `metric.py` rounds each sentence's
+  PLL to 3 decimals *before* comparing for equality. Constructed and executed
+  a counterexample: PLL sums `-1.00000` vs `-1.00049` (round to the same
+  `-1.000`, so the reference calls it a tie, contributing 0) but
+  `-1.00000 > -1.00049` is strictly true, so BiasScope scores the pair as a
+  100% stereotype preference. Undocumented in the existing fidelity note;
+  low real-world materiality (exact-to-3dp ties are rare with continuous
+  multi-token PLL sums) but a genuine, demonstrated discrepancy.
+- **Minor (already disclosed, independently reconfirmed):** `autojunk=False`
+  vs the reference's default `True` in `SequenceMatcher` — provably inert for
+  CrowS-Pairs sentences (autojunk only activates above 200 elements).
+  `mode="whitespace"`'s naive positional token categorization breaks for
+  multi-word group substitutions (e.g. "White" ↔ "African American") — not
+  the paper's protocol, already documented as such and not the default.
+- **Minor:** no `details["per_item"]` (per-pair 0/1 indicators), so `run()`'s
+  default bootstrap CI is also unavailable, and no built-in stereo/antistereo/
+  bias-category subset reporting (Table 2's breakdowns) — caller must filter
+  and call `evaluate()` per subset themselves. Not a fidelity violation (the
+  paper's core metric is the aggregate percentage), but a completeness gap
+  relative to Table 2's reported breakdowns.
+
+**Verdict: FAITHFUL** for `mode="wordpiece"` (the default) — the scoring
+algorithm is verified against both the paper's equations and the actual
+reference script line-by-line, including tie bookkeeping. The Wald-CI bug is
+a framework-level (`base.py`) issue surfaced by this metric, not a scoring
+deviation. No REVIEW_LATER IDs created yet (audit only); recommend one for
+the wald-CI base.py bug (affects other metrics too) and one `verify`/`decide`
+for the tie-threshold rounding choice.
+
+---
+
+## 2026-09-15 · LPBS from-scratch audit (no code changed)
+
+Audited LPBS against Kurita, Vyas, Pareek, Black & Tsvetkov 2019 (GeBNLP@ACL,
+`biasscope papers/LPBS.pdf`: §2 "Quantifying Bias in BERT", the four-step
+procedure) and the authors' reference
+`keitakurita/contextual_embedding_bias_measure@18044f87` — **cloned and read
+this session** (`lib/bias_calculator.py`, `lib/bert_utils.py`).
+
+**Traced:** `lpbs.py` (`evaluate`, `_probabilities`, `_total`, `_log_ratio`,
+`_validate_inputs`), `pairwise_likelihood_preference.py` (the v0.1.1 statistic,
+correctly isolated under its own name/fidelity="original"), `_metric_info.py`,
+`tests/test_probability_based/test_lpbs_faithful.py` (26 tests), docs, example.
+
+**Verified faithful:** the core formula
+`LPBS(t1,t2,a) = [log p_tgt(t1) − log p_prior(t1)] − [log p_tgt(t2) − log p_prior(t2)]`
+matches the paper's §2 exactly (hand-verified both algebraically and against
+the class's own worked example, `2·log 2`). Multi-word target-set handling
+(sum probabilities within a set, then log) matches the reference code's
+`bias_calculator.py:51-65`. Aggregation (`bias_score` = mean over all
+(template × attribute) pairs; `breakdown[attribute]` = mean over templates for
+that attribute) matches §3.2 ("mean log probability bias score for each
+attribute") exactly, since the template×attribute grid is a full cross
+product. `run()` works (`per_item` populated, `bias_score` key present).
+`MetricInfo` (`neutral_value=0`, `direction="signed"`, unbounded) matches.
+
+**The one substantive discrepancy (already flagged, `verify`, RL-012) — this
+session upgraded it from "static reading" to executed confirmation:** cloned
+the reference repo and ran its literal `get_index` index-arithmetic (isolated
+from the model/tokenizer dependencies, which don't install on a modern
+Python) against a controlled token list matching its own docstring example
+("GGG is XXX", `gender_comes_first=True`, the paper's primary template
+orientation). Confirmed: the reference's prior-probability read lands on
+real-input position 2, which is the literal word "is" — not a mask token at
+all — because its `last=True` branch omits the `+1` CLS offset that the
+`not last` branch has. BiasScope's `LPBS` does not replicate this; it follows
+the paper's §2 step 3 (prior read at the TARGET slot), deriving the mask
+ordinal from the template text itself (`target_ordinal = 0 if template.index(
+TARGET_SLOT) < template.index(ATTRIBUTE_SLOT) else 1`) rather than a
+caller-supplied boolean flag — more robust than the reference's approach, not
+just different from it. This remains the right call; RL-012 stays open only
+pending a Tier-2 run against the (currently uninstallable) full reference
+model pipeline, not because the index-arithmetic bug itself is in doubt.
+
+**Verdict: FAITHFUL.** No new findings beyond what the existing
+`docs/fidelity/lpbs.md` already recorded; independent re-derivation confirms
+it rather than superseding it. No REVIEW_LATER IDs created (RL-012 already
+covers the one open item; its "static reading" language could be updated to
+"index-arithmetic confirmed by execution; full model pipeline still blocked"
+but that's a documentation nicety, not a new finding).
+
+## 2026-09-15 · AUL/AULA from-scratch audit + fixes
+
+Read Kaneko & Bollegala 2022 in full; cloned the reference
+(`kanekomasahiro/evaluate_bias_in_mlm@6b10239974a7`, freshly, not trusted from
+`docs/fidelity/aul_aula.md`'s existing quote — which turned out to be
+authentic). Traced `aul.py`, `aula.py`, `scorers.py`
+(`WordPieceBertScorer`, `BertPLLScorer`), `_helpers.py`, `base.py::run`, both
+test files, both examples, `_metric_info.py`.
+
+**Verified against the reference, on a real `bert-base-uncased` forward pass:**
+`WordPieceBertScorer.aul_aula()` (the canonical `mode="wordpiece"` path) is
+bit-identical (diff = 0.0) to a fresh reimplementation of the reference's
+`calculate_aul`, for both AUL and AULA. Adversarial counterexamples confirmed
+this is distinguishable from two plausible bugs: a masked-PLL average
+(−4.27 vs. the correct unmasked −2.42) and a last-layer/self-attention-
+diagonal AULA variant (−0.1226 vs. the correct all-layers/heads-received
+−0.1394).
+
+**Fixed (see `DECISIONS.md` and `CHANGELOG.md` for detail):**
+- `run()` silently returned no confidence interval for AUL/AULA for any
+  `ci=`, because `evaluate()` never exposed `per_item`. Fixed by adding it
+  (scaled 0/100) to both modes' `return_details=True` dict in both classes.
+  Confirmed by execution: `run(ci="bootstrap")` now returns a real interval.
+- A whitespace-mode footgun: `BertPLLScorer`/`WordPieceBertScorer` — both
+  advertised in their own docstrings as usable for AUL/AULA — always mask
+  the scored position, so plugging either into AUL/AULA's whitespace mode
+  silently computed masked PLL, not AUL/AULA, with no error. Added
+  `_reject_masked_scorer` (raises `ValueError`) and corrected both
+  docstrings.
+- Three inaccurate comments/docstrings (no scoring change): `AUL.evaluate`'s
+  worked example claimed a 0.5-scale output where the real scale is 0-100;
+  `AULA`'s whitespace docstring and `_compute_aula`'s internal comment both
+  mischaracterized how the attention weighting works (claimed normalization
+  to 1 that the code doesn't do; claimed a self-attention-diagonal reading
+  that isn't what the paper or reference use).
+- `tests/test_probability_based/test_aula.py::test_attention_normalization`
+  was non-discriminating (its fixed inputs gave the same result whether or
+  not weights were normalized); rewritten with per-position probabilities so
+  it actually distinguishes the two, and renamed
+  `test_attention_weights_are_not_renormalized`.
+
+**Tests.** Added `test_return_details_exposes_per_item`,
+`test_run_produces_bootstrap_ci`, `test_wordpiece_mode_also_exposes_per_item`,
+`test_whitespace_rejects_bert_pll_scorer_instance`,
+`test_whitespace_rejects_wordpiece_scorer_instance` to both `test_aul.py` and
+`test_aula.py` (10 new tests total); rewrote `test_attention_normalization`.
+Full suite: `1845 passed, 4 skipped, 5 deselected, 1 xfailed` (up from 1835
+passed before this session's AUL/AULA changes — 10 new tests, no regressions).
+`ruff check src tests` clean.
+
+**Verdict unchanged: FAITHFUL.** The core paper-defined mathematics (eq. 4-6)
+were already exact in the canonical path; the fixes are to the `run()`/CI
+framework integration and a non-canonical mode's misuse-guarding, consistent
+with how CrowS-Pairs' analogous `run()`/base.py finding was handled (verdict
+not downgraded for a framework-layer gap, only for the metric's own scoring).
+No REVIEW_LATER IDs created — these were concrete, mechanical bugs with an
+unambiguous fix, not judgment calls.
+
+## 2026-09-17 · Fixed the CrowS-Pairs and LPBS audit findings
+
+Fixed the two outstanding findings from the CrowS-Pairs audit (`docs/fidelity/
+crows_pairs.md`, `DECISIONS.md`) left unapplied at the time since no fix was
+requested:
+
+- **`base.py::BiasMetric._interval`**: reordered so `ci == "wald"` is checked
+  before the `per_item is None` short-circuit (wald needs `score`/`n`, not
+  per-item data), and made it compute a real Wald interval whenever
+  `MetricInfo.value_range` is finite — normalizing the score to `[0, 1]` for
+  `wald_ci` and rescaling the result back to the metric's native range. This
+  is shared code, so it benefits every metric on a bounded scale, not just
+  CrowS-Pairs; confirmed by execution that `LPBS().run(ci="wald")` (unbounded
+  `value_range`) is unaffected and still correctly returns `ci=None`.
+- **`crows_pairs.py`**: `evaluate()`/`_evaluate_wordpiece` (both modes) now
+  expose `"per_item"` (the per-pair indicators, scaled to 0/100), the same
+  gap already fixed for AUL/AULA two days prior — so `run()`'s default
+  `ci="bootstrap"` now returns a real interval too, not just `ci="wald"`.
+  Also matched Nangia 2020's reference `metric.py:225-226`, which rounds each
+  side to 3 decimals before comparing for a win/tie; BiasScope was comparing
+  raw floats, so a sub-0.001 difference could count as a stereotype "win"
+  where the reference calls it neutral. Both scoring modes now round first.
+
+**LPBS: nothing to fix.** Its from-scratch audit's one open item (RL-012) is
+about the *reference* implementation's own index-arithmetic bug, which
+BiasScope's `LPBS` deliberately does **not** replicate (it derives the mask
+ordinal from the template text itself, which is more robust than the
+reference's caller-supplied flag) — there is no BiasScope-side defect to
+correct. Re-confirmed `LPBS` already exposes `per_item` (`lpbs.py:175`) and
+its `run()` CI already worked before and after today's `base.py` change.
+
+**Tests.** Added 6 tests to `test_crows_pairs.py`: `per_item` exposure (both
+modes), `run(ci="bootstrap")` and `run(ci="wald")` both producing real
+intervals, and two tie-rounding cases (a sub-0.001 difference counted as a
+tie; a real difference still counted as a win). Full suite:
+`1851 passed, 4 skipped, 5 deselected, 1 xfailed` (up from 1845 before this
+session — 6 new tests, no regressions anywhere, including WEAT/SEAT/CEAT/CBS/
+LPBS which also flow through the changed `base.py::_interval`).
+
+**Verdicts unchanged: both FAITHFUL.** These were `run()`/CI-machinery and a
+sub-0.001 rounding edge case, not the CPS statistic itself.
+
+## 2026-09-17 · CAT/ICAT from-scratch audit + fix
+
+Read Nadeem, Bethke & Reddy 2021 (StereoSet) in full; cloned the reference
+(`moinnadeem/StereoSet@ead7d086a64a`, freshly, SHA confirmed to match the
+existing `_metric_info.py`/`docs/fidelity/stereoset_family.md` citation) and
+independently re-read `code/evaluation.py` (aggregation) and
+`code/eval_discriminative_models.py`/`models.py` (the actual masked-LM
+scoring convention). Traced `cat.py`, `icat.py`, `scorers.py`, `base.py`,
+all three test files, the fidelity doc, `_metric_info.py`.
+
+**Confirmed faithful, independently re-derived:** the two-comparisons-per-
+instance `2×total` denominator for `lms`, per-target-term averaging before
+the dataset-level mean, and `icat`'s macro (not micro) formula all match the
+reference line-for-line — this was already correctly implemented and well
+tested (`test_cat_stereoset.py` already pinned the exact v0.1.1 regressions
+this fixed, independently verified fresh this session).
+
+**One finding, fixed:** same `run()`/CI gap as the AUL/AULA/CrowS-Pairs
+fixes two days prior — neither `CAT` nor `ICAT` exposed `per_item`, so
+`run()`'s default `ci="bootstrap"` silently returned `None` for both.
+Fixed with two different mechanisms, because `ss` (what CAT reports) and
+`icat` (what ICAT reports) have different statistical structure:
+
+- `CAT.evaluate()` now exposes `"per_item": term_ss` — bootstrapping the
+  per-target-term `ss` values is the exact, standard bootstrap for `ss`
+  (which literally is their mean).
+- `ICAT` cannot reuse that: `icat` is a *nonlinear* function of two paired
+  per-term series (`lms`, `ss`), so no single flat list's mean equals
+  `icat`, and reusing CAT's `ss`-only `per_item` would target the wrong
+  statistic and risk failing `run()`'s CI-bracket guard. `ICAT` instead
+  overrides `_interval` to resample target terms with their `(lms, ss)`
+  pairs kept together and recompute `icat` via the same `combine` formula
+  per resample — a proper paired bootstrap.
+
+**Tests.** Added `test_return_details_exposes_per_item_as_per_term_ss` and
+`test_run_produces_bootstrap_ci` to `test_cat.py`; added
+`test_evaluate_does_not_leak_cats_per_item`,
+`test_run_produces_bootstrap_ci_for_icat_itself`, and
+`test_bootstrap_ci_degenerate_with_single_target_term` to `test_icat.py` (5
+new tests). Also verified manually (not just via the test suite) with a
+20-target-term synthetic dataset with real cross-term variance: both `CAT`
+and `ICAT` now return non-degenerate intervals that correctly bracket their
+scores. Full suite: `1856 passed, 4 skipped, 5 deselected, 1 xfailed` (up
+from 1851 — 5 new tests, no regressions).
+
+**Verdict unchanged: FAITHFUL.** The core `lms`/`ss`/`icat` mathematics were
+already exact; the fix is entirely to `run()`'s CI machinery, the same
+category of gap already fixed for three other metrics and not counted
+against their verdicts either.
+
+## 2026-09-17 · LMB from-scratch audit + fix
+
+Read Barikeri, Lauscher, Vulić & Glavaš 2021 (RedditBias) in full; cloned
+the reference (`umanlp/RedditBias@61f9ae9458e2`, freshly — SHA confirmed to
+match the existing `_metric_info.py` citation) and independently read
+`Evaluation/measure_bias.py` (outlier removal, the paired t-test) and
+`utils/helper_functions.py::perplexity_score` (the actual perplexity
+computation: `model(input_ids, labels=input_ids)` on an
+`AutoModelForCausalLM`, i.e. standard causal perplexity on **DialoGPT**,
+not a masked LM). Traced `lmb.py` in full, including the hand-rolled
+t-distribution/incomplete-beta implementation (no scipy dependency).
+
+**Four findings, all fixed:**
+
+1. **The default outlier rule was dead code.** `outlier_strategy="sigma"`
+   computed `[mean-3·std, mean+3·std]` and never applied it — behaviorally
+   identical to `"none"`, and no test caught it (only `"percentile"` and
+   `"none"` were tested). Confirmed by execution with a 5-pair sample
+   containing one extreme outlier: `sigma` removed nothing where
+   `percentile` correctly removed one pair. Fixed by applying the mask.
+2. **The p-value was wrong by up to 10x for any sample with `df > 30`.**
+   `_normal_cdf` computed `0.5·(1+erf(x))` instead of the standard normal
+   CDF `0.5·(1+erf(x/√2))` — confirmed by comparing to `scipy.stats.t.cdf`:
+   at `t=1.96, df=254` (REDDITBIAS's actual Race test-set scale), the bug
+   reported `p=0.0056` ("significant") where the true value is `p=0.051`
+   ("not significant") — a false-positive flip at exactly the α=0.05
+   boundary the test exists to adjudicate. Fixed by scaling the erf
+   argument by `1/√2`.
+3. **`run()`'s headline was Cohen's *d*, not the paper's t-value.**
+   `evaluate()`'s dict had no `bias_score` key, so `base.py`'s fallback
+   search matched `"effect_size"` first — a third, previously undocumented
+   divergence beyond the already-tracked `mean_diff`-vs-`t-value` gap
+   (RL-026, `evaluate(return_details=False)`'s own scalar, deliberately
+   left as-is). Fixed by adding `"bias_score": t_stat`.
+4. **The documented/default scoring contract was bidirectional; the
+   paper's model is causal.** The docstring said "Same as AUL's predict
+   function" (full unmasked context) and the built-in scorer requires a
+   masked-LM tokenizer, so `LMB(model_name="microsoft/DialoGPT-small")` —
+   the paper's own model — cannot construct; the shipped example used
+   `bert-base-uncased` (masked), reinforcing the wrong contract. Fixed the
+   docstring and rewrote the example to build a genuine causal scorer
+   around DialoGPT-small, matching the reference's computation via one
+   forward pass per sentence.
+
+**Tests.** Added 6 tests to `test_lmb.py`: sigma outlier removal actually
+removing an injected outlier (and leaving clean data untouched), p-value
+accuracy against precomputed scipy reference values at the `df>30`
+boundary and at REDDITBIAS scale, and `run()` reporting `t_stat` rather
+than `effect_size`. Full suite: `1862 passed, 4 skipped, 5 deselected,
+1 xfailed` (up from 1856 — 6 new tests, no regressions).
+
+**Verdict unchanged: `adaptation`.** The formula skeleton (perplexity,
+paired t-test, sign convention) was already right; the four fixes are all
+to correctness-critical machinery around it (the cited outlier rule, the
+significance test's numerical accuracy at realistic scale, and the
+framework's headline value) plus a documentation/default-behavior gap, not
+a change to the core statistic. The one remaining, deliberate deviation is
+RL-026 (`evaluate(return_details=False)` still returns `mean_diff`, not
+the t-value), unchanged by this session.
+
+## 2026-09-18 · CBS from-scratch audit + fix
+
+Read Ahn & Oh 2021 (*Mitigating Language-Dependent Ethnic Bias in BERT*) in
+full; cloned the reference (`jaimeenahn/ethnic_bias@a115eb7c3af7`, freshly —
+SHA confirmed to match the existing `_metric_info.py` citation) and
+independently read `score.py` (the actual CB-score computation, including
+its whole-word-masking and variance code) in full. Traced `cbs.py` line by
+line — there was no pre-existing test file to cross-check against (a prior
+`test_cbs.py` had been removed for containing zero real CBS assertions,
+RL-017).
+
+**Confirmed faithful, independently re-derived:** the core single-token
+formula (`log P' = log p_tgt - log p_prior`, the `(1/|T|)(1/|A|)ΣΣVar`
+aggregation, and the target-mask-ordinal derivation for the prior sentence)
+match the paper's equation and the reference's arithmetic exactly.
+
+**Five findings, all fixed:**
+
+1. **`run()` was completely broken — crashed on every single call.**
+   `evaluate()`'s dict had no key `base.py::_split_result` recognizes
+   (`cbs` isn't `bias_score`/`score`/`value`/`effect_size`). Fixed by
+   adding `"bias_score"` and `"per_item"`.
+2. **The shipped example crashed immediately.** A stale method-override
+   signature in its offline demo subclass. Fixed.
+3. **Multi-token attributes broke structural parity between the target
+   and prior sentences.** The prior sentence always used exactly one mask
+   token for the attribute, regardless of its real subword count, though
+   the paper's whole-word-masking adaptation (confirmed via the
+   reference's `attribute_mask`) applies to the attribute too. Several of
+   the paper's own 70 attributes are multi-token under
+   `bert-base-uncased` ("C.E.O." → 6 pieces). Verified by execution: for
+   a 3-token attribute, using 1 mask vs. the correct 3 shifted
+   target-mask log-probabilities by up to 0.66 nats. Fixed by inserting
+   `attribute_num` mask tokens.
+4. **Multi-token target handling (opt-in) computed an unrelated
+   quantity.** It evaluated all of a target word's subword IDs as
+   candidates at one single mask slot rather than inserting one mask
+   token per subword. Fixed by grouping target words by subword count and
+   scoring each subword against its own mask position, one-to-one
+   (following the paper's text over the reference's apparent all-pairs
+   loop bug — recorded as `REVIEW_LATER` RL-088, the same judgment
+   already applied for LPBS's RL-012).
+5. **Variance convention didn't match the reference.** `np.var(ddof=0)`
+   (population variance) vs. the reference's `pandas.Series.var()`
+   (`ddof=1`, sample variance) — confirmed by reading `score.py` directly;
+   the previous fidelity note had guessed population variance was
+   defensible without checking. Fixed to `ddof=1`, falling back to `0.0`
+   (not NaN) for a single target.
+
+**Tests.** `tests/test_probability_based/test_cbs.py` created from
+scratch (16 tests, none existed before): the formula, `run()` no longer
+crashing plus its bootstrap CI, both whole-word-masking fixes (checked
+against independently hand-recomputed expected values, not just "doesn't
+crash"), the `ddof=1` variance convention, and input validation. Full
+suite: `1878 passed, 4 skipped, 5 deselected, 1 xfailed` (up from 1862 —
+16 new tests, no regressions).
+
+**Verdict changed: MATERIALLY DEVIATES → FAITHFUL.** The core math was
+already exact; every finding was in `run()`'s framework integration, a
+structural sentence-construction bug affecting realistic (multi-token)
+inputs, an opt-in feature that computed the wrong thing entirely, a
+constant scaling factor, and a broken example — all fixed and verified,
+none requiring a change to the CB score formula itself.
+
+## 2026-09-18 · DisCoMetric from-scratch audit + fix
+
+Read Webster et al. 2020 (*Measuring and Reducing Gendered Correlations in
+Pre-trained Models*) in full, including Appendix A's 14 templates. No
+reference implementation exists (the paper gives no code URL; confirmed
+consistent with `sources/SOURCES.yaml`'s `code_status: none_found`).
+
+**Confirmed faithful, independently re-verified:** re-checked
+`chi_square_2xk`/`chi_square_p_value` against `scipy.stats.chi2_contingency`
+fresh on 6 tables (bit-exact to displayed precision on the 5 valid cases;
+sensible handling of a degenerate all-zero-variance case scipy itself
+errors on) rather than trusting the existing doc's claim of prior
+validation. Re-derived the contingency-table construction, the
+Bonferroni-corrected significance test, and the per-template-averaged
+aggregation from the paper text and confirmed they match `disco.py`
+exactly. Confirmed `run()` correct by fresh execution
+(`score=2.0, n=1, ci=(2.0,2.0)`, matching an independent hand-computation).
+This is the best-verified metric audited this session — no defect found in
+the metric itself.
+
+**Two findings, both fixed, neither in the metric:**
+
+1. **The shipped example was still the pre-refactor API.**
+   `examples/probability_based/disco.py` called `metric.evaluate(template=...,
+   attr_a=..., attr_b=..., k=5)` against the current, paper-faithful
+   `DisCoMetric` — that signature belongs to `TopKFillDivergence` (the old
+   v0.1.1 statistic, intentionally split into its own class when
+   `DisCoMetric` was reimplemented). Confirmed by execution:
+   `TypeError: DisCoMetric.evaluate() got an unexpected keyword argument
+   'template'`. Rewritten to the current API; also fixed a substring bug
+   discovered while rewriting it (`"man" in person` is also true for `"the
+   woman5"`, since `"woman"` contains `"man"`) that would have silently
+   made the new example's own demonstration data uninformative.
+2. **Stale `validation/registry.yaml` notes.** All eight DisCo Tier-1 rows
+   said "Blocked until DisCoMetric is reimplemented ... computes a
+   different statistic" — true for v0.1.1, false since the reimplementation.
+   Corrected to name the actual remaining blocker (the reproduction run
+   itself, not an implementation gap).
+
+**Verdict unchanged: FAITHFUL.** Both fixes were to an example script and
+bookkeeping notes; the metric's own formula, statistics, and `run()`
+integration were already correct and are now independently re-confirmed,
+not newly fixed.
+
+## 2026-09-18 · ToxicityFraction from-scratch audit + fix
+
+Read Gehman, Gururangan, Sap, Choi & Smith 2020 (*RealToxicityPrompts*,
+Findings of EMNLP 2020) fresh, §3.2 in particular ("we characterize toxic
+generations with **two** metrics"), and re-read `docs/fidelity/toxicity_family.md`
+only after forming an independent view. Traced `ToxicityFraction`,
+`ToxicityProbability`, and `EMT` (all three share this page and this paper)
+through to `evaluate()` and `run()`.
+
+**Provenance finding: already correct, not a new defect.** The paper defines
+exactly two metrics — expected maximum toxicity (`EMT`) and the empirical
+probability of at least one toxic span (`ToxicityProbability`). `ToxicityFraction`
+(mean fraction of the K generations that are toxic) is not in the paper at
+all — confirmed by full-text search, "fraction" never occurs and "proportion"
+only refers to training corpora. This was already correctly caught by a prior
+audit: `fidelity="original"`, `reference` cites Gehman as inspiration only,
+`docs/fidelity/toxicity_family.md` already documents it plainly. No new
+finding here — re-verified, not re-flagged.
+
+**New finding: `run()` unconditionally broken, for all three classes.**
+`evaluate(return_details=True)` for `EMT`, `ToxicityProbability`, and
+`ToxicityFraction` each returned a dict keyed only by its own
+metric-specific name (`emt_score` / `toxicity_probability` /
+`toxicity_fraction`) — none of which `base.py::BiasMetric._split_result`
+recognizes (`bias_score`/`score`/`value`/`effect_size`). Confirmed by direct
+execution: `.run(..., ci="none")` raised `BiasScopeError` on every call, for
+all three, before the fix. `evaluate()` itself was correct and already
+tested for all three — this was purely a framework-integration gap shared
+by all three classes, identical to the same defect class found earlier in
+this session in `CBSMetric`.
+
+**Fix.** Added `"bias_score"` and `"per_item"` to all three `evaluate()`
+dicts: `per_item` is the per-template (EMT) or per-prompt
+(ToxicityProbability/ToxicityFraction) list each headline score is already
+the mean of, so `run()`'s default bootstrap CI is the metric's own standard
+percentile bootstrap — no new judgment call. Verified live with mocked
+Perspective clients: `run()` now returns correct `score`, `n`, and a
+bracketing bootstrap `ci` for all three.
+
+**Tests.** 8 new tests added across
+`tests/test_generated_text_based/test_emt.py`,
+`test_toxicity_probability.py`, `test_toxicity_fraction.py`
+(`test_return_details_exposes_bias_score_and_per_item`,
+`test_run_no_longer_crashes`, `test_run_bootstrap_produces_a_ci` per class,
+plus EMT's existing `test_emt_details` extended). Full suite: **1886
+passed** (up from 1878, exactly +8, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`,
+`docs/fidelity/toxicity_family.md`, and `_metric_info.py`'s `deviation_note`
+for all three classes.
+
+**Verdict unchanged: FAITHFUL (EMT, ToxicityProbability) / adaptation, kept
+as `original` (ToxicityFraction).** The fix was a framework-integration
+issue affecting `run()` only; no metric's formula changed.
+
+## 2026-09-18 · ToxicityProbability from-scratch audit
+
+Read Gehman et al. 2020 §2.1 and §4.2 fresh (both state "TOXICITY ≥ 0.5",
+inclusive) and traced `toxicity_probability.py` end to end. Independently
+verified against the reference by cloning `allenai/real-toxicity-prompts` @
+`dd44ab77ed8b` — the repo ships no metric-computation module, so the actual
+code that produced the paper's Table 2 numbers had to be found in
+`notebooks/realtoxicityprompts_results.ipynb`.
+
+**Formula, aggregation, validation, `value_range`, `direction`: all
+confirmed correct, no defect.** `_has_toxic` implements
+`TP = (1/N)·Σ max(I(score(t) ≥ threshold))` exactly.
+
+**One finding, no code change, logged for traceability.** The reference
+notebook's actual cell uses a **strict** `>` (`len([y for y in x if y >
+0.5])`), contradicting the paper's own text, which states `≥` twice.
+BiasScope already used `>=`, matching the paper — correct under the same
+precedent already applied twice this session (LPBS RL-012, CBS RL-088):
+when paper text and an unexplained reference discrepancy disagree, follow
+the paper. Logged as `REVIEW_LATER` RL-089 and pinned by a new test,
+`test_threshold_boundary_is_inclusive`, since nothing previously exercised
+the exact-equality boundary.
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md`,
+`docs/fidelity/toxicity_family.md`, and `_metric_info.py`'s
+`deviation_note`. Full suite: 1887 passed (+1 from 1886).
+
+**Verdict unchanged: FAITHFUL.**
+
+## 2026-09-18 · EMT from-scratch audit + fix (resolves RL-022)
+
+Read Gehman et al. 2020 §3.2/§4.2 fresh and traced `emt.py` end to end.
+Independently re-verified against `allenai/real-toxicity-prompts` @
+`dd44ab77ed8b`'s `notebooks/realtoxicityprompts_results.ipynb` (the actual
+code that produced Table 2, since the repo ships no metric module).
+
+**Confirmed correct, no new defect.** `EMT = (1/|T|)·Σ_t max_k s(t,k)`
+matches the paper and the reference notebook's `max_toxicities.mean()`
+exactly. Validation, `run()` (already fixed earlier this session),
+`value_range`, `direction`, `neutral_value` all correct.
+
+**One pre-existing gap, now fixed: RL-022.** Logged in an earlier session —
+the paper reports EMT "with a mean **and standard deviation**"; `evaluate()`
+returned only the mean. This audit's reference check confirmed the exact
+convention to match: the notebook itself computes
+`std_max = max_toxicities.std()` (pandas default `ddof=1`) right alongside
+`avg_max`. Fixed by adding `"std"` to `evaluate(return_details=True)`'s
+dict (`ddof=1`; `0.0` for a single template to avoid a divide-by-zero
+NaN), which `run()` now surfaces via `result.details["std"]`, the same
+mechanism WEAT uses for its permutation `p_value`.
+
+**Tests.** 3 new tests in `tests/test_generated_text_based/test_emt.py`
+(`test_std_matches_reference_notebook_convention`,
+`test_std_is_zero_for_a_single_template`, `test_run_exposes_std_in_details`),
+plus `test_emt_details` extended with a `std` assertion. Full suite:
+**1890 passed** (up from 1887, +3, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (RL-022
+marked resolved), `docs/fidelity/toxicity_family.md`, and
+`_metric_info.py`'s `deviation_note`.
+
+**Verdict unchanged: FAITHFUL.** The fix is additive (a new detail key);
+`bias_score` and every existing key are untouched.
+
+## 2026-09-18 · RegardScore from-scratch audit + fix (RL-090)
+
+Read Sheng et al. 2019 fresh and traced `regard_score.py` end to end.
+Independently checked against the reference by cloning
+`ewsheng/nlg-bias@7f8d08ea4f33`.
+
+**Confirmed correct, no new defect in the distributional design.** The
+paper never defines a single scalar — it's a comparison of per-demographic
+`[neg, neu, pos]` regard-label distributions (Figure 2). RegardScore's
+16-key output (per-bucket fractions and A−B differences across 4 buckets:
+`negative`/`neutral`/`positive`/`other`) is a faithful, reasonable
+operationalization of that, already correctly labeled `adaptation` for the
+`sasha/regardv3` vs. `regard1`-ensemble checkpoint substitution (pre-existing,
+re-confirmed, not revisited).
+
+**New finding: `run()` was unconditionally broken, same root cause found
+repeatedly this session.** None of the 16 keys matched anything
+`BiasMetric._split_result` recognizes, and no `n`-like key existed either —
+confirmed by direct execution raising `BiasScopeError` for every `ci=`
+setting. Unlike the prior four fixes (CBS, EMT, ToxicityProbability,
+ToxicityFraction), there was no obvious headline number to add: cloning the
+reference confirmed it *also* never computes one, so any choice is a
+BiasScope invention. Fixed by adding `bias_score = (positive_difference -
+negative_difference) / 2` — bounded in the metric's declared `value_range`,
+antisymmetric under group swap — and `n` (total texts scored). No natural
+`per_item` exists, so `run()`'s default bootstrap CI correctly degrades to
+`ci="none"`, matching WEAT/SEAT/CEAT/CBS's documented behavior. Logged as
+`REVIEW_LATER` RL-090.
+
+**Secondary finding, fixed: a stale fidelity-doc claim.**
+`docs/fidelity/regard_score.md`'s Tier 3 section claimed swap antisymmetry
+"is tested" when no such test existed and `RegardScore` isn't in
+`validation/registry.yaml`. Corrected the claim and added the test.
+
+**Tests.** 6 new tests in `tests/test_generated_text_based/test_regard_score.py`
+(`test_bias_score_is_net_regard_gap`, `test_bias_score_swap_antisymmetry`,
+`test_bias_score_is_zero_for_identical_groups`,
+`test_n_counts_all_flattened_texts`, `test_run_no_longer_crashes`,
+`test_run_has_no_bootstrap_ci_without_per_item`), plus
+`test_all_values_are_floats` updated for `n`'s `int` type. Full suite:
+**1896 passed** (up from 1890, +6, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
+RL-090), `docs/fidelity/regard_score.md`, and `_metric_info.py`'s
+`deviation_note`.
+
+**Verdict unchanged: adaptation.** The fix is additive and framework-level
+(`bias_score`/`n` are new keys); the metric's distributional design and
+existing 16 keys are untouched. Noted in passing, out of scope here:
+`MeanScoreGap` has the identical `run()`-breaking gap (no `n`-like key);
+flagged separately rather than fixed in this pass.
+
+## 2026-09-18 · MeanScoreGap from-scratch audit + fix
+
+Re-read `mean_score_gap.py`'s own module docstring and `docs/fidelity/score_parity.md`
+fresh. This metric is already honestly labeled `original` — a prior audit
+correctly found it is not derivable from Borkan et al. 2019's five
+threshold-agnostic, label-based AUC/Equality-Gap metrics, and renamed it
+from `ScoreParity`. No paper-comparison work was needed; this audit focused
+on code correctness.
+
+**Cohen's d computation confirmed correct.** Pooled variance
+`((n_a-1)*std_a² + (n_b-1)*std_b²)/(n_a+n_b-2)`, guarded against
+`n_a+n_b<=2` and near-zero pooled std, is the standard formula, independently
+re-derived and checked by hand on a synthetic example.
+
+**Confirmed: `run()` was unconditionally broken, same root cause pattern as
+this session's other fixes, but a different specific gap than RegardScore's.**
+`effect_size` was already a key `_split_result` recognizes, so the headline
+lookup worked — but no key `_count_items` recognizes as an item count
+existed, so `n` always resolved to 0 and `run()`'s `n > 0` guard raised on
+every call regardless of `ci=`. Fixed by adding `"n"` (total texts scored
+across both groups). No `per_item` added: Cohen's d is a two-sample
+statistic (not a per-prompt one), so a naive bootstrap over pooled items
+wouldn't estimate the right thing; `run()`'s default CI correctly degrades
+to `ci="none"`, matching WEAT/SEAT/CEAT/CBS/RegardScore's documented
+behavior for metrics without item-level scores.
+
+**Found but explicitly not fixed, flagged for later:** `group_a_std`/
+`group_b_std` are `NaN` (with unguarded `RuntimeWarning`s — this explains
+warnings already visible in this session's full-suite runs) whenever a
+group has exactly one text, since `np.std(scores, ddof=1)` divides by zero
+at n=1. Doesn't affect `run()`'s guards (only the headline score and CI are
+checked), so left as a documented follow-up rather than fixed in this pass.
+
+**Tests.** 3 new tests in `tests/test_generated_text_based/test_mean_score_gap.py`
+(`test_n_counts_all_flattened_texts`, `test_run_no_longer_crashes`,
+`test_run_has_no_bootstrap_ci_without_per_item`), plus
+`test_all_values_are_floats` updated for `n`'s `int` type. Full suite:
+**1899 passed** (up from 1896, +3, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `docs/fidelity/score_parity.md`,
+and `_metric_info.py`'s `deviation_note`.
+
+**Verdict unchanged: original.** The fix is additive (`n` only); the
+metric's own statistic (already an honest, non-paper-derived original) is
+untouched.
+
+## 2026-09-18 · CounterfactualSentimentBias from-scratch audit + fix
+
+Read Huang, Zhang, Jiang, Stanforth, Welbl, Rae, Maini, Yogatama & Kohli
+2020 (DeepMind, Findings of EMNLP 2020) fresh from the PDF and traced
+`counterfactual_sentiment_bias.py`, `stats.py::wasserstein_1`, validation,
+`run()`, tests, the example, and both docs files end to end. No reference
+implementation exists (confirmed: `code_status: none_found`).
+
+**Core statistic independently re-verified correct, no computational
+defect.** `wasserstein_1`'s quantile-matching estimator matches
+`scipy.stats.wasserstein_distance` bit-exactly over 200 random trials (max
+error `2.2e-16`). The two-group normalization (`mean_t W1(...)`) is exactly
+eq. 3's `2/(M|A|(|A|-1))` for a binary attribute — verified algebraically
+and against the existing test's hand-derived arithmetic. `run()` already
+worked correctly (`bias_score`/`per_item`/`n` were all present from a prior
+audit), giving a working default bootstrap CI.
+
+**Major finding, fixed: an impossible, misleading sign claim.** The class
+docstring's "Interpretation" section claimed `csb_score` is signed — "CSB
+< 0: group B receives more positive sentiment" — impossible, since
+`csb_score` is a Wasserstein-1 distance, always `>= 0`. Confirmed with a
+constructed counterexample: group A all strongly negative, group B all
+strongly positive (B unambiguously favored) gives `csb_score = 1.6`
+(positive), while `signed_mean_difference` (the statistic the stale text
+was actually describing) correctly gives `-1.6`. The same false claim was
+duplicated verbatim in the executable example's printed output and its
+copied `docs/api` page — three places, one bug. This is a genuine
+practical risk for a bias metric: a user following the documented
+interpretation could report the wrong group as disadvantaged. Fixed all
+three copies to describe `csb_score` correctly (unsigned, direction-blind)
+and point to `signed_mean_difference` for direction.
+
+**Two findings, documented but not changed (no bug, just undocumented):**
+1. Huang et al. define the sentiment classifier's output domain as `[0,1]`
+   (§3, confirmed by all three of their own classifiers). BiasScope
+   validates `[-1,1]` instead, and the shipped example uses `[-1,1]`-scaled
+   scores. `wasserstein_1` is domain-agnostic, so this is a valid
+   generalization, not a bug — but `csb_score` is only numerically
+   comparable to the paper's own reported I.F. values when scores are
+   actually scaled to `[0,1]`, and this was previously undocumented
+   (`deviation_note` was empty despite `fidelity="faithful"`).
+2. This class computes exactly one pairwise term of eq. 3 — correct in
+   full for a binary attribute (Name), but not the paper's full multi-value
+   average for attributes with more than two values (Country: 10,
+   Occupation: 29) without the caller averaging multiple calls themselves.
+   Not previously stated anywhere.
+
+Both logged together as `REVIEW_LATER` RL-091 (a single entry, since both
+are the same kind of judgment: keep the current, more general/flexible
+behavior, but stop being silent about it).
+
+**Tests.** 2 new tests in
+`tests/test_generated_text_based/test_counterfactual_sentiment_bias.py`
+(`test_csb_score_is_nonnegative_even_when_group_b_is_clearly_favoured`,
+`test_csb_score_is_symmetric_under_group_swap`). Full suite: **1901
+passed** (up from 1899, +2, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
+RL-091), `docs/fidelity/huang_metrics.md`, and `_metric_info.py`'s
+`deviation_note`.
+
+**Verdict: FAITHFUL WITH DOCUMENTED EXTENSIONS.** The core W1/I.F.
+computation was always correct; the fix corrects a real documentation bug
+and makes two previously-silent design choices explicit. Fidelity label
+unchanged at `faithful` in `_metric_info.py` since the underlying
+statistic itself was never wrong — only its documentation was.
+
+## 2026-09-18 · PsycholinguisticNorms from-scratch audit + fix (RL-092)
+
+Read Dhamala, Sun, Kumar, Krishna, Pruksachatkun, Chang & Gupta 2021 (BOLD,
+FAccT '21) §4.4 fresh from the PDF and traced `psycholinguistic_norms.py`
+end to end, explicitly *not* trusting `docs/fidelity/bold_metrics.md`'s
+existing claims until independently re-deriving the formula. Cloned
+`amazon-science/bold@3ad652c773f5`: dataset-only, no metric code, so the
+paper's text is the sole authoritative source.
+
+**Critical finding, fixed: the aggregation formula was fundamentally
+wrong, not a scaling variant.** The paper's §4.4 formula is a
+magnitude-weighted signed aggregation, `Σsgn(w)w²/Σ|w|` — the identical
+mathematical form as the paper's own Gender-Wavg in §4.5 (already correctly
+transcribed elsewhere in the same fidelity doc, making the miss avoidable).
+BiasScope computed a plain arithmetic mean instead. Counterexample: a
+completion with three near-neutral filler words and one strongly-valenced
+word (`[0.1, 0.1, -0.1, 4.0]`) gave `1.025` (plain mean) vs. `3.723` (paper's
+formula) — a 3.6x divergence, the outlier word almost entirely diluted by
+the wrong aggregation. **The existing `docs/fidelity/bold_metrics.md` and
+`_metric_info.py` both explicitly (and wrongly) claimed "the aggregation
+matches"** — this was a documentation bug inherited from an earlier,
+insufficiently careful audit; both corrected as part of this fix.
+
+**Second finding, fixed: no function-word exclusion.** The paper excludes
+"pronoun, preposition, and conjunction" tokens (they "do not convey any
+emotion"); `_tokenize` did plain regex splitting with no POS filtering.
+Added `EXCLUDED_FUNCTION_WORDS`, a defensible closed-class word list — the
+paper names no exact list or tagger, so this is a judgment call, logged
+along with the run() headline choice below as `REVIEW_LATER` RL-092.
+
+**Third finding, fixed: `run()` unconditionally broken.** Same recurring
+defect class as six other metrics fixed this session — `evaluate()`'s dict
+had only per-dimension keys (`pn::valence`, etc.), no `bias_score`/`n`-like
+key. Fixed with the same kind of judgment call `RegardScore`'s RL-090
+required (no paper precedent for a cross-dimension scalar): for a single
+requested dimension, `bias_score` is exactly that dimension's score (no
+judgment call); for multiple dimensions, it's their mean (a BiasScope
+composite). `per_item` is populated (enabling a genuine bootstrap CI) only
+for the single-dimension case, where it's unambiguous.
+
+**Confirmed correct, not new:** the existing "no VAD/BE5 rescaling" and "no
+BE5 lexicon shipped" findings from a prior audit were re-verified accurate
+and left unchanged — those really are documented, reasonable scope
+limitations, unlike the aggregation formula.
+
+**Tests.** 5 new tests in
+`tests/test_generated_text_based/test_psycholinguistic_norms.py`
+(`test_weighted_aggregate_diverges_sharply_from_a_plain_mean`,
+`test_function_words_are_excluded_from_aggregation`,
+`test_run_no_longer_crashes`, `test_run_bootstrap_ci_for_a_single_dimension`,
+`test_run_multi_dimension_has_no_bootstrap_ci`), plus
+`test_psycholinguistic_norms_equation` rewritten with hand-derived expected
+values for the corrected formula (the existing coverage test is unaffected,
+since a single-word completion's weighted formula and plain mean coincide).
+Full suite: **1906 passed** (up from 1901, +5, zero regressions).
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `REVIEW_LATER.md` (new
+RL-092), `docs/fidelity/bold_metrics.md`, and `_metric_info.py`'s
+`deviation_note`.
+
+**Verdict: MATERIALLY DEVIATES → adaptation (after fix).** Before this fix,
+the `fidelity="adaptation"` label understated the gap — the paper's central
+equation for this metric was not implemented, not merely rescaled
+differently. After the fix, `adaptation` is accurate: the aggregation now
+matches exactly, and the two remaining documented gaps (no rescaling, no
+BE5) are genuine scope limitations, not correctness bugs.
+
+## 2026-09-18 · ScoreParity (MeanScoreGap) from-scratch audit + fix
+
+Audited the `ScoreParity` deprecated alias — confirmed the alias mechanism
+itself (a lazy `__getattr__`-based subclass in
+`generated_text_based/__init__.py`) is correct: warns, `isinstance`-
+compatible, identical behavior to `MeanScoreGap`. `MeanScoreGap` is already
+correctly labeled `fidelity="original"` (a prior audit confirmed it is not
+derivable from Borkan et al. 2019, despite the old name citing it), and its
+`run()`-missing-`n` bug was already fixed earlier this session, so this
+audit focused on remaining code correctness rather than paper comparison.
+
+**Two Minor bugs found and fixed, both re-confirmed by execution:**
+1. `group_a_std`/`group_b_std` returned `NaN` (with unguarded
+   `RuntimeWarning`s — this explains warnings already visible in this
+   session's earlier full-suite `pytest` runs) for a single-text group,
+   since `np.std(scores, ddof=1)` divides by zero at n=1. Fixed: `0.0`,
+   matching the convention already used elsewhere (e.g. `EMT`'s `std`).
+2. A local `_validate_classifier_scores` override in `mean_score_gap.py`
+   shadowed the inherited, more permissive one from `BiasMetric`
+   (`isinstance(score, (int, float))` vs. the inherited
+   `isinstance(score, (int, float, np.floating))`). Confirmed by execution
+   that a `numpy.float32`-returning classifier was incorrectly rejected,
+   even though the shared validator every other metric uses accepts it.
+   NaN/Inf rejection was unaffected either way (both are caught by the
+   `0.0 <= score <= 1.0` range check regardless of type). Fixed by removing
+   the redundant override.
+
+**Confirmed correct, no new defect:** Cohen's d's pooled-variance formula,
+independently re-derived by hand; `run()`'s already-fixed `n`/headline
+behavior; the deprecated-alias mechanism.
+
+**Tests.** 2 new tests in
+`tests/test_generated_text_based/test_mean_score_gap.py`
+(`test_std_is_zero_not_nan_for_single_text_groups`,
+`test_accepts_numpy_float32_classifier_scores`). Full suite confirmed green
+with zero regressions.
+
+Documented in `DECISIONS.md`, `CHANGELOG.md`, `docs/fidelity/score_parity.md`,
+and `_metric_info.py`'s `deviation_note`.
+
+**Verdict unchanged: original / FAITHFUL to its own declared status.** Both
+fixes are hygiene/consistency corrections; the metric's own statistic
+(Cohen's d and the mean-score gap) was never wrong.
+
+### Later - the remote branches, too
+
+By request, `origin/elissa-metrics` (12 commits, prompt-metric paper
+reproductions) and `origin/nancy` (3 commits, a from-scratch audit of the
+embedding and probability families and seven generated-text metrics) are in
+`merge/all-branches` as well. `nancy-prompt-metrics` and `fix/weat-seat-bugs`
+were already contained in `main`; `gh-pages` is the deployed site.
+
+Elissa's merge had one conflict (an extras list) and one missing fixture
+entry. Nancy's had 24: her audit had fixed, in August-September, the same
+run()-reachability defects the agent work fixed in September, and changed
+CAT's input from a token list to a string. Resolution, file by file: her
+scoring code and tests win (they are the audit), with the agent's list-or-
+tuple pair acceptance (RL-050) and its `headline_key` declarations re-applied
+on top; RegardScore keeps RL-062's `negative_difference` headline and her
+composite was not adopted (RL-090); her REVIEW_LATER ids RL-038..046 became
+RL-084..092. Her CEAT now takes per-stimulus contextual token embeddings and
+no longer encodes text, so the agent's `ceat_contexts` provider now computes
+each word's own subword states in context with the model under evaluation -
+which removes the sentence-pooling deviation RL-071 had recorded; only the
+corpus substitution remains. The StereoSet provider passes CAT a string.
+Five of her tests only failed on a machine with a GPU (tensors left on the
+CPU) and are fixed; three of her functions exceed the complexity cap and are
+suppressed with a note (RL-093); coverage is 86% (RL-094).

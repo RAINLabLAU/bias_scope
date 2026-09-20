@@ -12,6 +12,7 @@ from typing import List, Tuple
 import pytest
 
 from bias_scope.probability_based import AUL, AULA, CrowSPairs
+from bias_scope.probability_based.scorers import WordPieceBertScorer
 
 
 class FakeWordPieceScorer:
@@ -19,12 +20,13 @@ class FakeWordPieceScorer:
 
     Behaviour is chosen so that when the first sentence in a pair contains
     the substring "STEREO", its PLL/AUL/AULA are strictly greater than the
-    second — which lets the tests assert bias_score == 100.0 (percent, RL-060).
+    second — which lets the tests assert bias_score == 100.0.
     """
 
     def __init__(self, stereo_marker: str = "STEREO"):
         self.stereo_marker = stereo_marker
         self._call_log: list[tuple[str, tuple]] = []
+        self.tokenizer = FakeSpecialTokenMask()
 
     def encode(self, sentence: str) -> List[int]:
         self._call_log.append(("encode", (sentence,)))
@@ -59,6 +61,53 @@ class FakeWordPieceScorer:
         return val, val
 
 
+class FakeSpecialTokenMask:
+    all_special_ids = [101, 102]
+
+    def get_special_tokens_mask(
+        self, input_ids: List[int], already_has_special_tokens: bool = True
+    ) -> List[int]:
+        return [1 if token_id in self.all_special_ids else 0 for token_id in input_ids]
+
+
+class FakeAllSpecialTokenMask:
+    all_special_ids = [101, 102, 103]
+
+    def get_special_tokens_mask(
+        self, input_ids: List[int], already_has_special_tokens: bool = True
+    ) -> List[int]:
+        return [1] * len(input_ids)
+
+
+class FakeCrowSSpecialScorer:
+    def __init__(self):
+        self.tokenizer = FakeSpecialTokenMask()
+        self.positions_seen: list[list[int]] = []
+
+    def encode(self, sentence: str) -> List[int]:
+        if sentence == "the man":
+            return [101, 1996, 2158, 102]
+        if sentence == "the woman":
+            return [101, 1996, 2450, 102]
+        raise AssertionError(sentence)
+
+    def align_unmodified(
+        self, ids_a: List[int], ids_b: List[int]
+    ) -> Tuple[List[int], List[int]]:
+        return [0, 1, 3], [0, 1, 3]
+
+    def pll_over_positions(self, input_ids: List[int], positions: List[int]) -> float:
+        self.positions_seen.append(list(positions))
+        return 1.0 if 2158 in input_ids else 0.0
+
+
+class FakeCrowSOnlySpecialScorer(FakeCrowSSpecialScorer):
+    def align_unmodified(
+        self, ids_a: List[int], ids_b: List[int]
+    ) -> Tuple[List[int], List[int]]:
+        return [0, 3], [0, 3]
+
+
 PAIRS = [
     ("STEREOtypical sentence one", "neutral sentence one         "),
     ("STEREOtypical sentence two", "neutral sentence two         "),
@@ -71,15 +120,31 @@ class TestCrowSPairsWordpieceMode:
         crows = CrowSPairs(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         score = crows.evaluate(PAIRS, predict_masked_token=scorer)
-        assert score == 100.0  # every stereo side wins, as a percentage (RL-060)
+        assert score == 100.0  # every stereo side wins
 
     def test_return_details_includes_mode(self):
         crows = CrowSPairs(mode="wordpiece")
         scorer = FakeWordPieceScorer()
         result = crows.evaluate(PAIRS, predict_masked_token=scorer, return_details=True)
         assert result["mode"] == "wordpiece"
+        assert result["bias_score"] == 100.0
         assert result["crows_pairs_score"] == 100.0
         assert result["num_pairs"] == float(len(PAIRS))
+
+    def test_special_tokens_are_not_scored(self):
+        crows = CrowSPairs(mode="wordpiece")
+        scorer = FakeCrowSSpecialScorer()
+
+        crows.evaluate([("the man", "the woman")], predict_masked_token=scorer)
+
+        assert scorer.positions_seen == [[1], [1]]
+
+    def test_raises_when_only_shared_positions_are_special_tokens(self):
+        crows = CrowSPairs(mode="wordpiece")
+        scorer = FakeCrowSOnlySpecialScorer()
+
+        with pytest.raises(ValueError, match="No shared non-special WordPiece tokens"):
+            crows.evaluate([("the man", "the woman")], predict_masked_token=scorer)
 
     def test_requires_string_pairs_in_wordpiece_mode(self):
         crows = CrowSPairs(mode="wordpiece")
@@ -135,12 +200,24 @@ class TestAULWordpieceMode:
             PAIRS, predict_token_given_sentence=scorer, return_details=True
         )
         assert result["mode"] == "wordpiece"
+        assert result["bias_score"] == 100.0
         assert result["aul_score"] == 100.0
 
     def test_requires_scorer_or_model_name(self):
         aul = AUL(mode="wordpiece")
         with pytest.raises(TypeError):
             aul.evaluate(PAIRS)
+
+    def test_all_special_tokens_are_excluded(self):
+        scorer = object.__new__(WordPieceBertScorer)
+        scorer.tokenizer = FakeSpecialTokenMask()
+        assert scorer._content_positions([101, 11, 102, 12, 101]) == [1, 3]
+
+    def test_no_non_special_tokens_raise(self):
+        scorer = object.__new__(WordPieceBertScorer)
+        scorer.tokenizer = FakeAllSpecialTokenMask()
+        with pytest.raises(ValueError, match="no non-special content tokens"):
+            scorer._content_positions([101, 102, 103])
 
 
 class TestAULAWordpieceMode:
@@ -157,7 +234,9 @@ class TestAULAWordpieceMode:
             PAIRS, predict_with_attention=scorer, return_details=True
         )
         assert result["mode"] == "wordpiece"
+        assert result["bias_score"] == 100.0
         assert result["aula_score"] == 100.0
+        assert isinstance(result["num_pairs"], int)
 
     def test_requires_scorer_or_model_name(self):
         aula = AULA(mode="wordpiece")
@@ -176,14 +255,15 @@ class TestPairsMayBeListsNotOnlyTuples:
 
     def test_a_pair_given_as_a_list_is_accepted(self):
         scorer = FakeWordPieceScorer()
-        pairs = [["STEREO sentence one", "plain sentence one"]]
+        # Equal length, so the char-code fake aligns the shared " cat sat" tail.
+        pairs = [["STEREO cat sat", "normal cat sat"]]
         score = CrowSPairs(mode="wordpiece").evaluate(
             sentence_pairs=pairs, predict_masked_token=scorer
         )
         assert score == pytest.approx(100.0)
 
     def test_lists_and_tuples_give_the_same_score(self):
-        as_tuples = [("STEREO a", "plain a"), ("STEREO b", "plain b")]
+        as_tuples = [("STEREO cat", "normal cat"), ("STEREO dog", "normal dog")]
         as_lists = [list(pair) for pair in as_tuples]
         tuple_score = CrowSPairs(mode="wordpiece").evaluate(
             sentence_pairs=as_tuples, predict_masked_token=FakeWordPieceScorer()

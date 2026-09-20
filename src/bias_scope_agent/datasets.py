@@ -153,15 +153,13 @@ def _stereoset_cases(root: Path, axis: str, limit: Optional[int]) -> Tuple[List[
         if item["bias_type"] != axis:
             continue
         context = item["context"]
-        # Pad the substitution so a blank glued to punctuation ("BLANK.")
-        # tokenizes as ["[MASK]", "."] instead of being skipped. The fill is
-        # still recovered from the original context, so nothing else shifts.
-        tokens = context.replace("BLANK", " [MASK] ").split()
-        if context.count("BLANK") != 1 or tokens.count("[MASK]") != 1:
+        if context.count("BLANK") != 1:
             skipped += 1
             continue
         prefix, suffix = context.split("BLANK")
-        case: Dict[str, Any] = {"context": tokens}
+        # CAT takes the context as one string with exactly one [MASK] (the
+        # 2026-09 audit's API; it used to be a token list).
+        case: Dict[str, Any] = {"context": context.replace("BLANK", "[MASK]")}
         for sentence in item["sentences"]:
             text = sentence["sentence"]
             if not (text.startswith(prefix) and text.endswith(suffix)):
@@ -197,7 +195,8 @@ def _build_stereoset(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict
         "test_cases": len(cases),
         "skipped_multi_word_or_glued_blank": skipped,
         "axis": axis,
-        "note": "intrasentence split; BLANK rendered as [MASK], fills recovered by diff",
+        "note": "intrasentence split; BLANK rendered as [MASK] in the context string, "
+        "fills recovered by diff",
     }
     return inputs, provenance
 

@@ -163,15 +163,20 @@ class TestRegardScore:
         assert isinstance(scores, dict)
 
     def test_all_values_are_floats(self, mock_pipeline):
-        """Test that all returned values are floats."""
+        """Test that all returned values are floats, except 'n' (an int,
+        per the "n": int(len(...)) convention run() relies on for its
+        n > 0 guard - see base.py::_count_items)."""
         mock_regard = self._make_metric(mock_pipeline)
         group_a = [["good"]]
         group_b = [["bad"]]
 
         scores = mock_regard.evaluate(group_a, group_b)
 
-        for value in scores.values():
-            assert isinstance(value, float)
+        for key, value in scores.items():
+            if key == "n":
+                assert isinstance(value, int)
+            else:
+                assert isinstance(value, float)
 
     def test_differences_are_consistent(self, mock_pipeline):
         """Test that differences match individual distributions."""
@@ -205,6 +210,70 @@ class TestRegardScore:
         assert scores['group_a_positive'] == 1.0
         # Group B should be 100% negative
         assert scores['group_b_negative'] == 1.0
+
+    def test_headline_is_the_negative_regard_gap(self, mock_pipeline):
+        """run() reports `negative_difference` = P(neg | A) - P(neg | B), the
+        gap Sheng et al. actually report (REVIEW_LATER RL-062). The composite
+        proposed in RL-090 was not adopted. All-positive-A vs all-negative-B
+        hits the declared value_range's lower boundary exactly."""
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "great"]]
+        group_b = [["bad", "terrible"]]
+
+        scores = mock_regard.evaluate(group_a, group_b)
+        assert scores["negative_difference"] == pytest.approx(-1.0)
+        assert "bias_score" not in scores
+
+    def test_negative_difference_swap_antisymmetry(self, mock_pipeline):
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "hello"]]
+        group_b = [["bad", "terrible"]]
+
+        forward = mock_regard.evaluate(group_a, group_b)
+        backward = mock_regard.evaluate(group_b, group_a)
+
+        assert forward["negative_difference"] == pytest.approx(-backward["negative_difference"])
+
+    def test_negative_difference_is_zero_for_identical_groups(self, mock_pipeline):
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "bad", "hello"]]
+        group_b = [["good", "bad", "hello"]]
+
+        scores = mock_regard.evaluate(group_a, group_b)
+        assert scores["negative_difference"] == pytest.approx(0.0)
+
+    def test_n_counts_all_flattened_texts(self, mock_pipeline):
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "great"], ["hello"]]
+        group_b = [["bad"]]
+
+        scores = mock_regard.evaluate(group_a, group_b)
+        assert scores["n"] == 4
+
+    def test_run_no_longer_crashes(self, mock_pipeline):
+        """Before the fix, run() always raised BiasScopeError: evaluate()'s
+        dict had no 'bias_score'/'score'/'value'/'effect_size' key, and no
+        'n'-like key either."""
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "great"]]
+        group_b = [["bad", "terrible"]]
+
+        result = mock_regard.run(group_a, group_b, ci="none")
+        expected = mock_regard.evaluate(group_a, group_b)
+        assert result.score == pytest.approx(expected["negative_difference"])
+        assert result.n == 4
+
+    def test_run_has_no_bootstrap_ci_without_per_item(self, mock_pipeline):
+        """RegardScore has no natural per-item score (it's a two-group
+        distributional comparison, not a per-prompt statistic), so it
+        degrades to ci='none' the same way WEAT/SEAT/CEAT/CBS do."""
+        mock_regard = self._make_metric(mock_pipeline)
+        group_a = [["good", "great"]]
+        group_b = [["bad", "terrible"]]
+
+        result = mock_regard.run(group_a, group_b)  # default bootstrap
+        assert result.ci is None
+        assert result.ci_method == "none"
 
 
 class TestRegardScoreReportsHowManyTextsItScored:

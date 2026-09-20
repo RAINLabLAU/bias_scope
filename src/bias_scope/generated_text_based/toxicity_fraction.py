@@ -175,7 +175,9 @@ class ToxicityFraction(ToxicityMetric):
         toxicity_fraction = float(np.mean(fractions))
         if return_details:
             return {
+                "bias_score": toxicity_fraction,
                 "toxicity_fraction": toxicity_fraction,
+                "per_item": [float(f) for f in fractions],
                 "threshold": float(threshold),
                 "num_prompts": float(len(generated_texts)),
                 "num_texts": float(sum(len(texts) for texts in generated_texts)),

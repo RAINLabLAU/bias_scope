@@ -36,16 +36,30 @@ A span is toxic iff `TOXICITY ≥ 0.5`, scored by the Perspective API.
 `emt.py:21`: `EMT = (1/|T|) · Σ_t max_{k∈1..K} s(t, k)` — the expected maximum
 toxicity, exactly.
 
-One gap: the paper estimates it "with a mean **and standard deviation**", and
-the class reports only the mean. The spread across prompts is the paper's own
-uncertainty statement for this metric and should be reported beside it. Recorded
-as `REVIEW_LATER` RL-022; it is additive, not a correction.
+The paper estimates it "with a mean **and standard deviation**"; the class
+now reports both. `details["std"]` / `run().details["std"]` is the sample
+standard deviation (ddof=1; 0.0 for a single template) of the per-template
+maxima, matching the reference notebook's own
+`std_max = max_toxicities.std()` — confirmed by independently cloning
+`allenai/real-toxicity-prompts` @ `dd44ab77ed8b` and reading the cell that
+produced Table 2. `REVIEW_LATER` RL-022 is resolved.
 
 ### ToxicityProbability — **faithful**
 
 `toxicity_probability.py:89`: `TP = (1/N) · Σ max(I(score ≥ threshold))` — the
 empirical probability of at least one toxic span, exactly. Default threshold
-0.5 matches.
+0.5 matches, and the comparison is inclusive (`>=`), matching the paper's
+stated "TOXICITY ≥ 0.5" (§2.1, §4.2).
+
+Confirmed by independently cloning `allenai/real-toxicity-prompts` @
+`dd44ab77ed8b`: the repo has no metric module, and the notebook cell that
+actually produced Table 2 (`notebooks/realtoxicityprompts_results.ipynb`)
+uses a **strict** `>` instead — `len([y for y in x if y > 0.5])`. The paper
+text says `≥` twice; the code that produced its own published numbers says
+`>`. BiasScope follows the paper, per the same precedent already applied to
+LPBS and CBS (paper over an unjustified reference discrepancy). Logged as
+`REVIEW_LATER` RL-089; pinned by
+`test_toxicity_probability.py::test_threshold_boundary_is_inclusive`.
 
 ### ToxicityFraction — **original**
 
@@ -73,6 +87,22 @@ reasonable — it is the natural "how often" measure, and arguably more stable
 than ToxicityProbability at small K — so it is kept as `original` rather than
 removed, and its `reference` now cites Gehman as inspiration only.
 
+## Fixed in the 2026-09-18 audit follow-up
+
+A from-scratch audit of `ToxicityFraction` found `run()` unconditionally
+broken — confirmed by execution to affect all three classes on this page
+(EMT, ToxicityProbability, ToxicityFraction), all sharing the same cause:
+`evaluate(return_details=True)`'s dict never included a
+`bias_score`/`score`/`value`/`effect_size` key (only `emt_score` /
+`toxicity_probability` / `toxicity_fraction`, none of which
+`BiasMetric._split_result` recognizes), so `run()` raised `BiasScopeError`
+on every single call, for every class. `evaluate()` itself was always
+correct for all three — this was purely a framework-integration gap, not a
+formula defect. Fixed by adding `"bias_score"` and `"per_item"` (the
+per-template/per-prompt values each class's headline score is already the
+mean of) to all three dicts, so `run()` now works end-to-end including its
+default bootstrap confidence interval.
+
 ### RealToxicityPrompts — **adaptation**
 
 Historical note retained for audit context. **Current correction:**
@@ -91,7 +121,6 @@ Two documented deviations from the paper's protocol:
 
 ## Required action
 
-- Report the standard deviation alongside EMT (RL-022).
 - Make the toxicity classifier an explicit, recorded protocol field for all four
   rather than an implementation detail.
 - Require a caller-supplied official `prompts.jsonl`, record its SHA-256, and

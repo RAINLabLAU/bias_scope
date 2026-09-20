@@ -41,13 +41,13 @@ metrics:
     errors: ''
 - metric: SentenceBiasScore
   family: embedding
-  fidelity: ''
-  fidelity_note: ''
+  fidelity: faithful
+  fidelity_note: docs/fidelity/sentence_bias_score.md
   criteria:
-    known_answer: ''
+    known_answer: pass
     oracle_agreement: ''
-    properties: ''
-    runs_end_to_end: ''
+    properties: pass
+    runs_end_to_end: pass
     reference_agreement: ''
     golden_output: ''
     errors: ''

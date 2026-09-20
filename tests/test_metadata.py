@@ -201,25 +201,8 @@ class TestReleaseGates:
     signal to promote them to hard assertions and tick the Section 13 boxes.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="SentenceBiasScore's paper is paywalled with no preprint, so its "
-               "sources cannot be read (REVIEW_LATER RL-029). Every other metric "
-               "is audited.",
-    )
     def test_no_metric_is_unaudited(self):
         assert not list_metrics(fidelity="unaudited")
-
-    def test_the_only_unaudited_metric_is_the_unobtainable_one(self):
-        """The audit is complete except where the source could not be obtained.
-
-        Section 4.0 forbids assigning a fidelity without reading the paper.
-        Dolci et al. 2023 is paywalled with no preprint, so SentenceBiasScore
-        stays `unaudited` — an honest gap, not an oversight. If this test starts
-        failing, either the paper was obtained (audit it) or a new metric was
-        added without one (audit that).
-        """
-        assert set(list_metrics(fidelity="unaudited")) == {"SentenceBiasScore"}
 
     @pytest.mark.xfail(
         strict=True,

@@ -1,12 +1,8 @@
 """Tests for CrowS-Pairs Score."""
 
-# Scores are percentages (0-100) as of RL-060: the authors' own scorers report
-# a percentage and MetricInfo already declared neutral_value=50,
-# value_range=(0, 100). The assertions below were written against the old
-# [0, 1] return and are rescaled, not relaxed - each still pins the same
-# property (in range / above neutral / below neutral / exactly at a bound).
 import numpy as np
 import pytest
+from scripts.experiments.emnlp_reproduction import _crows_pair_from_row
 
 from bias_scope.metadata import list_metrics, normalized_deviation
 from bias_scope.probability_based import CrowSPairs
@@ -32,7 +28,7 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, biased_predict)
 
-        # Should prefer stereotypes (>= 0.5 allows for ties)
+        # Should prefer stereotypes (>= 50 allows for ties)
         assert 0.0 <= score <= 100.0
         assert score >= 50.0
 
@@ -54,7 +50,7 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, unbiased_predict)
 
-        # Should be approximately 0.5 (no preference)
+        # Should be approximately 50 (no preference)
         assert abs(score - 50.0) <= 60.0  # Allow variance due to randomness
 
     def test_empty_pairs_raises_error(self):
@@ -179,7 +175,7 @@ class TestCrowSPairs:
 
         score = crows.evaluate(pairs, mock_predict)
 
-        # Single pair: score is either 0 or 1
+        # Single pair: score is either 0 or 100
         assert score in [0.0, 100.0]
 
     def test_many_pairs(self):
@@ -210,6 +206,7 @@ class TestCrowSPairs:
         score2 = crows.evaluate(pairs, deterministic_predict)
 
         assert score1 == score2
+        assert score1 == 100.0
 
     def test_long_sentences(self):
         """Test with longer sentences."""
@@ -258,6 +255,186 @@ class TestCrowSPairs:
 
         # Check that [MASK] appears in tracked sentences
         assert any("[MASK]" in sent for sent in masked_sentences)
+
+    def test_score_scale_is_percentage(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        pairs = [(["Women", "work"], ["Men", "work"])]
+
+        assert crows.evaluate(pairs, predict) == 100.0
+
+    def test_return_details_includes_bias_score_for_run(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        result = crows.evaluate(
+            [(["Women", "work"], ["Men", "work"])],
+            predict,
+            return_details=True,
+        )
+
+        assert result["bias_score"] == 100.0
+        assert result["crows_pairs_score"] == 100.0
+
+    def test_run_succeeds_and_exposes_score(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        result = crows.run(
+            [(["Women", "work"], ["Men", "work"])],
+            predict,
+            ci="none",
+        )
+
+        assert result.score == 100.0
+        assert result.details["bias_score"] == 100.0
+
+    def test_neutral_fixture_is_50(self):
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.4
+
+        score = crows.evaluate(
+            [
+                (["Women", "work"], ["Men", "work"]),
+                (["Girls", "work"], ["Boys", "work"]),
+            ],
+            lambda sentence, pos: predict(sentence, pos)
+            if "Women" in sentence or "Men" in sentence
+            else (0.4 if "Girls" in sentence else 0.8),
+        )
+
+        assert score == 50.0
+
+    def test_antistereo_row_keeps_sent_more_first(self):
+        row = {
+            "sent_more": "The doctor said that he was late.",
+            "sent_less": "The doctor said that she was late.",
+            "stereo_antistereo": "antistereo",
+        }
+
+        assert _crows_pair_from_row(row) == (row["sent_more"], row["sent_less"])
+
+    # === per_item exposure + run() confidence intervals ===
+
+    def test_return_details_exposes_per_item(self):
+        """run() needs details['per_item'] to compute a CI; verify
+        evaluate(return_details=True) reports it, scaled to match the 0-100
+        bias_score."""
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+        ]
+        result = crows.evaluate(pairs, predict, return_details=True)
+        assert result["per_item"] == [100.0, 100.0, 0.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_produces_bootstrap_ci(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for CrowS-Pairs because per_item was never exposed."""
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+            (["Girls", "read"], ["Boys", "read"]),
+        ]
+        result = crows.run(pairs, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_run_produces_wald_ci_on_the_0_100_scale(self):
+        """Before the fix, base.py's _interval checked `per_item is None`
+        before `ci == 'wald'`, so ci='wald' was unreachable for CrowS-Pairs
+        (which never exposed per_item) even though wald_ci(score, n) needs
+        no per-item data. CrowS-Pairs is exactly the proportion-style metric
+        stats.py's wald_ci docstring names it as being for."""
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+            (["Girls", "read"], ["Boys", "read"]),
+        ]
+        result = crows.run(pairs, predict, ci="wald")
+        assert result.ci is not None
+        assert result.ci_method == "wald"
+        ci_low, ci_high = result.ci
+        assert 0.0 <= ci_low <= result.score <= ci_high <= 100.0
+
+    def test_wordpiece_mode_also_exposes_per_item(self):
+        class FakeWordpieceScorer:
+            def encode(self, sentence):
+                return [ord(c) for c in sentence]
+
+            def align_unmodified(self, ids_a, ids_b):
+                n = min(len(ids_a), len(ids_b))
+                return list(range(n)), list(range(n))
+
+            def pll_over_positions(self, input_ids, positions):
+                return -float(sum(input_ids[p] for p in positions))
+
+        crows = CrowSPairs(mode="wordpiece")
+        pairs = [("bb", "aa"), ("aa", "bb")]
+        result = crows.evaluate(pairs, FakeWordpieceScorer(), return_details=True)
+        assert result["per_item"] == [0.0, 100.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    # === Tie-rounding: match Nangia 2020's reference, which rounds each
+    # side to 3 decimals before comparing ===
+
+    def test_near_tie_below_rounding_precision_counts_as_no_preference(self):
+        """A PLL difference smaller than 0.001 rounds to an exact tie in the
+        reference (`score[stype] = round(score[stype], 3)` in metric.py
+        before the `>`/`==` comparison) and must not count as a stereotype
+        win here either."""
+        crows = CrowSPairs(mode="whitespace")
+
+        # Designed so the two sentences' summed log-probabilities differ by
+        # far less than 0.001.
+        def near_tie_predict(sentence, pos):
+            return 0.500000001 if "Women" in sentence else 0.5
+
+        pairs = [(["Women", "work", "today"], ["Men", "work", "today"])]
+        result = crows.evaluate(pairs, near_tie_predict, return_details=True)
+        assert result["per_item"] == [0.0]
+        assert result["bias_score"] == 0.0
+
+    def test_real_difference_above_rounding_precision_still_counts(self):
+        """A genuine difference well above the 0.001 rounding threshold is
+        unaffected by the rounding fix."""
+        crows = CrowSPairs(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        result = crows.evaluate(pairs, predict, return_details=True)
+        assert result["per_item"] == [100.0]
 
 
 class TestCrowSPairsScoreIsAPercentage:

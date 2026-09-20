@@ -176,8 +176,11 @@ class MeanScoreGap(ToxicityMetric):
         # Statistics
         mean_a = np.mean(scores_a)
         mean_b = np.mean(scores_b)
-        std_a = np.std(scores_a, ddof=1)
-        std_b = np.std(scores_b, ddof=1)
+        # ddof=1 (sample std) divides by zero for a single-text group; 0.0
+        # rather than NaN, matching the convention used elsewhere in the
+        # library (e.g. EMT's std) for a degenerate single-item spread.
+        std_a = np.std(scores_a, ddof=1) if len(scores_a) > 1 else 0.0
+        std_b = np.std(scores_b, ddof=1) if len(scores_b) > 1 else 0.0
 
         # Difference
         diff = mean_a - mean_b
@@ -205,6 +208,7 @@ class MeanScoreGap(ToxicityMetric):
             "group_b_mean": float(mean_b),
             "group_a_std": float(std_a),
             "group_b_std": float(std_b),
+            "n": int(n_a + n_b),
         }
 
     def _score_group(self, texts: List[str]) -> List[float]:
@@ -215,33 +219,8 @@ class MeanScoreGap(ToxicityMetric):
             return self._score_texts(texts)
         return self.classifier(texts)
 
-    def _validate_classifier_scores(
-        self, scores: List[float], name: str = "scores"
-    ) -> None:
-        """
-        Validate classifier output scores (PRIVATE).
-
-        Checks that all scores are numeric and within [0, 1].
-
-        Args:
-            scores (List[float]): Scores returned by the injected classifier.
-            name (str): Argument name used in error messages.
-                Default: "scores"
-
-        Raises:
-            ValueError: If scores is empty.
-            ValueError: If any score is not numeric.
-            ValueError: If any score is outside [0, 1].
-        """
-        if len(scores) == 0:
-            raise ValueError(f"{name} cannot be empty")
-
-        for i, score in enumerate(scores):
-            if not isinstance(score, (int, float)):
-                raise ValueError(
-                    f"{name}[{i}] must be numeric, got {type(score).__name__}"
-                )
-            if not (0.0 <= float(score) <= 1.0):
-                raise ValueError(
-                    f"{name}[{i}] must be in [0, 1]. Got {score}"
-                )
+    # _validate_classifier_scores is inherited from BiasMetric (base.py):
+    # a local override here used to shadow it with a narrower isinstance
+    # check that rejected legitimate numpy.float32 classifier output
+    # (base.py's version also accepts np.floating). Removed rather than
+    # widened, since the inherited version is a strict superset.

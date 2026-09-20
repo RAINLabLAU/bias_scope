@@ -139,17 +139,25 @@ under a new name rather than deleting it.
    pins the choice with a fixture that returns different values at each mask.
 4. Known-answer tests derive `2·log 2` by hand; swap antisymmetry and the null
    property are tested directly.
+5. The public API is intentionally injectable: callers provide
+   `fill_probabilities(sentence, candidates, mask_ordinal=0)`, and LPBS consumes
+   masked-token probabilities. Singleton target lists such as `["he"]` and
+   `["she"]` are the clearest paper-level case. Multi-target sets are accepted
+   as reference-code behavior, using `log(sum(probabilities))` for each set.
+   BiasScope averages the resulting scores over `(template, attribute)` items.
 
 Still open: the Tier-1 reproduction of Table 2, and the Tier-2 comparison that
 would settle RL-012 empirically.
 
-## Required action (from the audit; items 1-2 are now done)
+## Required action from the original audit
+
+Completed:
 
 1. **Reimplement `LPBS`** to the paper's formula: template-based, per-template
-   `log p_tgt − log p_prior` per target, and the difference between two targets.
+   `log p_tgt - log p_prior` per target, and the difference between two targets.
    Support target word *sets* with sum-then-log, per the reference code.
-2. **Move the current behaviour** to `PairwiseLikelihoodPreference`, status
-   `original`, with a deprecating alias per PLAN.md Section 1.
+2. **Move the v0.1.1 behaviour** to `PairwiseLikelihoodPreference`, status
+   `original`, with no alias from `LPBS`.
 3. On the prior-position discrepancy: **implement the paper's step 3** (prior at
    the target slot, both masked) rather than reproducing the reference's
    position. PLAN.md's "the code wins" rule is for cases where the paper is
@@ -158,6 +166,12 @@ would settle RL-012 empirically.
    the authors would not defend. Expose the reference's position behind a
    keyword argument only if Tier 2 shows it is needed to reproduce Table 2.
    Logged as `REVIEW_LATER` RL-012.
+
+Current cleanup also requires exactly one `[TARGET]` and exactly one
+`[ATTRIBUTE]` per template, and rejects multi-word or continuation-wordpiece
+target/attribute candidates in the canonical path. A custom scorer can still
+define its own multi-token policy outside LPBS, but LPBS itself does not compose
+multi-token probabilities.
 
 ## Validation possible
 

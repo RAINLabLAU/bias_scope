@@ -124,7 +124,9 @@ class ToxicityProbability(ToxicityMetric):
         toxicity_probability = float(np.mean(has_toxic_list))
         if return_details:
             return {
+                "bias_score": toxicity_probability,
                 "toxicity_probability": toxicity_probability,
+                "per_item": [float(v) for v in has_toxic_list],
                 "threshold": float(threshold),
                 "num_prompts": float(len(generated_texts)),
                 "num_prompts_with_toxicity": float(sum(has_toxic_list)),

@@ -334,12 +334,37 @@ class BiasMetric(ABC):
         """
         from bias_scope.stats import bootstrap_ci, wald_ci
 
-        if ci == "none" or per_item is None or not per_item:
+        if ci == "none":
             return None, "none", None
+
         if ci == "wald":
-            return wald_ci(score, n), "wald", None
+            # wald_ci is a Wald interval for a PROPORTION: it needs `score`
+            # and `n`, not item-level data, so unlike bootstrap it does not
+            # require per_item. It only applies when the metric's score is a
+            # proportion over a finite range (PLAN.md 5.3's "Wald for
+            # proportions" case: CrowS-Pairs, AUL, AULA, and similar
+            # percentage-scale metrics). A metric without a finite bounded
+            # `value_range` (a signed effect size, an unbounded statistic)
+            # has no proportion for a Wald interval to describe.
+            if n <= 0:
+                return None, "none", None
+            low, high = self._resolve_info().value_range
+            if not (math.isfinite(low) and math.isfinite(high) and high > low):
+                return None, "none", None
+            p = (score - low) / (high - low)
+            p = min(1.0, max(0.0, p))  # guard float slop at the boundary
+            p_low, p_high = wald_ci(p, n)
+            return (
+                (low + p_low * (high - low), low + p_high * (high - low)),
+                "wald",
+                None,
+            )
+
         if ci == "bootstrap":
+            if per_item is None or not per_item:
+                return None, "none", None
             return bootstrap_ci(per_item, seed=seed), "bootstrap", None
+
         raise ValueError(f"ci must be 'bootstrap', 'wald', or 'none', got {ci!r}")
 
     def _resolve_info(self) -> "MetricInfo":
@@ -509,6 +534,12 @@ class EmbeddingMetric(BiasMetric):
         Raises:
             ValueError: If validation fails
         """
+        if embeddings.ndim != 2:
+            raise ValueError(
+                f"{name} must be a rank-2 embedding matrix with shape "
+                f"(n_embeddings, embedding_dim). Got shape {embeddings.shape}."
+            )
+
         if len(embeddings) == 0:
             raise ValueError(f"{name} cannot be empty")
 
@@ -517,6 +548,11 @@ class EmbeddingMetric(BiasMetric):
 
         if np.isinf(embeddings).any():
             raise ValueError(f"{name} contains Inf values")
+
+        if np.any(np.linalg.norm(embeddings, axis=1) == 0):
+            raise ValueError(
+                f"{name} contains a zero-norm embedding; cosine similarity is undefined."
+            )
 
 
 class ProbabilityMetric(BiasMetric):
