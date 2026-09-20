@@ -125,3 +125,40 @@ class TestScriptedPlayback:
         record = lc.run_conversation(object(), ["one", "two"], tui=True)
         assert [e["user"] for e in record["exchanges"]] == ["one", "two"]
         assert all("You said" in e["agent"] for e in record["exchanges"])
+
+
+class TestTypingWorksWithoutClicking:
+    """Reported 2026-09-21: 'I cannot add an input to the TUI'. Textual gives
+    initial focus to the first focusable widget, and the scrolling transcript
+    is one, so keystrokes went to it. The prompt must own focus on start and
+    after every reply, and the transcript must not compete for it."""
+
+    def test_the_prompt_has_focus_on_start_and_keys_land_in_it(self):
+        app = BiasScopeApp(FakeLoop())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.2)
+                focused_at_start = app.focused.id if app.focused else None
+                await pilot.press(*"hello")
+                return focused_at_start, app.query_one("#prompt").value
+
+        focused, typed = _run(scenario())
+        assert focused == "prompt"
+        assert typed == "hello"
+
+    def test_focus_returns_to_the_prompt_after_a_reply(self):
+        app = BiasScopeApp(FakeLoop())
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.2)
+                await pilot.press(*"hi", "enter")
+                await pilot.pause(0.5)
+                await app.workers.wait_for_complete()
+                await pilot.pause(0.3)
+                await pilot.press(*"again")
+                return app.focused.id if app.focused else None, app.query_one("#prompt").value
+
+        focused, typed = _run(scenario())
+        assert focused == "prompt" and typed == "again"

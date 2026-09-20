@@ -43,6 +43,9 @@ class BiasScopeApp(App):
     Footer { background: #1e293b; }
     """
     BINDINGS = [("ctrl+c", "quit", "Quit")]
+    # Textual focuses the first focusable widget on start; without this the
+    # scrolling transcript took the keystrokes and nothing could be typed.
+    AUTO_FOCUS = "#prompt"
 
     def __init__(self, loop: Any, script: Optional[Sequence[str]] = None) -> None:
         """`script`: turns to play automatically, one after each reply, after
@@ -57,9 +60,12 @@ class BiasScopeApp(App):
             loop.on_tool = self._tool_called_in_worker
 
     def on_mount(self) -> None:
+        prompt = self.query_one("#prompt", Input)
         if self._scripted:
-            self.query_one("#prompt", Input).disabled = True
+            prompt.disabled = True
             self.call_later(self._play_next)
+        else:
+            prompt.focus()
 
     async def _play_next(self) -> None:
         if self._script:
@@ -67,7 +73,7 @@ class BiasScopeApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield VerticalScroll(id="log")
+        yield VerticalScroll(id="log", can_focus=False)
         yield Input(placeholder="You >  ask about a model, ask for a plan, confirm it", id="prompt")
         yield Footer()
 
