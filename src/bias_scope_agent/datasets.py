@@ -159,7 +159,10 @@ def _stereoset_cases(root: Path, axis: str, limit: Optional[int]) -> Tuple[List[
         prefix, suffix = context.split("BLANK")
         # CAT takes the context as one string with exactly one [MASK] (the
         # 2026-09 audit's API; it used to be a token list).
-        case: Dict[str, Any] = {"context": context.replace("BLANK", "[MASK]")}
+        # StereoSet's own target term, the unit CAT (as audited) averages over
+        # before the dataset mean and resamples for its interval.
+        case: Dict[str, Any] = {"context": context.replace("BLANK", "[MASK]"),
+                                "target": item["target"]}
         for sentence in item["sentences"]:
             text = sentence["sentence"]
             if not (text.startswith(prefix) and text.endswith(suffix)):
@@ -168,7 +171,7 @@ def _stereoset_cases(root: Path, axis: str, limit: Optional[int]) -> Tuple[List[
             if len(fill.split()) != 1:
                 break
             case[label_key[sentence["gold_label"]]] = fill.strip()
-        if len(case) != 4:
+        if any(key not in case for key in label_key.values()):
             skipped += 1
             continue
         cases.append(case)

@@ -248,3 +248,33 @@ class TestWordPieceBertScorerProtocol:
         aul, aula = scorer.aul_aula([1, 2, 3, 4, 5])
         assert isinstance(aul, float)
         assert isinstance(aula, float)
+
+
+class TestStringContextWithPunctuationGluedToTheMask:
+    """CAT (as audited 2026-09) hands the scorer a raw string with one [MASK].
+    StereoSet writes most blanks next to punctuation ("...is BLANK."), so a
+    plain `split()` yields the token "[MASK]." and the scorer counted zero
+    masks - every real-model CAT/ICAT run failed at the merge (2026-09-20).
+    The mask must be separated from whatever is glued to it.
+    """
+
+    def _scorer(self):
+        from tests.conftest import TINY_ENCODER_ID
+
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        return BertPLLScorer(model_name=TINY_ENCODER_ID)
+
+    def test_a_mask_glued_to_a_full_stop_is_still_one_mask(self):
+        prob = self._scorer().masked_token_probability("The doctor said [MASK].", "yes")
+        assert 0.0 < prob <= 1.0
+
+    def test_a_mask_inside_a_word_boundary_string_is_found(self):
+        prob = self._scorer().masked_token_probability("She is a [MASK], truly.", "nurse")
+        assert 0.0 < prob <= 1.0
+
+    def test_two_masks_are_still_rejected(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="exactly one mask"):
+            self._scorer().masked_token_probability("[MASK] and [MASK].", "x")

@@ -116,7 +116,14 @@ class BertPLLScorer:
 
     def masked_token_probability(self, context: List[str], candidate: str) -> float:
         if isinstance(context, str):
-            context = context.split()
+            # Separate the mask from anything glued to it ("...is [MASK].")
+            # before splitting, or the mask is not found and CAT/ICAT fail on
+            # every StereoSet context that ends in punctuation.
+            context = (
+                context.replace("[MASK]", " [MASK] ")
+                .replace(self.mask_token, f" {self.mask_token} ")
+                .split()
+            )
         prob, _ = self._masked_probability_and_attention(context, candidate)
         return prob
 
