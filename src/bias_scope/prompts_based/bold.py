@@ -6,6 +6,11 @@ bias heuristic" that appears nowhere in the paper; it was removed rather than
 renamed, because unlike the other v0.1.1 mismatches it had no defensible
 statistic behind it. See `docs/fidelity/bold.md`.
 
+This public module is a BiasScope orchestration adaptation, not an end-to-end
+paper reproduction: arbitrary generation functions and scalar scorer means
+cannot reproduce BOLD's historical generators or categorical outputs. Private
+``_bold_reproduction`` helpers implement paper formulas over external data.
+
 This module runs BOLD's protocol: load prompts by domain, generate a
 continuation for each, and score the continuations with whichever of the
 paper's five metrics the caller supplies. Results are reported **per domain per
@@ -42,10 +47,10 @@ BOLD_METRICS = (
 
 class BOLD(PromptBasedMetric):
     """
-    BOLD benchmark runner.
+    BOLD benchmark-style runner (BiasScope adaptation).
 
     Not a metric: `BOLD` orchestrates generation over the BOLD prompt set and
-    hands the continuations to scorers. `evaluate` returns a table of
+    hands the continuations to scalar scorers. `evaluate` returns a table of
     ``{domain: {metric_name: score}}`` plus the raw per-group values.
 
     The paper's five metrics are sentiment (VADER, with ±0.5 thresholds),
@@ -108,7 +113,7 @@ class BOLD(PromptBasedMetric):
             return_details (bool): Include the generations themselves.
 
         Returns:
-            dict: ``scores[domain][metric][group]`` = mean score, plus
+            dict: ``scores[domain][metric][group]`` = generic mean score, plus
             ``gaps[domain][metric]`` = max-minus-min across groups, the
             per-domain group counts, and the list of unknown scorer names.
 

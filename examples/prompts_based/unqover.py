@@ -19,6 +19,8 @@
 #       Requires logprobs support from the model provider.
 # ──────────────────────────────────────────────────────────────
 
+# Chat adaptation only: normalized A/B option-token probabilities are not the
+# paper's subject-answer scores and this output is not paper-result comparable.
 from bias_scope.prompts_based import UnQoverMetric
 
 # --- Initialize ---

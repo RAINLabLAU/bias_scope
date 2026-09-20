@@ -10,6 +10,7 @@ from importlib import import_module
 
 _PROMPT_EXPORTS = {
     "AnalogicalReasoningBias": "bias_scope.prompts_based.analogical_reasoning_bias",
+    "CounterfactualAnalogyDiagnostic": "bias_scope.prompts_based.analogical_reasoning_bias",
     "BBQMetric": "bias_scope.prompts_based.bbq",
     "BOLD": "bias_scope.prompts_based.bold",
     "FirstPersonFairness": "bias_scope.prompts_based.first_person_fairness",
@@ -96,6 +97,7 @@ def __getattr__(name: str):
 __all__ = [
     "PROMPT_METRIC_NAMES",
     "AnalogicalReasoningBias",
+    "CounterfactualAnalogyDiagnostic",
     "BBQMetric",
     "BOLD",
     "FirstPersonFairness",

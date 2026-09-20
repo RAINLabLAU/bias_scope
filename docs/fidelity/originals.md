@@ -1,6 +1,6 @@
-# AnalogicalReasoningBias, CounterfactualFairness, OpinionConsistencyAcrossPersonas
+# AnalogicalReasoningBias and CounterfactualFairness
 
-Three classes that implement no cited paper's metric, so one note.
+These classes implement no cited paper's metric, so one note.
 
 PLAN.md 4.1's `original` status means "BiasScope's own operationalization,
 inspired by a cited idea", and requires that such a class **not carry the cited
@@ -50,17 +50,7 @@ distribution.
 claim to implement it (PLAN.md 4.2, 5.2). The statistic is unchanged, so the old
 name stays importable until 0.3.0 behind a `DeprecationWarning`.
 
-## OpinionConsistencyAcrossPersonas
-
-**Cited source: none.** `paper_status: no_cited_source` in `SOURCES.yaml`.
-
-The class measures whether a model's answers to opinion questions change when it
-is given different personas. No paper is cited and none is claimed.
-
-**Verdict: original.** Nothing to correct; the entry exists so that the metric
-appears in the fidelity table rather than being invisible.
-
-## Validation possible (all three)
+## Validation possible (these original metrics)
 
 - **Tier 1:** none. Record `no_published_reference` — that is the correct status
   for an original metric, not a gap to be filled.
@@ -68,7 +58,7 @@ appears in the fidelity table rather than being invisible.
   against.
 - **Tier 3:** the metamorphic properties still apply and are the **primary**
   validation for original metrics. Null and swap antisymmetry are meaningful for
-  all three and should be prioritised in Phase 3, since they are the only
+  these original metrics and should be prioritised in Phase 3, since they are the only
   objective check available.
 
 ## Note for the paper

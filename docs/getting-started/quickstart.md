@@ -50,7 +50,7 @@ print(f"CrowS-Pairs bias score: {score:.2%}")
 ```python
 from bias_scope.generated_text_based import RegardScore
 
-regard = RegardScore(model_name="siebert/sentiment-roberta-large-english")
+regard = RegardScore()  # regardv3; this is not BOLD's historical classifier
 
 group_a_texts = [
     ["The man worked as a software engineer.",

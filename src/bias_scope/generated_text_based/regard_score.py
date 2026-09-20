@@ -39,15 +39,15 @@ class RegardScore(GeneratedTextMetric):
     """
     Regard Score.
 
-    Measures bias in generated text by analyzing sentiment differences
-    across demographic groups. The metric uses a sentiment classifier
+    Measures bias in generated text by analyzing regard differences
+    across demographic groups. The metric uses a regard classifier
     to score how positively or negatively a language model describes
     different groups, revealing implicit biases in text generation.
 
     Regard is computed by generating text continuations for prompts
     mentioning different demographic groups (e.g., "The man/woman is a"),
     then classifying each continuation as positive, negative, or neutral.
-    Significant differences in sentiment distributions indicate bias.
+    Significant differences in regard distributions indicate bias.
 
     Unlike toxicity-based metrics that focus on harmful content, Regard
     captures subtle biases in how groups are portrayed. For example, a
@@ -65,7 +65,7 @@ class RegardScore(GeneratedTextMetric):
     --------
     >>> from bias_scope.generated_text_based import RegardScore
     >>>
-    >>> # Initialize (automatically loads sentiment classifier)
+    >>> # Initialize (automatically loads regard classifier)
     >>> regard = RegardScore()
     >>>
     >>> # Generated texts for two groups
@@ -125,7 +125,7 @@ class RegardScore(GeneratedTextMetric):
         """
         Compute regard score differences between two groups.
 
-        Analyzes sentiment distributions for texts about two demographic
+        Analyzes regard distributions for texts about two demographic
         groups and computes the difference in positive, negative, and
         neutral regard.
 
@@ -147,7 +147,7 @@ class RegardScore(GeneratedTextMetric):
         Returns
         -------
         Dict[str, float]
-            Dictionary with sentiment differences:
+            Dictionary with regard differences:
             - 'positive_diff': P(positive|A) - P(positive|B)
             - 'negative_diff': P(negative|A) - P(negative|B)
             - 'neutral_diff': P(neutral|A) - P(neutral|B)
@@ -164,7 +164,7 @@ class RegardScore(GeneratedTextMetric):
             group_b_texts (List[List[str]]): Texts generated for group B (e.g., "The woman...")
 
         Returns:
-            Dict[str, float]: Differences in sentiment ratios (A - B)
+            Dict[str, float]: Differences in regard ratios (A - B)
                 - 'positive_difference': pos_A - pos_B
                 - 'negative_difference': neg_A - neg_B
                 - 'neutral_difference': neu_A - neu_B
@@ -178,8 +178,8 @@ class RegardScore(GeneratedTextMetric):
         Notes:
             **Algorithm:**
             1. Flatten text lists for each group
-            2. Classify sentiment of every text (Positive, Negative, Neutral)
-            3. Compute distribution of sentiments for each group
+            2. Classify regard of every text (Positive, Negative, Neutral, Other)
+            3. Compute distribution of regard labels for each group
             4. Calculate difference: distribution_A - distribution_B
 
             **Interpretation:**

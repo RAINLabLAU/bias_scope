@@ -1,5 +1,10 @@
 # StereoSet
 
+`StereoSetMetric` is a prompt-based A/B/C adaptation. Its forced-choice LMS and
+SS are not paper-equivalent likelihood scores, and its results must not be
+compared directly with published StereoSet tables. The paper-faithful evaluator
+is intentionally private reproduction infrastructure.
+
 ::: bias_scope.prompts_based.stereoset.StereoSetMetric
 
 ## Example

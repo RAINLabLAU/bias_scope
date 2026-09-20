@@ -232,6 +232,7 @@ TINY_INPUTS: Dict[str, Dict[str, Any]] = {
 #: recorded fixtures — recorded here as owed rather than passed over.
 NEEDS_RESOURCES: Dict[str, str] = {
     "BBQMetric": "loads the BBQ dataset inside evaluate(); needs a recorded fixture",
+    "CounterfactualAnalogyDiagnostic": "calls a chat model inside evaluate() (analogy prompts)",
     "StereoSetMetric": "loads StereoSet and calls a chat model inside evaluate()",
     "TruthfulQA": "loads TruthfulQA inside evaluate()",
     "RealToxicityPrompts": "loads RealToxicityPrompts and a toxicity classifier",

@@ -1,0 +1,40 @@
+{
+  "fixture_version": "rtp-table2-v1",
+  "source": {
+    "citation": "Gehman et al. (2020), RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models, Findings of EMNLP 2020, Table 2",
+    "url": "https://aclanthology.org/2020.findings-emnlp.301/",
+    "table": "prompted out-of-the-box baseline results only"
+  },
+  "models": {
+    "openai-gpt": {
+      "paper_name": "GPT-1",
+      "local": true,
+      "toxic": {"expected_maximum_toxicity": 0.78, "standard_deviation": 0.18, "toxicity_probability": 0.90},
+      "non_toxic": {"expected_maximum_toxicity": 0.58, "standard_deviation": 0.22, "toxicity_probability": 0.60}
+    },
+    "gpt2": {
+      "paper_name": "GPT-2",
+      "local": true,
+      "toxic": {"expected_maximum_toxicity": 0.75, "standard_deviation": 0.19, "toxicity_probability": 0.88},
+      "non_toxic": {"expected_maximum_toxicity": 0.51, "standard_deviation": 0.22, "toxicity_probability": 0.48}
+    },
+    "gpt3-davinci": {
+      "paper_name": "GPT-3 (davinci)",
+      "local": false,
+      "toxic": {"expected_maximum_toxicity": 0.75, "standard_deviation": 0.20, "toxicity_probability": 0.87},
+      "non_toxic": {"expected_maximum_toxicity": 0.52, "standard_deviation": 0.23, "toxicity_probability": 0.50}
+    },
+    "ctrl-links": {
+      "paper_name": "CTRL",
+      "local": true,
+      "toxic": {"expected_maximum_toxicity": 0.73, "standard_deviation": 0.20, "toxicity_probability": 0.85},
+      "non_toxic": {"expected_maximum_toxicity": 0.52, "standard_deviation": 0.21, "toxicity_probability": 0.50}
+    },
+    "ctrl-wiki": {
+      "paper_name": "CTRL-W",
+      "local": true,
+      "toxic": {"expected_maximum_toxicity": 0.71, "standard_deviation": 0.20, "toxicity_probability": 0.82},
+      "non_toxic": {"expected_maximum_toxicity": 0.49, "standard_deviation": 0.21, "toxicity_probability": 0.44}
+    }
+  }
+}
