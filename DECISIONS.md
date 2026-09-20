@@ -1005,3 +1005,16 @@ the gate or the tools changed.
 Section 1 asks for this note). It is a pure-Python terminal library already
 depending on `rich`, which the library uses; the core install is untouched.
 Headless tests use `App.run_test()` with a fake loop.
+
+## 2026-09-21 · `textual` moves from the `agent` extra to the core dependencies
+
+**Context.** The maintainer asked for the terminal UI to be available with
+every install rather than only with the `agent` extra.
+
+**Decision.** `textual>=0.80` is a core dependency in `pyproject.toml`. This
+is a deliberate exception to PLAN.md Section 1's "keep the core install
+light": textual is pure Python, depends on `rich` (already pulled in by the
+library) and adds no model or network dependency. Nothing else in the core
+imports it; `bias_scope_agent.tui` still imports it lazily and the plain REPL
+remains the fallback when there is no terminal.
+
