@@ -39,7 +39,7 @@ import re
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from bias_scope_agent.config import AgentConfig, load_config
 from bias_scope_agent.datasets import DATASETS
@@ -214,8 +214,27 @@ def _recommended_rows(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     return []
 
 
-def _feedable(recommended_rows: List[Dict[str, Any]]) -> List[str]:
-    """Recommended metrics some dataset provider can actually load.
+def _offered_datasets(record: Dict[str, Any]) -> Optional[Dict[str, List[str]]]:
+    """dataset -> metrics, from the run's own list_datasets results; None if
+    the run never listed datasets."""
+    offered: Dict[str, List[str]] = {}
+    seen = False
+    for entry in record["dispatched"]:
+        if entry["tool"] == "list_datasets" and entry.get("ok"):
+            seen = True
+            for row in entry.get("output") or []:
+                offered.setdefault(row["dataset"], []).extend(row.get("metrics") or [])
+    return offered if seen else None
+
+
+def _feedable(record: Dict[str, Any], recommended_rows: List[Dict[str, Any]]) -> List[str]:
+    """Recommended metrics a dataset provider could actually load *in that run*.
+
+    Judged against the datasets the run was offered (its recorded
+    list_datasets output), so a provider added later does not make an older
+    transcript look incomplete. A run that never listed datasets is judged
+    against today's table instead - otherwise skipping list_datasets would
+    make every run vacuously complete.
 
     The backend's access is read off the recommendation itself: every
     recommended metric's `access` is a subset of the backend's, so their union
@@ -226,10 +245,14 @@ def _feedable(recommended_rows: List[Dict[str, Any]]) -> List[str]:
     for row in recommended_rows:
         access.update(row.get("access") or [])
     recommended = {row["metric"] for row in recommended_rows}
+    offered = _offered_datasets(record)
     feedable = set()
-    for spec in DATASETS.values():
+    for name, spec in DATASETS.items():
+        if offered is not None and name not in offered:
+            continue
+        served = offered[name] if offered is not None else spec.metrics
         if set(spec.requires_access) <= access:
-            feedable.update(m for m in spec.metrics if m in recommended)
+            feedable.update(m for m in served if m in recommended)
     return sorted(feedable)
 
 
@@ -263,7 +286,7 @@ def recommendation_coverage(record: Dict[str, Any]) -> Dict[str, Any]:
     """
     rows = _recommended_rows(record)
     recommended = sorted(row["metric"] for row in rows)
-    feedable = _feedable(rows)
+    feedable = _feedable(record, rows)
     scored, skipped = _scored_and_skipped(record)
     feedable_not_scored = sorted(set(feedable) - set(scored))
     scored_not_recommended = sorted(set(scored) - set(recommended))

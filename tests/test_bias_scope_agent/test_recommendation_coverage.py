@@ -58,6 +58,28 @@ def test_full_coverage_when_every_feedable_metric_is_scored():
     assert cov["complete"] is True
 
 
+def test_feedable_is_judged_by_the_datasets_the_run_was_offered():
+    """A provider added later must not make an old transcript look incomplete.
+    When the run recorded a list_datasets result, "feedable" means served by
+    a dataset in that result; only a run that never listed datasets falls back
+    to today's table."""
+    recommended = [_rec("CrowSPairs", ["logits"]), _rec("WEAT", ["embeddings"])]
+    record = _record(recommended, ["WEAT"], ["WEAT"], "embedding:\n  [faithful] WEAT: 0.6 (n=16)\n")
+    record["dispatched"].insert(1, {
+        "turn": 2, "tool": "list_datasets", "ok": True, "input": {},
+        "output": [{"dataset": "weat", "metrics": ["WEAT"], "axes": ["gender"]}],
+    })
+    cov = recommendation_coverage(record)
+    assert cov["feedable"] == ["WEAT"]
+    assert cov["complete"] is True
+
+
+def test_a_run_that_never_listed_datasets_is_judged_by_todays_table():
+    recommended = [_rec("CrowSPairs", ["logits"]), _rec("WEAT", ["embeddings"])]
+    cov = recommendation_coverage(_record(recommended, ["WEAT"], ["WEAT"], ""))
+    assert cov["feedable"] == ["CrowSPairs", "WEAT"]
+
+
 def test_a_feedable_metric_left_out_of_the_plan_is_reported():
     recommended = [_rec("CrowSPairs", ["logits"]), _rec("AUL", ["logits"]),
                    _rec("WEAT", ["embeddings"])]

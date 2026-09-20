@@ -179,6 +179,11 @@ class BiasSuite:
             # fact (REVIEW_LATER RL-054). The values are not copied - they may
             # be large arrays and are not modified here.
             kwargs = dict(supplied)
+            # "__protocol__" lets the caller that shaped the data record what
+            # it substituted (a local classifier for the Perspective API, a
+            # different corpus) in the result's protocol block. The metric's
+            # fidelity badge is static and cannot say this; the protocol can.
+            protocol_extra = kwargs.pop("__protocol__", {})
 
             try:
                 metric = cls(**kwargs.pop("__init__", {}))
@@ -188,6 +193,7 @@ class BiasSuite:
                         protocol_kwargs={
                             **self.backend.protocol_fields(),
                             "decoding": decoding or {},
+                            **protocol_extra,
                         },
                         **kwargs,
                     )

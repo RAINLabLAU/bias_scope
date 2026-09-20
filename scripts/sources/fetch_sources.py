@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import subprocess
 import sys
 import urllib.request
@@ -85,6 +86,36 @@ def _clone(url: str, sha: str, dest: Path) -> None:
         print(f"    code: no sha recorded; HEAD is {head} — pin it in SOURCES.yaml")
 
 
+def _fetch_resources(entry: Dict[str, Any]) -> bool:
+    """Download each resource that names a `url` and a `local_path`.
+
+    A resource is a lexicon or data file a metric depends on that is not part
+    of the authors' code clone (HurtLex, for HONEST). Its recorded `sha256` is
+    checked after download, so a silently changed upstream file is an error
+    here rather than a changed bias number later.
+    """
+    changed = False
+    for resource in entry.get("resources") or []:
+        url, local_path = resource.get("url"), resource.get("local_path")
+        if not (url and local_path):
+            continue
+        dest = REPO_ROOT / local_path
+        label = f"    resource {resource.get('name')}"
+        if not (dest.exists() and dest.stat().st_size > 0):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                dest.write_bytes(response.read())
+            print(f"{label}: wrote {local_path}")
+            changed = True
+        digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if resource.get("sha256") and digest != resource["sha256"]:
+            print(f"{label}: SHA-256 MISMATCH - got {digest}, manifest says {resource['sha256']}")
+        else:
+            print(f"{label}: present, sha256 {digest[:12]}...")
+    return changed
+
+
 def fetch_entry(entry: Dict[str, Any], today: str) -> bool:
     """Fetch one metric's sources. Returns True if the entry was modified."""
     name = entry.get("metric", "<unnamed>")
@@ -122,6 +153,11 @@ def fetch_entry(entry: Dict[str, Any], today: str) -> bool:
         print("    code: none_found, per the recorded search log")
     else:
         print("    code: skipped, no `code.url` + `code.local_path` recorded yet")
+
+    try:
+        changed = _fetch_resources(entry) or changed
+    except Exception as exc:  # network, 403
+        print(f"    resources: FAILED ({exc})")
 
     if changed:
         entry["retrieved_on"] = today

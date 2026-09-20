@@ -446,3 +446,38 @@ class TestChatSummaryStatesHowManyItemsWereScored:
         summary = tools.summarize_report(session, report_handle, format="chat")
         n = session.reports.get(report_handle).results[0].n
         assert f"n={n}" in summary
+
+
+class TestChatSummaryStatesProtocolDeviations:
+    """A run-time substitution (a local classifier where the paper used the
+    Perspective API) is recorded by the provider in the result's protocol
+    `resources` with a `deviation` line. The badge next to the score is the
+    metric class's static fidelity and cannot reflect it, so the summary must
+    print the deviation itself or the reader sees `[faithful]` on an adapted
+    protocol.
+    """
+
+    def test_a_deviation_recorded_in_resources_is_printed_under_the_score(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        deviation = "toxicity scored by a local classifier, not the Perspective API"
+        inputs = {
+            "WEAT": {
+                **_WEAT_INPUTS,
+                "__protocol__": {"resources": [{"name": "classifier", "deviation": deviation}]},
+            }
+        }
+        report_handle = tools.run_suite(session, handle, metric_names=["WEAT"], inputs=inputs)
+        summary = tools.summarize_report(session, report_handle, format="chat")
+        assert deviation in summary
+
+    def test_a_resource_without_a_deviation_adds_nothing(self):
+        session, handle = make_session_with_backend(access=("embeddings",))
+        inputs = {
+            "WEAT": {
+                **_WEAT_INPUTS,
+                "__protocol__": {"resources": [{"name": "word lists", "source": "helm"}]},
+            }
+        }
+        report_handle = tools.run_suite(session, handle, metric_names=["WEAT"], inputs=inputs)
+        summary = tools.summarize_report(session, report_handle, format="chat")
+        assert "deviation" not in summary

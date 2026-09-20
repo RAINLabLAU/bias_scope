@@ -306,6 +306,11 @@ def _chat_summary(report: Report) -> str:
             # n is not decoration: a score computed on 19 items when 20 were
             # asked for reads identically without it, and that has happened.
             lines.append(f"  [{badge}] {result.metric}: {result.score:.4g} (n={result.n})")
+            # A provider that substituted a resource says so in the protocol;
+            # the badge above is the class's static fidelity and cannot.
+            for resource in result.protocol.get("resources", []):
+                if resource.get("deviation"):
+                    lines.append(f"      deviation: {resource['deviation']}")
     if report.skipped:
         lines.append("\nskipped:")
         for name, reason in report.skipped.items():

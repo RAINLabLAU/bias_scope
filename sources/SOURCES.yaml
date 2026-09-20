@@ -227,7 +227,17 @@ metrics:
     local_path: third_party/code/CEAT
     files_read:
     - weiguowilliam/CEAT repo layout (no license file; see third_party/LICENSES.md)
-  resources: []
+  resources:
+  - name: bold_wikipedia_sentences
+    source: third_party/code/bold/wikipedia/*_wiki.json (in the pinned BOLD clone; CC-BY-SA-4.0)
+    sha256: a6f3bb5139dc4e4615e199dfd56a971a5829b09cb78c790d6cad554e4b9111dc
+    file: gender_wiki.json (the other four are hashed in each run's provenance)
+    note: SUBSTITUTE context corpus for the agent's `ceat_contexts` provider - 23,679
+      Wikipedia sentences in place of the authors' Reddit sample (REVIEW_LATER RL-071).
+  - name: weat_word_sets
+    source: third_party/code/sent-bias/tests/weat<n>.jsonl (Caliskan et al. 2017 sets)
+    sha256: 21681d3f4d7fdf97cf4cd2c0f9160940cfbd797ec62c7621b5600dc9e6e5b248
+    file: weat6.jsonl
   retrieved_on: '2026-08-23'
   notes: 'FAITHFUL. The random-effects weighting is a real DerSimonian-Laird estimator
     matching CES = sum(v_i ES_i)/sum(v_i). Fixed a stale docstring that described
@@ -350,7 +360,17 @@ metrics:
     - src/helm/benchmark/metrics/bias_metrics.py:119-142 (evaluate_demographic_representation)
     - src/helm/benchmark/metrics/bias_metrics.py:187-224 (group_counts_to_bias, TVD)
     - src/helm/benchmark/metrics/bias_word_lists.py (GENDER_TO_WORD_LISTS, RACE_TO_NAME_LISTS)
-  resources: []
+  resources:
+  - name: helm_bias_word_lists
+    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in the pinned clone)
+    sha256: 7b293ac1ed89e125bc65a67141458b07b61aa67f76b8ce5309e921141e6f83e5
+    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as targets,
+      loaded by the agent's `bold_helm_bias` provider from this file alone.
+  - name: bold_profession_prompts
+    source: third_party/code/bold/prompts/profession_prompt.json (in the pinned clone)
+    sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
+    note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
+      continue these with the model under evaluation.
   retrieved_on: '2026-08-23'
   notes: 'MISMATCH confirmed (docs/fidelity/demographic_representation.md): HELM is
     TVD-from-uniform with per-group word-list-size normalisation; ours reports entropy/Gini.'
@@ -437,7 +457,22 @@ metrics:
     local_path: third_party/code/real-toxicity-prompts
     files_read:
     - allenai/real-toxicity-prompts repo layout (Apache-2.0)
-  resources: []
+  resources:
+  - name: real_toxicity_prompts
+    source: https://huggingface.co/datasets/allenai/real-toxicity-prompts (the authors' release)
+    revision: f21629712ffd6a3d13a54fd2807ccd521c55ef74
+    sha256: 4b6808878edc985fcc6bcb6a2a7239a0fb05420cb495f1f6ca1450da5e35c163
+    file: prompts.jsonl
+    license: apache-2.0
+    note: 99,442 prompts; the agent's `rtp_toxicity` provider takes them in file order.
+  - name: toxicity_classifier_substitute
+    source: https://huggingface.co/unitary/toxic-bert (NOT the Perspective API the paper uses)
+    revision: 4d6c22e74ba2fdd26bc4f7238f50766b045a0d94
+    sha256: 2c272885d24138df70bff1b3cd944a999bd6b41dad33209730aa8ba074f6ad09
+    file: model.safetensors
+    license: apache-2.0
+    note: recorded as a protocol deviation in every EMT result the agent produces
+      (REVIEW_LATER RL-072); no Perspective key is available.
   retrieved_on: '2026-08-23'
   notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
   fidelity_note: docs/fidelity/toxicity_family.md
@@ -493,7 +528,12 @@ metrics:
     local_path: third_party/code/bold
     files_read:
     - amazon-science/bold repo layout (CC-BY-SA-4.0)
-  resources: []
+  resources:
+  - name: bold_profession_prompts
+    source: third_party/code/bold/prompts/profession_prompt.json (in the pinned clone)
+    sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
+    note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
+      continue these with the model under evaluation.
   retrieved_on: '2026-08-23'
   notes: ADAPTATION. See docs/fidelity/bold_metrics.md (one note, two metrics, one
     paper).
@@ -521,8 +561,17 @@ metrics:
     - honest/honest.py:81-100 (honest_dataframe; score = sum/(topK*len))
     - honest/honest.py:34-38 (honest_score_inner, word vs sentence branch)
     - honest/honest.py:40-80 (both inner scorers, strip_accent)
-  resources: []
-  retrieved_on: '2026-08-23'
+  resources:
+  - name: hurtlex_EN_1.2
+    source: https://github.com/MilaNLProc/hurtlex (lexica/EN/1.2/hurtlex_EN.tsv)
+    url: https://raw.githubusercontent.com/MilaNLProc/hurtlex/f80012db58c3ca10b9cba7ceb6d5da860122e5b1/lexica/EN/1.2/hurtlex_EN.tsv
+    commit: f80012db58c3ca10b9cba7ceb6d5da860122e5b1
+    sha256: a734820a63c87994781d182692e6dc7ec262c402016971a7fa31946ced0d470c
+    license: CC BY-NC-SA 4.0 (fetched into git-ignored third_party/, not vendored)
+    local_path: third_party/code/lexica/hurtlex/hurtlex_EN.tsv
+    note: 8,228 rows; the agent's `honest` provider keeps the 3,360 conservative-level
+      rows (2,227 distinct lemmas), as the authors' honest.py:25 does.
+  retrieved_on: '2026-09-20'
   notes: 'ADAPTATION. Formula is faithful; two deviations move the number: causal-LM
     generation instead of top-K mask fills, and HurtLex version drift (Nozza 1,072
     terms vs 1,722 today). Both documented and bracketed in results/emnlp/.'
@@ -1099,7 +1148,17 @@ metrics:
     files_read:
     - src/helm/benchmark/metrics/bias_metrics.py:144-185 (evaluate_stereotypical_associations)
     - src/helm/benchmark/metrics/bias_metrics.py:187-224 (group_counts_to_bias, TVD)
-  resources: []
+  resources:
+  - name: helm_bias_word_lists
+    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in the pinned clone)
+    sha256: 7b293ac1ed89e125bc65a67141458b07b61aa67f76b8ce5309e921141e6f83e5
+    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as targets,
+      loaded by the agent's `bold_helm_bias` provider from this file alone.
+  - name: bold_profession_prompts
+    source: third_party/code/bold/prompts/profession_prompt.json (in the pinned clone)
+    sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
+    note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
+      continue these with the model under evaluation.
   retrieved_on: '2026-08-23'
   notes: 'MISMATCH confirmed (docs/fidelity/stereotypical_associations.md): HELM is
     mean-over-target-words of TVD; co-occurrence is a whole-text product of counts,
@@ -1336,7 +1395,7 @@ metrics:
   family: prompt
   status: read
   paper:
-    title: 'First-Person Fairness in Chatbots'
+    title: First-Person Fairness in Chatbots
     venue: OpenAI
     year: 2024
     arxiv: '2410.19803'
@@ -1344,28 +1403,29 @@ metrics:
     local_pdf: sources/papers/firstpersonfairness.pdf
     version_read: arXiv PDF
   sections_read:
-  - 'Sec. 3.1 (name-substitution response generation over 9 domains and 66 tasks)'
-  - 'Sec. 3.3 (equations 1-3; the net score h_F - h_R; H(A,B) as the expectation over
-    prompts; the identical-response rule; the twice-with-responses-swapped protocol)'
-  - 'Figure 3 (the LMRA template, marked in the paper as "slightly abbreviated")'
-  - 'Sec. 3.3 "Addressing LMRA over-sensitivity" (naming the groups made the judge rate
-    a pair and its swap both harmful; hiding the assignment fixed it)'
+  - Sec. 3.1 (name-substitution response generation over 9 domains and 66 tasks)
+  - Sec. 3.3 (equations 1-3; the net score h_F - h_R; H(A,B) as the expectation over
+    prompts; the identical-response rule; the twice-with-responses-swapped protocol)
+  - Figure 3 (the LMRA template, marked in the paper as "slightly abbreviated")
+  - Sec. 3.3 "Addressing LMRA over-sensitivity" (naming the groups made the judge
+    rate a pair and its swap both harmful; hiding the assignment fixed it)
   - 'Sec. 4.3 (LMRA-human agreement: strong for gender, weaker for race and features)'
   code_status: none_found
   search_log:
   - 'grep of the paper text for github / https / "we release" / "available at": only
     OpenAI blog URLs and reference-list links, no artefact link'
-  - 'GitHub code search, repositories matching "first-person-fairness" in name or description:
-    19 hits, none related'
+  - 'GitHub code search, repositories matching "first-person-fairness" in name or
+    description: 19 hits, none related'
   - 'GitHub search for fairness repositories under org:openai: 0 hits'
   - 'Conclusion: the prompts and grader were not released. Figure 3 is the only published
     template and the paper marks it abbreviated, so the metric is an adaptation.'
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/first_person_fairness.md
-  notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). The estimator H = E[h_F - h_R] is exact, including
-    the swapped second pass and the identical-response rule; the judge template cannot be mirrored verbatim
-    because no unabbreviated version was published.
+  notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). The estimator H = E[h_F - h_R]
+    is exact, including the swapped second pass and the identical-response rule; the
+    judge template cannot be mirrored verbatim because no unabbreviated version was
+    published.
 - metric: DecodingTrustStereotype
   family: prompt
   status: read
@@ -1381,31 +1441,33 @@ metrics:
   - 'Sec. 5 (stereotype bias: 24 demographic groups, 16 stereotype topics, 3 templates,
     and the benign/untargeted/targeted system prompts)'
   - 'Sec. 8 (fairness: the model as a tabular classifier on Adult and crime, scored
-    with demographic parity and equalized odds)' 
+    with demographic parity and equalized odds)'
   code:
     url: https://github.com/AI-secure/DecodingTrust
     sha: 161ae8321ced62f45fcd9ceb412e05b47c603cd4
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
     local_path: third_party/code/DecodingTrust
     files_read:
-    - src/dt/perspectives/stereotype/agreement_func.py (classify_response and its disclaimer tie-break;
-      AGREE/DISAGREE/NO_RESPONSE phrase lists; calculate_agreeability's (agree_matrix/3)/n_generations;
-      create_json's 1 - round(mean, 2) and the parallel rejection matrix)
-    - src/dt/perspectives/fairness/score_calculation_script.py (answer parsing per dataset, the unseeded
-      coin flip for ambiguous answers, the fairlearn DPD/EOd calls, rejection rate, and both leaderboard
-      formulas)
-    - src/dt/perspectives/fairness/fairness_evaluation.py (Adult 'Male'->1 and the inverted crime label
-      convention)
+    - src/dt/perspectives/stereotype/agreement_func.py (classify_response and its
+      disclaimer tie-break; AGREE/DISAGREE/NO_RESPONSE phrase lists; calculate_agreeability's
+      (agree_matrix/3)/n_generations; create_json's 1 - round(mean, 2) and the parallel
+      rejection matrix)
+    - src/dt/perspectives/fairness/score_calculation_script.py (answer parsing per
+      dataset, the unseeded coin flip for ambiguous answers, the fairlearn DPD/EOd
+      calls, rejection rate, and both leaderboard formulas)
+    - src/dt/perspectives/fairness/fairness_evaluation.py (Adult 'Male'->1 and the
+      inverted crime label convention)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/decodingtrust.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Direction inverted to the library's 0-is-neutral convention;
-    the leaderboard numbers are kept in details. The ambiguous-answer coin flip is deliberately not reproduced.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Direction inverted to the library's
+    0-is-neutral convention; the leaderboard numbers are kept in details. The ambiguous-answer
+    coin flip is deliberately not reproduced.
 - metric: LLMDecisionBias
   family: prompt
   status: read
   paper:
-    title: 'Explicitly unbiased large language models still form biased associations'
+    title: Explicitly unbiased large language models still form biased associations
     venue: PNAS 2025
     year: 2025
     arxiv: '2402.04105'
@@ -1413,20 +1475,23 @@ metrics:
     local_pdf: sources/papers/implicitassociationtest.pdf
     version_read: arXiv PDF
   sections_read:
-  - Sec. 2.2 (the paired decision task; 1 = assigning sa to xa; range 0 to 1 with 0.5 unbiased)
+  - Sec. 2.2 (the paired decision task; 1 = assigning sa to xa; range 0 to 1 with
+    0.5 unbiased)
   code:
     url: https://github.com/baixuechunzi/llm-implicit-bias
     sha: 0d2772e8eb21186b6db1fab7551633ffda16c06f
     license: MIT
     local_path: third_party/code/llm-implicit-bias
     files_read:
-    - data/result_decision.csv (the scoring rule, derived: label yes/no -> 1.0/0.0, blank on refusal)
+    - data/result_decision.csv (the scoring rule, derived: label yes/no -> 1.0/0.0,
+        blank on refusal)
     - analysis/analysis_decision.ipynb (popmean=0.5; the per-model rejection rate)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/implicit_association.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Judge-bound. The repo ships results, not a scorer, so
-    the rule was derived from the released columns and checked against 21,798 scored rows.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Judge-bound. The repo ships results,
+    not a scorer, so the rule was derived from the released columns and checked against
+    21,798 scored rows.
 - metric: DecodingTrustFairness
   family: prompt
   status: read
@@ -1440,21 +1505,24 @@ metrics:
     version_read: arXiv PDF
   sections_read:
   - 'Sec. 8 (fairness: demographic parity difference and equalized odds difference
-    over Adult and crime classification prompts)' 
+    over Adult and crime classification prompts)'
   code:
     url: https://github.com/AI-secure/DecodingTrust
     sha: 161ae8321ced62f45fcd9ceb412e05b47c603cd4
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
     local_path: third_party/code/DecodingTrust
     files_read:
-    - src/dt/perspectives/fairness/score_calculation_script.py (aggregate_current_scores in full)
-    - src/dt/perspectives/fairness/fairness_evaluation.py (the label and sensitive-attribute conventions)
+    - src/dt/perspectives/fairness/score_calculation_script.py (aggregate_current_scores
+      in full)
+    - src/dt/perspectives/fairness/fairness_evaluation.py (the label and sensitive-attribute
+      conventions)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/decodingtrust.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Tier 2 equivalent - exact to 1e-12 against fairlearn
-    0.14.0 (the package score_calculation_script.py itself calls) on 2000 seeded random cases; fairlearn
-    is a dev-only oracle in tests/oracles/, not a runtime dependency.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Tier 2 equivalent - exact to 1e-12
+    against fairlearn 0.14.0 (the package score_calculation_script.py itself calls)
+    on 2000 seeded random cases; fairlearn is a dev-only oracle in tests/oracles/,
+    not a runtime dependency.
 - metric: TrustLLMStereotypeRecognition
   family: prompt
   status: read
@@ -1467,9 +1535,8 @@ metrics:
     local_pdf: sources/papers/trustllm.pdf
     version_read: arXiv PDF
   sections_read:
-  - 'Sec. on fairness / stereotype recognition (three-way classification of a
-    sentence as stereotype, anti-stereotype or unrelated; accuracy over the parseable
-    answers)'
+  - Sec. on fairness / stereotype recognition (three-way classification of a sentence
+    as stereotype, anti-stereotype or unrelated; accuracy over the parseable answers)
   code:
     url: https://github.com/HowieHwong/TrustLLM
     sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
@@ -1477,12 +1544,13 @@ metrics:
     local_path: third_party/code/TrustLLM
     files_read:
     - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
-    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
-      keywords_flag_stereotype, stereotype_recognition_number_flag)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
+      RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/trustllm.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). neutral_value is 1.0, not 0.0 - the metric is an accuracy.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). neutral_value is 1.0, not 0.0 -
+    the metric is an accuracy.
 - metric: TrustLLMStereotypeAgreement
   family: prompt
   status: read
@@ -1495,8 +1563,8 @@ metrics:
     local_pdf: sources/papers/trustllm.pdf
     version_read: arXiv PDF
   sections_read:
-  - 'Sec. on fairness / stereotype agreement (does the model say yes to a stereotype
-    statement; the denominator is every response)'
+  - Sec. on fairness / stereotype agreement (does the model say yes to a stereotype
+    statement; the denominator is every response)
   code:
     url: https://github.com/HowieHwong/TrustLLM
     sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
@@ -1504,12 +1572,13 @@ metrics:
     local_path: third_party/code/TrustLLM
     files_read:
     - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
-    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
-      keywords_flag_stereotype, stereotype_recognition_number_flag)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
+      RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/trustllm.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The only one of the four where higher means more biased.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The only one of the four where higher
+    means more biased.
 - metric: TrustLLMDisparagement
   family: prompt
   status: read
@@ -1522,8 +1591,8 @@ metrics:
     local_pdf: sources/papers/trustllm.pdf
     version_read: arXiv PDF
   sections_read:
-  - 'Sec. on fairness / disparagement (chi-square test of independence between the
-    demographic attribute and the predicted salary bracket; reported as a p-value)'
+  - Sec. on fairness / disparagement (chi-square test of independence between the
+    demographic attribute and the predicted salary bracket; reported as a p-value)
   code:
     url: https://github.com/HowieHwong/TrustLLM
     sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
@@ -1531,13 +1600,14 @@ metrics:
     local_path: third_party/code/TrustLLM
     files_read:
     - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
-    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
-      keywords_flag_stereotype, stereotype_recognition_number_flag)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
+      RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/trustllm.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Reports the smallest p-value across attributes; a p-value
-    is not an effect size, so the contingency table is returned beside it.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Reports the smallest p-value across
+    attributes; a p-value is not an effect size, so the contingency table is returned
+    beside it.
 - metric: TrustLLMPreference
   family: prompt
   status: read
@@ -1550,8 +1620,8 @@ metrics:
     local_pdf: sources/papers/trustllm.pdf
     version_read: arXiv PDF
   sections_read:
-  - 'Sec. on fairness / preference (plain and forced-choice prompts; the score is the
-    refuse-to-answer rate, so declining to pick a side is the rewarded behaviour)'
+  - Sec. on fairness / preference (plain and forced-choice prompts; the score is the
+    refuse-to-answer rate, so declining to pick a side is the rewarded behaviour)
   code:
     url: https://github.com/HowieHwong/TrustLLM
     sha: 4b864211f32602fddb8cafc8d5154bed1e0ce01e
@@ -1559,13 +1629,13 @@ metrics:
     local_path: third_party/code/TrustLLM
     files_read:
     - trustllm_pkg/trustllm/task/fairness.py (FairnessEval in full)
-    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement, RtA, p_value,
-      keywords_flag_stereotype, stereotype_recognition_number_flag)
+    - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
+      RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/trustllm.md
-  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Classifier-bound; the refusal classifier is caller-supplied
-    so its version enters the protocol.
+  notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Classifier-bound; the refusal classifier
+    is caller-supplied so its version enters the protocol.
 - metric: ImplicitAssociationTest
   family: prompt
   status: read
@@ -1578,9 +1648,10 @@ metrics:
     local_pdf: sources/papers/implicitassociationtest.pdf
     version_read: arXiv PDF
   sections_read:
-  - Sec. 2.1 (the bias formula N(sa,Xa)/[N(sa,Xa)+N(sa,Xb)] + N(sb,Xb)/[N(sb,Xa)+N(sb,Xb)] - 1, range
-    -1 to 1, and both worked examples 7/7+7/7-1=1 and 3/7+6/7-1=.29)
-  - Sec. 2.2 (the paired decision task; mean of binary outcomes; range 0 to 1 with 0.5 the unbiased baseline)
+  - Sec. 2.1 (the bias formula N(sa,Xa)/[N(sa,Xa)+N(sa,Xb)] + N(sb,Xb)/[N(sb,Xa)+N(sb,Xb)]
+    - 1, range -1 to 1, and both worked examples 7/7+7/7-1=1 and 3/7+6/7-1=.29)
+  - Sec. 2.2 (the paired decision task; mean of binary outcomes; range 0 to 1 with
+    0.5 the unbiased baseline)
   - Sec. 3 (8 models, 4 social categories, 21 stereotypes, 33,600 prompts)
   code:
     url: https://github.com/baixuechunzi/llm-implicit-bias
@@ -1588,15 +1659,18 @@ metrics:
     license: MIT
     local_path: third_party/code/llm-implicit-bias
     files_read:
-    - analysis/clean.ipynb (`d_score` with the 0.01 denominators; `keep_english_and_hyphen`; every branch
-      of `formatting()`; the drop-the-whole-response error filter)
+    - analysis/clean.ipynb (`d_score` with the 0.01 denominators; `keep_english_and_hyphen`;
+      every branch of `formatting()`; the drop-the-whole-response error filter)
     - analysis/analysis_implicit.ipynb (ttest_1samp against popmean=0)
-    - analysis/analysis_decision.ipynb (ttest_1samp against popmean=0.5; the rejection-rate figure)
-    - stimuli/iat_stimuli.csv (A = reference pool, B = stigmatized pool, C = attributes positive-then-negative)
-    - data/result_implicit.csv (33,600 responses with the authors' own iat_bias per response)
+    - analysis/analysis_decision.ipynb (ttest_1samp against popmean=0.5; the rejection-rate
+      figure)
+    - stimuli/iat_stimuli.csv (A = reference pool, B = stigmatized pool, C = attributes
+      positive-then-negative)
+    - data/result_implicit.csv (33,600 responses with the authors' own iat_bias per
+      response)
     - data/result_decision.csv (label -> decision_bias; blank when the model refused)
   resources: []
   retrieved_on: '2026-08-23'
   fidelity_note: docs/fidelity/implicit_association.md
-  notes: FAITHFUL (both ImplicitAssociationTest and LLMDecisionBias). Added in v0.2.0 (PLAN.md 7.2). Tier
-    2 equivalent - 18,885/18,885 released responses exact to 1e-9.
+  notes: FAITHFUL (both ImplicitAssociationTest and LLMDecisionBias). Added in v0.2.0
+    (PLAN.md 7.2). Tier 2 equivalent - 18,885/18,885 released responses exact to 1e-9.

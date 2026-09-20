@@ -23,21 +23,29 @@ than with a stack trace.
 from __future__ import annotations
 
 import csv
-import hashlib
-import inspect
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from bias_scope.backends import Backend
-
-_THIRD_PARTY = Path("third_party/code")
+from bias_scope_agent.datasets_ceat import CEAT_BUILDERS, CEAT_DATASETS
+from bias_scope_agent.datasets_common import (
+    _SEAT_BY_AXIS,
+    _SENT_BIAS_TESTS,
+    _THIRD_PARTY,
+    _WEAT_BY_AXIS,
+    DatasetSpec,
+    _association_test,
+    _init_kwargs,
+    _require,
+    _sha256,
+    _word_sets,
+)
+from bias_scope_agent.datasets_generated import GENERATED_BUILDERS, GENERATED_DATASETS
+from bias_scope_agent.datasets_toxicity import TOXICITY_BUILDERS, TOXICITY_DATASETS
 
 _CROWS_RELATIVE = "crows-pairs/data/crows_pairs_anonymized.csv"
-_SENT_BIAS_TESTS = "sent-bias/tests"
 _STEREOSET_DEV = "StereoSet/data/dev.json"
-_BOLD_PROMPTS = "bold/prompts"
 
 # CrowS-Pairs' own `bias_type` spellings, for the axis names this library uses.
 _CROWS_AXIS = {
@@ -51,34 +59,6 @@ _CROWS_AXIS = {
     "physical-appearance": "physical-appearance",
     "disability": "disability",
 }
-
-# Which of Caliskan's ten tests measures which axis. Only the ones whose target
-# and attribute categories actually name the axis are listed: WEAT 1 and 2
-# (flowers/insects, instruments/weapons) measure no social axis, and no WEAT
-# test covers religion - `available_datasets` says so rather than substituting.
-_WEAT_BY_AXIS = {"gender": "weat6", "race": "weat3", "age": "weat10"}
-_SEAT_BY_AXIS = {"gender": "sent-weat6", "race": "sent-weat3", "age": "sent-weat10"}
-
-
-@dataclass(frozen=True)
-class DatasetSpec:
-    """One named body of evaluation data and the metrics it can feed."""
-
-    name: str
-    description: str
-    metrics: Tuple[str, ...]
-    axes: Tuple[str, ...]
-    source: str
-    #: Constructor arguments to fill from the backend. Declared per provider,
-    #: never inferred from a signature: `model_name` means the model under test
-    #: for CrowSPairs, the classifier Sheng et al. require for RegardScore, and
-    #: the sentence encoder for WEAT/SEAT. A provider serving a metric of the
-    #: second kind must set this to () (REVIEW_LATER RL-052).
-    init_from_backend: Tuple[str, ...] = ("model_name", "device")
-    #: Access modes the backend must provide. A provider that generates needs
-    #: "completions"; the rest need nothing the planner has not already checked.
-    requires_access: Tuple[str, ...] = ()
-
 
 DATASETS: Dict[str, DatasetSpec] = {
     "crows_pairs": DatasetSpec(
@@ -107,26 +87,6 @@ DATASETS: Dict[str, DatasetSpec] = {
         metrics=("CAT", "ICAT"),
         axes=("gender", "race", "religion", "profession"),
         source=_STEREOSET_DEV,
-    ),
-    "bold_regard": DatasetSpec(
-        name="bold_regard",
-        description=(
-            "Dhamala et al. 2021 BOLD prompts. The harness generates one "
-            "continuation per prompt WITH THE MODEL UNDER EVALUATION and hands "
-            "the two groups to RegardScore, which scores them with Sheng et "
-            "al.'s regard classifier. Needs a backend that can generate, so it "
-            "is the one dataset here that a causal LM can use and an encoder "
-            "cannot. Generation is the slow part: keep `limit` modest."
-        ),
-        metrics=("RegardScore",),
-        axes=("gender",),
-        source=f"{_BOLD_PROMPTS}/<axis>_prompt.json",
-        # Nothing: RegardScore's `model_name` is the regard *classifier* Sheng
-        # et al. require (sasha/regardv3), not the model under evaluation.
-        # Filling it from the backend would reintroduce exactly the
-        # sentiment-for-regard conflation the 0.2.0 audit corrected (RL-052).
-        init_from_backend=(),
-        requires_access=("completions",),
     ),
     "weat": DatasetSpec(
         name="weat",
@@ -158,42 +118,6 @@ DATASETS: Dict[str, DatasetSpec] = {
 }
 
 
-def _require(path: Path, metric_hint: str) -> Path:
-    if not path.exists():
-        raise ValueError(
-            f"{path} is not present. third_party/ is git-ignored; restore it with\n"
-            f"    python scripts/sources/fetch_sources.py --metric {metric_hint}"
-        )
-    return path
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _init_kwargs(metric_name: str, backend: Backend, allowed: Tuple[str, ...]) -> Dict[str, Any]:
-    """Constructor arguments naming the model under evaluation.
-
-    `allowed` comes from the provider's own `init_from_backend`, so a provider
-    serving a metric whose `model_name` is a fixed resource rather than the
-    model under test declares `()` and nothing is filled. The signature is
-    consulted only to avoid passing an argument the metric does not accept.
-    """
-    from bias_scope_agent.introspection import _agent_metric_classes
-
-    cls = _agent_metric_classes().get(metric_name)
-    if cls is None:
-        return {}
-    accepted = inspect.signature(cls.__init__).parameters
-    kwargs: Dict[str, Any] = {}
-    if "model_name" in allowed and "model_name" in accepted:
-        kwargs["model_name"] = backend.model_id
-    device = getattr(backend, "device", None)
-    if "device" in allowed and "device" in accepted and device:
-        kwargs["device"] = device
-    return kwargs
-
-
 def _crows_pairs(root: Path, axis: str, limit: Optional[int]) -> List[List[str]]:
     bias_type = _CROWS_AXIS.get(axis)
     if bias_type is None:
@@ -204,21 +128,6 @@ def _crows_pairs(root: Path, axis: str, limit: Optional[int]) -> List[List[str]]
     if limit is not None:
         rows = rows[:limit]
     return [[row["sent_more"], row["sent_less"]] for row in rows]
-
-
-def _word_sets(path: Path) -> Tuple[List[str], List[str], List[str], List[str]]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    return tuple(data[key]["examples"] for key in ("targ1", "targ2", "attr1", "attr2"))
-
-
-def _association_test(root: Path, axis: str, by_axis: Dict[str, str], hint: str) -> Path:
-    test = by_axis.get(axis)
-    if test is None:
-        raise ValueError(
-            f"no {hint} test measures axis {axis!r}; available: {sorted(by_axis)}. "
-            f"Caliskan's tests 1-2 measure no social axis and none covers religion."
-        )
-    return _require(root / _SENT_BIAS_TESTS / f"{test}.jsonl", hint.upper())
 
 
 def _stereoset_cases(root: Path, axis: str, limit: Optional[int]) -> Tuple[List[Dict], int]:
@@ -293,59 +202,6 @@ def _build_stereoset(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict
     return inputs, provenance
 
 
-_BOLD_DEFAULT_LIMIT = 40
-
-
-def _bold_prompts(
-    root: Path, axis: str, limit: Optional[int]
-) -> Tuple[str, List[str], str, List[str]]:
-    """Two groups of prompts from BOLD's own file, in file order."""
-    path = _require(root / _BOLD_PROMPTS / f"{axis}_prompt.json", "RegardScore")
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if len(data) != 2:
-        raise ValueError(
-            f"bold_regard compares exactly two groups; {axis!r} has {len(data)} "
-            f"({sorted(data)}). Only 'gender' is a two-group BOLD domain."
-        )
-    take = _BOLD_DEFAULT_LIMIT if limit is None else limit
-    groups = []
-    for name in sorted(data):
-        prompts = [p for entity in data[name].values() for p in entity]
-        groups.append((name, prompts[:take]))
-    return groups[0][0], groups[0][1], groups[1][0], groups[1][1]
-
-
-def _build_bold_regard(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
-    name_a, prompts_a, name_b, prompts_b = _bold_prompts(root, axis, limit)
-    decoding = {"max_new_tokens": 30, "do_sample": False}
-    texts_a = backend.generate(prompts_a, **decoding)
-    texts_b = backend.generate(prompts_b, **decoding)
-    inputs = {
-        name: {
-            "__init__": _init_kwargs(name, backend, allowed),
-            # One continuation per prompt, so each prompt is a one-element list.
-            "group_a_texts": [[text] for text in texts_a],
-            "group_b_texts": [[text] for text in texts_b],
-        }
-        for name in metrics
-    }
-    path = root / _BOLD_PROMPTS / f"{axis}_prompt.json"
-    provenance = {
-        "source": str(path),
-        "sha256": _sha256(path),
-        "group_a": {"name": name_a, "prompts": len(prompts_a)},
-        "group_b": {"name": name_b, "prompts": len(prompts_b)},
-        "axis": axis,
-        "generated_by": backend.model_id,
-        "decoding": decoding,
-        "note": (
-            "continuations generated by the model under evaluation; scored by "
-            "RegardScore's own classifier, which is not the model under evaluation"
-        ),
-    }
-    return inputs, provenance
-
-
 def _build_crows(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
     pairs = _crows_pairs(root, axis, limit)
     inputs = {
@@ -393,7 +249,6 @@ def _build_association(
 _BUILDERS: Dict[str, Callable[..., Tuple[Dict, Dict]]] = {
     "crows_pairs": _build_crows,
     "stereoset": _build_stereoset,
-    "bold_regard": _build_bold_regard,
     "weat": lambda b, m, a, lim, r, al: _build_association(
         b, m, a, lim, r, al, _WEAT_BY_AXIS, "weat"
     ),
@@ -401,6 +256,16 @@ _BUILDERS: Dict[str, Callable[..., Tuple[Dict, Dict]]] = {
         b, m, a, lim, r, al, _SEAT_BY_AXIS, "seat"
     ),
 }
+
+
+# Providers that generate with the model under evaluation live in
+# datasets_generated.py (module size). Same table, merged explicitly here.
+DATASETS.update(GENERATED_DATASETS)
+_BUILDERS.update(GENERATED_BUILDERS)
+DATASETS.update(TOXICITY_DATASETS)
+_BUILDERS.update(TOXICITY_BUILDERS)
+DATASETS.update(CEAT_DATASETS)
+_BUILDERS.update(CEAT_BUILDERS)
 
 
 def available_datasets(metric_names: Optional[Sequence[str]] = None) -> List[Dict[str, Any]]:

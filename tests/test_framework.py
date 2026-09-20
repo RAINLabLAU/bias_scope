@@ -18,6 +18,7 @@ Includes the acceptance checks 5.4 lists, each as a named test:
 from html.parser import HTMLParser
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from bias_scope.backends import (
@@ -675,3 +676,46 @@ class TestRunDoesNotMutateTheCallersInputs:
         second = suite.run(inputs=inputs)
         assert first.scores() == second.scores()
         assert second.skipped == {}
+
+
+class TestAProviderCanRecordAProtocolDeviation:
+    """A dataset provider that substitutes a resource (a local toxicity
+    classifier for the Perspective API, a Wikipedia corpus for CEAT's Reddit
+    sample) changes the protocol without changing the metric class, whose
+    `fidelity` badge is static. The substitution must reach the result's
+    protocol block, or the report badges an adaptation as faithful.
+
+    `inputs[<metric>]["__protocol__"]` is merged into the protocol kwargs the
+    suite already passes to `run()`, next to `"__init__"`.
+    """
+
+    _WEAT = {
+        "target_embeddings": (
+            np.array([[1.0, 0.0], [0.9, 0.1], [0.8, 0.2]]),
+            np.array([[0.0, 1.0], [0.1, 0.9], [0.2, 0.8]]),
+        ),
+        "attribute_embeddings": (
+            np.array([[1.0, 0.0], [0.95, 0.05], [0.9, 0.1]]),
+            np.array([[0.0, 1.0], [0.05, 0.95], [0.1, 0.9]]),
+        ),
+    }
+
+    def test_resources_under___protocol___reach_the_result(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        resources = [{"name": "corpus", "source": "x", "deviation": "substitute corpus"}]
+        inputs = {"WEAT": {**self._WEAT, "__protocol__": {"resources": resources}}}
+        report = suite.run(inputs=inputs)
+        assert report.results[0].protocol["resources"] == resources
+
+    def test_the_key_is_not_passed_to_evaluate(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        report = suite.run(inputs={"WEAT": {**self._WEAT, "__protocol__": {}}})
+        assert not report.skipped, report.skipped
+
+    def test_without_the_key_the_protocol_is_unchanged(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        report = suite.run(inputs={"WEAT": dict(self._WEAT)})
+        assert report.results[0].protocol["resources"] == []
