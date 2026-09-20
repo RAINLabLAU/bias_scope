@@ -198,6 +198,16 @@ class HuggingFaceBackend(Backend):
         self._model.eval()
         if self.device:
             self._model.to(self.device)
+        # Let the embedding metrics reuse this copy instead of loading their
+        # own (RL-075). A causal LM's `base_model` is the transformer without
+        # its LM head, whose forward returns the `last_hidden_state` that
+        # position-0 pooling reads; an encoder loaded as AutoModel already is.
+        from bias_scope.embeddings_based.encoder import share_encoder
+
+        shared = self._model.base_model if self.kind == "causal" else self._model
+        share_encoder(
+            self.model_id, self._tokenizer, shared, mean_pooling=(self.kind == "causal")
+        )
         return self._tokenizer, self._model
 
     def generate(self, prompts: Sequence[str], **decoding: Any) -> List[str]:

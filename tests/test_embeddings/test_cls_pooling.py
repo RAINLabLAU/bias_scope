@@ -227,3 +227,81 @@ class TestATokenizerWithoutAPadToken:
         out = embed(["a", "b c d e"], model_name="sshleifer/tiny-gpt2", pooling="mean")
         assert out.shape[0] == 2
         assert np.all(np.isfinite(out))
+
+
+class TestTheClsLoaderReusesTheBackendsModel:
+    """RL-075: Qwen2.5-3B-Instruct ran out of GPU memory inside run_suite.
+    The backend had the model loaded (bf16, ~6 GB) and WEAT/SEAT/CEAT each
+    loaded their own copy through `_load_cls_encoder` / sentence-transformers,
+    so a 3B model sat on the GPU three times. A backend that has loaded a
+    model registers it, and the CLS-pooling loader reuses it instead of
+    loading again.
+    """
+
+    def test_a_loaded_backend_model_is_what_the_cls_loader_returns(self):
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        tokenizer, model = backend._load()
+        shared_tok, shared_model = _load_cls_encoder("sshleifer/tiny-gpt2")
+        assert shared_tok is tokenizer
+        # A causal LM's base model is the transformer without the LM head; it
+        # is the module whose `last_hidden_state` the pooling reads.
+        assert shared_model is model.base_model
+
+    def test_embedding_through_the_shared_model_works(self):
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")._load()
+        out = embed(["a", "b c d"], model_name="sshleifer/tiny-gpt2", pooling="cls")
+        assert out.shape[0] == 2 and np.all(np.isfinite(out))
+
+
+class TestMeanPoolingReusesACausalBackendsModel:
+    """RL-076: WEAT's default `pooling='mean'` went through sentence-transformers,
+    a third copy of the model on the GPU, and on google/gemma-3-1b-it that
+    loader tried to build an image processor and failed before any metric
+    scored. For a repo with no sentence-transformers config, that library
+    builds Transformer + Pooling(mean): a masked mean of the last hidden
+    state, bit-identical to computing it on the backend's own copy (max abs
+    difference 0.0 on gpt2 and tiny-gpt2, 2026-09-20). A causal backend that
+    has loaded its model registers it for mean pooling too.
+    """
+
+    def test_mean_pooling_on_a_loaded_causal_backend_matches_sentence_transformers(self):
+        from sentence_transformers import SentenceTransformer
+
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based import encoder
+
+        texts = ["office", "the family went home", "a career in management"]
+        reference_model = SentenceTransformer("sshleifer/tiny-gpt2", device="cpu")
+        reference_model.tokenizer.pad_token = reference_model.tokenizer.eos_token
+        reference = reference_model.encode(texts, convert_to_numpy=True)
+
+        encoder._load_cls_encoder.cache_clear()
+        # fp32 here so the comparison is about the pooling arithmetic. The
+        # backend's production dtype for causal LMs is bf16 (PLAN.md Sec. 1);
+        # sharing means the embedding metrics now run in the dtype the protocol
+        # block records, instead of a separately loaded copy in the
+        # checkpoint's dtype.
+        HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal", dtype="fp32")._load()
+        with patch.object(encoder, "_load_sentence_transformer",
+                          side_effect=AssertionError("must not load a second copy")):
+            out = embed(texts, model_name="sshleifer/tiny-gpt2", pooling="mean")
+        assert out.shape == reference.shape
+        assert np.allclose(out, reference, atol=1e-5)
+
+    def test_an_encoder_backend_keeps_the_sentence_transformers_path(self):
+        # Sentence-transformers checkpoints (all-MiniLM, all-mpnet) carry their
+        # own pooling config; only a causal LM's registration covers mean pooling.
+        from bias_scope.embeddings_based import encoder
+
+        encoder.share_encoder("some/encoder", object(), object(), mean_pooling=False)
+        assert "some/encoder" not in encoder._SHARED_MEAN_POOL
+        encoder.share_encoder("some/causal", object(), object(), mean_pooling=True)
+        assert "some/causal" in encoder._SHARED_MEAN_POOL

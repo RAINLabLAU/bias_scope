@@ -1719,15 +1719,24 @@ found. Test: `tests/test_embeddings/test_cls_pooling.py::TestATokenizerWithoutAP
 `_embed_cls`, which takes `last_hidden_state[:, 0, :]`. A decoder-only model
 has no `[CLS]`; position 0 attends to nothing but itself, so the "sentence
 vector" is a function of the first token alone. `docs/fidelity/seat.md`
-records the reference's position-0 pooling for its BERT encoder only; what
-May et al.'s code does for GPT-style encoders is not recorded there and
-must be read from `sent-bias/encoders/` before anything is changed. The Qwen
+records the reference's position-0 pooling for its BERT encoder only.
+**Checked 2026-09-20:** `sent-bias/sentbias/encoders/` has bert, bow, elmo,
+gensen and infersent - no GPT-style encoder at all, so the authors give no
+protocol to follow for decoder-only models. **Observed the same day:** on
+Llama-3.2-1B-Instruct (and any model whose tokenizer prepends a BOS token)
+position 0 *is* the BOS token, whose hidden state under causal attention is
+the same for every sentence, so all "sentence vectors" are identical and SEAT
+and CEAT decline with "standard deviation of association scores is zero".
+GPT-2 and Qwen add no BOS, which is the only reason their SEAT numbers exist. The Qwen
 SEAT scores (0.2512, 0.3193) and gpt2's are therefore of uncertain meaning
 even though the statistic is WEAT's.
 **Chosen:** not changed - changing pooling changes the protocol and the
 recorded numbers, and the plan forbids changing a protocol to fit. Logged.
-**To revisit:** decide a causal-LM pooling (last token, or mean) from the
-paper, add it as a documented option, and re-run the causal scenarios.
+**To revisit:** there is no paper protocol to take a causal-LM pooling from;
+choosing one (last token, or mean) is an `original` adaptation that must be
+labelled as such, added as a documented option, and re-run on the causal
+scenarios. Until then SEAT/CEAT on BOS-prepending causal LMs are recorded as
+declined, not as numbers.
 
 ## RL-069 · verify · 2026-09-19 · the agent's interpretive prose is occasionally wrong where the numbers are right
 **Encountered:** every score in the eight 2026-09-18/19 runs traces to a tool
@@ -1839,3 +1848,67 @@ rather than a traceback to the developer; the transcript still records the
 error text, and `recommendation_coverage` still marks the run incomplete.
 **To revisit:** sentence-transformers' `modules.json` probe should not fail
 on a cached gated repo; check whether passing the token explicitly fixes it.
+
+## RL-075 · fix · 2026-09-20 · the embedding metrics loaded their own copies of a model the backend already held
+**Encountered:** Qwen2.5-3B-Instruct ran out of a 20 GB GPU inside
+`run_suite` (18.4 GB allocated). The backend held the model in bf16 (~6 GB);
+WEAT's sentence-transformers loader loaded a second copy and SEAT/CEAT's
+`_load_cls_encoder` a third, all cached for the run, before the regard and
+toxicity classifiers were even loaded. The agent reported the OOM honestly
+and offered no numbers.
+**Chosen:** `HuggingFaceBackend._load` registers its (tokenizer, model) with
+`encoder.share_encoder`, and `_load_cls_encoder` returns that copy when one
+is registered; for a causal LM the registered module is `model.base_model`,
+the transformer without its LM head, whose forward returns `last_hidden_state`.
+Peak is now backend + sentence-transformers copy + classifiers. Tests:
+`test_cls_pooling.py::TestTheClsLoaderReusesTheBackendsModel`.
+**Risk if wrong:** a shared bf16 model gives bf16 hidden states where a fresh
+`AutoModel` load would give the checkpoint's own dtype; both are cast to
+float32 before pooling (RL-056), and transformers 5 loads checkpoints in
+their stored dtype anyway, so no number changed on the models run here.
+**To revisit:** the sentence-transformers copy (WEAT's default mean pooling)
+is still separate; wrapping the shared model in a `SentenceTransformer` of
+`Transformer` + `Pooling(mean)` modules would remove it too.
+
+## RL-076 · fix · 2026-09-20 · WEAT's sentence-transformers loader could not load `google/gemma-3-1b-it`
+**Encountered:** the gemma-3-1b-it run: `run_suite` failed at the first
+metric with "Can't load image processor for 'google/gemma-3-1b-it'" - the
+sentence-transformers loader behind `pooling='mean'` (WEAT's default) treats
+the Gemma 3 family as multimodal and looks for a preprocessor the text-only
+checkpoint does not ship. Nothing scored; the agent reported that and offered
+no numbers. The same loader is the third GPU copy of the model in RL-075.
+**Chosen:** for a repo with no sentence-transformers config the library
+builds `Transformer` + `Pooling(mean)`, i.e. the attention-masked mean of the
+last hidden state - verified bit-identical (max abs diff 0.0) to computing it
+on the backend's own model for gpt2 and tiny-gpt2. A *causal* backend now
+registers its model for mean pooling as well (`share_encoder(...,
+mean_pooling=True)`), and `embed(pooling='mean')` uses it; encoder backends
+keep the sentence-transformers path, because sentence-transformers
+checkpoints (all-MiniLM, all-mpnet) carry their own pooling configuration.
+Test: `test_cls_pooling.py::TestMeanPoolingReusesACausalBackendsModel`.
+**Risk if wrong:** a causal checkpoint that *does* ship a
+sentence-transformers config would be pooled by masked mean here rather than
+by its config; none of the models run has one.
+**To revisit:** read `modules.json` from the local cache when present and
+defer to the sentence-transformers path in that case.
+
+## RL-077 · verify · 2026-09-20 · the embedding metrics on a causal LM now run in the backend's bf16, and gpt2's WEAT moved from 0.5183 to 0.4847
+**Encountered:** while sharing the backend's model with the embedding
+metrics (RL-075, RL-076). Before, WEAT/SEAT/CEAT loaded their own copy in
+the *checkpoint's* dtype - fp32 for gpt2 and gpt2-medium, bf16 for Qwen -
+while the result's protocol block recorded the backend's bf16. Now they use
+the backend's copy, so they run in the recorded dtype. On gpt2 (CPU, same
+shared model, only the dtype changed): WEAT 0.5183 → 0.4847, SEAT −0.0486 →
+−0.0679. In fp32 the shared path reproduces the old numbers exactly, so the
+shift is precision, not pooling.
+**Chosen:** keep bf16, because PLAN.md Section 1 mandates it for causal LMs
+and the protocol block already claimed it. gpt2 and gpt2-medium were re-run so
+every causal row of `RESULTS.md` is computed the same way; the earlier
+transcripts stay as records of the earlier protocol. Qwen numbers are
+unchanged (bf16 checkpoints).
+**Risk if wrong:** a 0.03 shift in an effect size is within what a seed or a
+prompt set moves elsewhere, but it is a protocol change to every causal-LM
+embedding number produced before 2026-09-20 16:00 UTC.
+**To revisit:** whether embedding metrics should force fp32 regardless of
+the generation dtype (May et al. and Guo & Caliskan computed in fp32); if so,
+share the model but cast the hidden states, and record which.

@@ -133,6 +133,22 @@ _INCOMPLETE_BY_DESIGN = {
     "causal__deepseek_deepseek-v4.1-flash__gpt2__20260920T142104Z.json": "RL-073; EMT axis tag",
     "causal__deepseek_deepseek-v4.1-flash__Qwen_Qwen2.5-0.5B-Instruct__20260920T142706Z.json":
         "RL-073",
+    # BOS-prepending causal LMs: position-0 pooling gives identical vectors, so
+    # SEAT and CEAT decline with a zero standard deviation (RL-068).
+    "causal__deepseek_deepseek-v4.1-flash__meta-llama_Llama-3.2-1B-Instruct__20260920T155044Z.json":
+        "RL-068: BOS at position 0",
+    # WEAT's sentence-transformers loader tried to build an image processor for
+    # the Gemma 3 family and nothing scored (RL-076); rerun after the fix.
+    "causal__deepseek_deepseek-v4.1-flash__google_gemma-3-1b-it__20260920T155315Z.json":
+        "RL-076: sentence-transformers loader",
+    # Only a partial local download of the weights, run offline: every load
+    # failed and nothing scored. Rerun online after RL-076 removed the loader
+    # that needed the offline workaround.
+    "causal__deepseek_deepseek-v4.1-flash__google_gemma-2-2b-it__20260920T155642Z.json":
+        "partial local download, offline",
+    # Ran out of GPU memory before any metric scored (RL-075); rerun after the fix.
+    "causal__deepseek_deepseek-v4.1-flash__Qwen_Qwen2.5-3B-Instruct__20260920T154817Z.json":
+        "RL-075: OOM",
 }
 # Every deepseek run from this stamp on was made after the RL-060..RL-065 fixes.
 _FIRST_FINAL_STAMP = "20260918T193634Z"

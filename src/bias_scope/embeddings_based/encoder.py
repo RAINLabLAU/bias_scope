@@ -33,9 +33,41 @@ def _load_sentence_transformer(model_name: str) -> Any:
     return model
 
 
+# Models a backend has already loaded, by model name: (tokenizer, model whose
+# forward returns `last_hidden_state`). `HuggingFaceBackend._load` registers
+# here so the CLS-pooling loader below reuses the copy on the GPU instead of
+# loading a second (and, via sentence-transformers, a third) one - which is
+# how a 3B model ran out of a 20 GB GPU inside run_suite (REVIEW_LATER RL-075).
+_SHARED_ENCODERS: dict[str, tuple[Any, Any]] = {}
+# Names whose registered model may also serve `pooling='mean'`. Only a causal
+# LM's: for a repo with no sentence-transformers config that library builds
+# Transformer + Pooling(mean), the attention-masked mean of the last hidden
+# state, which _embed_mean_shared reproduces bit for bit (RL-076). Sentence-
+# transformers checkpoints carry their own pooling config and keep that path.
+_SHARED_MEAN_POOL: set[str] = set()
+
+
+def share_encoder(
+    model_name: str, tokenizer: Any, model: Any, *, mean_pooling: bool = False
+) -> None:
+    """Register an already-loaded model for `pooling='cls'` (and, for a causal
+    LM, `pooling='mean'`) to reuse."""
+    _SHARED_ENCODERS[model_name] = (tokenizer, model)
+    if mean_pooling:
+        _SHARED_MEAN_POOL.add(model_name)
+    else:
+        _SHARED_MEAN_POOL.discard(model_name)
+    _load_cls_encoder.cache_clear()
+
+
 @lru_cache(maxsize=4)
 def _load_cls_encoder(model_name: str) -> tuple[Any, Any]:
-    """Load AutoModel + AutoTokenizer for `[CLS]`-token pooling. Cached."""
+    """Load AutoModel + AutoTokenizer for `[CLS]`-token pooling. Cached.
+
+    Returns the backend's own copy when one is registered (see share_encoder).
+    """
+    if model_name in _SHARED_ENCODERS:
+        return _SHARED_ENCODERS[model_name]
     try:
         import torch
         from transformers import AutoModel, AutoTokenizer
@@ -58,12 +90,42 @@ def _load_cls_encoder(model_name: str) -> tuple[Any, Any]:
     return tokenizer, model
 
 
+def _embed_mean_shared(
+    texts: list[str], model_name: str, batch_size: int, normalize_embeddings: bool
+) -> np.ndarray:
+    """Attention-masked mean of the last hidden state on the shared model:
+    what sentence-transformers computes for a plain checkpoint (RL-076)."""
+    import torch
+
+    tokenizer, model = _load_cls_encoder(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    device = next(model.parameters()).device
+    out_chunks: list[np.ndarray] = []
+    for start in range(0, len(texts), batch_size):
+        chunk = texts[start : start + batch_size]
+        enc = tokenizer(chunk, padding=True, truncation=True, return_tensors="pt").to(device)
+        with torch.no_grad():
+            hs = model(**enc).last_hidden_state
+        mask = enc["attention_mask"].unsqueeze(-1).to(hs.dtype)
+        out_chunks.append(((hs * mask).sum(1) / mask.sum(1)).float().cpu().numpy())
+    embeddings = np.concatenate(out_chunks, axis=0)
+    if normalize_embeddings:
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        embeddings = embeddings / np.where(norms > 0, norms, 1.0)
+    return np.asarray(embeddings, dtype=float)
+
+
 def _embed_cls(
     texts: list[str], model_name: str, batch_size: int, normalize_embeddings: bool
 ) -> np.ndarray:
     import torch
 
     tokenizer, model = _load_cls_encoder(model_name)
+    if tokenizer.pad_token is None:
+        # A shared backend tokenizer arrives as-is; GPT-2-style ones have no
+        # pad token (RL-067). Same choice as HuggingFaceBackend.generate.
+        tokenizer.pad_token = tokenizer.eos_token
     device = next(model.parameters()).device
     out_chunks: list[np.ndarray] = []
     for start in range(0, len(texts), batch_size):
@@ -129,6 +191,14 @@ def embed(
 
     if pooling == "cls":
         return _embed_cls(
+            text_list,
+            model_name=model_name,
+            batch_size=batch_size,
+            normalize_embeddings=normalize_embeddings,
+        )
+
+    if model_name in _SHARED_MEAN_POOL:
+        return _embed_mean_shared(
             text_list,
             model_name=model_name,
             batch_size=batch_size,
