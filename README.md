@@ -464,7 +464,9 @@ python scripts/agent/live_conversation.py \
 python scripts/agent/summarize_runs.py --check
 ```
 
-The first reads the same `BIASSCOPE_AGENT_*` variables and records every turn,
+On a terminal the first opens the Textual UI and plays its three turns in it
+(add `--plain` for raw text; a pipe gets raw text automatically). It reads
+the same `BIASSCOPE_AGENT_*` variables and records every turn,
 every tool call with its arguments, `summarize_report`'s own return value, and a
 check listing any figure in the agent's final message that appears in no tool
 result. The second tabulates recorded runs from the library's output rather than

@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -140,15 +141,40 @@ def scenario_turns(scenario: str, device: str) -> List[str]:
     ]
 
 
-def run_conversation(config: AgentConfig, turns: List[str]) -> Dict[str, Any]:
+def run_conversation(config: AgentConfig, turns: List[str], tui: bool = False) -> Dict[str, Any]:
+    """Play `turns` and return exchanges plus the dispatch log.
+
+    `tui=True` shows the same conversation in the Textual UI as it happens
+    (You > / BiasScope>, tool calls live, Markdown rendered) and records the
+    same thing; the plain path prints raw text. The RecordingLoop, and so the
+    transcript, is identical either way.
+    """
     session = AgentSession()
     loop = RecordingLoop(config, session)
+    if tui:
+        from bias_scope_agent.tui import play_script
+
+        entries = play_script(loop, turns, headless=not sys.stdout.isatty())
+        replies = [text for role, text in entries if role == "BiasScope>"]
+        exchanges = [{"turn": i + 1, "user": user, "agent": reply}
+                     for i, (user, reply) in enumerate(zip(turns, replies))]
+        return {"exchanges": exchanges, "dispatched": loop.dispatched}
     exchanges = []
     for user_text in turns:
         reply = loop.run_turn(user_text)
         exchanges.append({"turn": session.turn, "user": user_text, "agent": reply})
         print(f"\n=== turn {session.turn} ===\nyou> {user_text[:240]}\nagent> {reply}\n")
     return {"exchanges": exchanges, "dispatched": loop.dispatched}
+
+
+def _tui_wanted(plain: bool) -> bool:
+    if plain or not sys.stdout.isatty():
+        return False
+    try:
+        import textual  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 _NUMBER = re.compile(r"-?\d+\.\d+")
@@ -311,6 +337,8 @@ def main() -> int:
     parser.add_argument("--model-id", default=None, help="override the scenario's target model")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--out-dir", type=Path, default=_DEFAULT_OUT)
+    parser.add_argument("--plain", action="store_true",
+                        help="print raw text instead of the Textual UI (automatic in a pipe)")
     args = parser.parse_args()
 
     config = load_config()
@@ -323,7 +351,9 @@ def main() -> int:
         f"agent LLM: {config.provider} / {config.model}\n"
         f"target:    {spec['model_id']} ({spec['backend_kind']}, {spec['dtype']}) on {args.device}"
     )
-    record = run_conversation(config, scenario_turns(args.scenario, args.device))
+    record = run_conversation(
+        config, scenario_turns(args.scenario, args.device), tui=_tui_wanted(args.plain)
+    )
     record |= {
         "scenario": args.scenario,
         "agent_provider": config.provider,

@@ -61,7 +61,12 @@ python scripts/agent/live_conversation.py --scenario causal --model-id gpt2 --de
 sentence encoder with no LM head). It only chooses the words of the three
 scripted user turns and the dtype (fp32 for encoders, bf16 for causal LMs).
 
-The script plays the user. It sends three turns and prints the agent's replies:
+The script plays the user. On a terminal it opens the same Textual UI as
+`bias-scope-agent` and you watch the conversation happen: each scripted turn
+under `You >`, the tools as they are called, the reply rendered under
+`BiasScope>`; the window closes by itself when the third reply is in. In a
+pipe, or with `--plain`, it prints raw text instead. Either way it sends the
+same three turns and records the same transcript:
 
 1. "Here is the model, set it up. Which metrics can run on it and why not the others?"
 2. "Plan an evaluation, axis gender. Use only datasets you can load yourself. Show the plan and provenance. Do not run."

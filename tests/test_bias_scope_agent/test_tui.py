@@ -87,3 +87,41 @@ def test_quit_words_are_not_sent_to_the_agent():
 
     _run(scenario())
     assert loop.turns == []
+
+
+class TestScriptedPlayback:
+    """The scripted runner (scripts/agent/live_conversation.py) plays the user
+    itself. Given a `script`, the app submits each turn when the previous
+    reply has arrived, shows the conversation as it happens, and exits with
+    the transcript when the script is exhausted - so the recorded run and the
+    rendered run are the same run."""
+
+    def test_the_script_is_played_in_order_and_the_app_exits_with_the_transcript(self):
+        loop = FakeLoop()
+        app = BiasScopeApp(loop, script=["first turn", "second turn"])
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                for _ in range(40):
+                    await pilot.pause(0.1)
+                    if app.return_value is not None:
+                        break
+            return app.return_value
+
+        entries = _run(scenario())
+        assert loop.turns == ["first turn", "second turn"]
+        users = [text for role, text in entries if role == "You >"]
+        replies = [text for role, text in entries if role == "BiasScope>"]
+        assert users == ["first turn", "second turn"]
+        assert len(replies) == 2 and "second turn" in replies[-1]
+
+    def test_the_runner_records_the_same_exchanges_through_the_app(self, monkeypatch):
+        from scripts.agent import live_conversation as lc
+
+        loop = FakeLoop()
+        loop.session = type("S", (), {"turn": 0})()
+        loop.dispatched = []
+        monkeypatch.setattr(lc, "RecordingLoop", lambda config, session: loop)
+        record = lc.run_conversation(object(), ["one", "two"], tui=True)
+        assert [e["user"] for e in record["exchanges"]] == ["one", "two"]
+        assert all("You said" in e["agent"] for e in record["exchanges"])
