@@ -465,7 +465,8 @@ python scripts/agent/summarize_runs.py --check
 ```
 
 On a terminal the first opens the Textual UI and plays its three turns in it
-(add `--plain` for raw text; a pipe gets raw text automatically). It reads
+(add `--plain` for raw text; a pipe gets raw text automatically; add
+`--interactive` to type the turns yourself and still record them). It reads
 the same `BIASSCOPE_AGENT_*` variables and records every turn,
 every tool call with its arguments, `summarize_report`'s own return value, and a
 check listing any figure in the agent's final message that appears in no tool

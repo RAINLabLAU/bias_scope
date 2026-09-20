@@ -141,6 +141,27 @@ def scenario_turns(scenario: str, device: str) -> List[str]:
     ]
 
 
+def exchanges_from_entries(entries: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
+    """The TUI's (role, text) transcript as the runner's exchange records."""
+    exchanges: List[Dict[str, Any]] = []
+    for role, text in entries:
+        if role == "You >":
+            exchanges.append({"turn": len(exchanges) + 1, "user": text, "agent": ""})
+        elif role == "BiasScope>" and exchanges and not exchanges[-1]["agent"]:
+            exchanges[-1]["agent"] = text
+    return exchanges
+
+
+def record_interactive(config: AgentConfig) -> Dict[str, Any]:
+    """You type the turns in the TUI; the dispatch log is recorded as in a
+    scripted run, and the transcript is written when you leave."""
+    from bias_scope_agent.tui import run_interactive
+
+    loop = RecordingLoop(config, AgentSession())
+    entries = run_interactive(loop)
+    return {"exchanges": exchanges_from_entries(entries), "dispatched": loop.dispatched}
+
+
 def run_conversation(config: AgentConfig, turns: List[str], tui: bool = False) -> Dict[str, Any]:
     """Play `turns` and return exchanges plus the dispatch log.
 
@@ -155,10 +176,7 @@ def run_conversation(config: AgentConfig, turns: List[str], tui: bool = False) -
         from bias_scope_agent.tui import play_script
 
         entries = play_script(loop, turns, headless=not sys.stdout.isatty())
-        replies = [text for role, text in entries if role == "BiasScope>"]
-        exchanges = [{"turn": i + 1, "user": user, "agent": reply}
-                     for i, (user, reply) in enumerate(zip(turns, replies))]
-        return {"exchanges": exchanges, "dispatched": loop.dispatched}
+        return {"exchanges": exchanges_from_entries(entries), "dispatched": loop.dispatched}
     exchanges = []
     for user_text in turns:
         reply = loop.run_turn(user_text)
@@ -339,6 +357,8 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, default=_DEFAULT_OUT)
     parser.add_argument("--plain", action="store_true",
                         help="print raw text instead of the Textual UI (automatic in a pipe)")
+    parser.add_argument("--interactive", action="store_true",
+                        help="you type the turns in the UI; the transcript is recorded on exit")
     args = parser.parse_args()
 
     config = load_config()
@@ -347,13 +367,20 @@ def main() -> int:
         spec["model_id"] = args.model_id
         SCENARIOS[args.scenario]["model_id"] = args.model_id
 
-    print(
-        f"agent LLM: {config.provider} / {config.model}\n"
-        f"target:    {spec['model_id']} ({spec['backend_kind']}, {spec['dtype']}) on {args.device}"
-    )
-    record = run_conversation(
-        config, scenario_turns(args.scenario, args.device), tui=_tui_wanted(args.plain)
-    )
+    target = ("whatever you set up in the UI" if args.interactive else
+              f"{spec['model_id']} ({spec['backend_kind']}, {spec['dtype']}) on {args.device}")
+    print(f"agent LLM: {config.provider} / {config.model}\ntarget:    {target}")
+    if args.interactive:
+        record = record_interactive(config)
+        built = next((e["input"] for e in record["dispatched"]
+                      if e["tool"] == "construct_backend"), {})
+        spec = {"model_id": built.get("model_id", "unknown"),
+                "backend_kind": built.get("backend_kind", "?"), "dtype": built.get("dtype", "?")}
+        args.scenario = "interactive"
+    else:
+        record = run_conversation(
+            config, scenario_turns(args.scenario, args.device), tui=_tui_wanted(args.plain)
+        )
     record |= {
         "scenario": args.scenario,
         "agent_provider": config.provider,

@@ -77,6 +77,10 @@ class BiasScopeApp(App):
         yield Input(placeholder="You >  ask about a model, ask for a plan, confirm it", id="prompt")
         yield Footer()
 
+    def action_quit(self) -> None:
+        """Ctrl-C: leave, handing the transcript to whoever ran the app."""
+        self.exit(self.transcript())
+
     def transcript(self) -> List[Tuple[str, str]]:
         """(role, text) per block: 'You >', 'tool' or 'BiasScope>'."""
         return list(self._entries)
@@ -87,7 +91,7 @@ class BiasScopeApp(App):
         if not text:
             return
         if text.lower() in _QUIT_WORDS:
-            self.exit()
+            self.exit(self.transcript())
             return
         await self._submit(text)
 
@@ -138,6 +142,11 @@ class BiasScopeApp(App):
 def run_tui(loop: Any) -> int:
     BiasScopeApp(loop).run()
     return 0
+
+
+def run_interactive(loop: Any) -> List[Tuple[str, str]]:
+    """Let the user type the turns; return the transcript when they leave."""
+    return list(BiasScopeApp(loop).run() or [])
 
 
 def play_script(loop: Any, turns: Sequence[str], headless: bool = False) -> List[Tuple[str, str]]:

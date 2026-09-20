@@ -206,9 +206,16 @@ bias-scope-agent            # terminal UI: You > / BiasScope>, Markdown rendered
 bias-scope-agent --plain    # the line-by-line REPL
 ```
 
-The scripted runner (`live_conversation.py`) never reads your keyboard: its
-three turns are fixed, and the `you>` lines it prints are its own. Use the
-command above when you want to type the turns yourself.
+The scripted runner (`live_conversation.py`) never reads your keyboard by
+default: its three turns are fixed, and the `You >` lines it shows are its
+own. To type the turns yourself *and* still get a recorded transcript:
+
+```bash
+python scripts/agent/live_conversation.py --interactive
+```
+
+Type `exit` (or Ctrl-C) when done; the transcript is written to this directory
+with `scenario: interactive`, and the same table and log tools read it.
 
 Ask it about a model, ask for a plan, confirm, and it runs the same tools in
 the same order. The scripted runner exists so that runs are recorded and

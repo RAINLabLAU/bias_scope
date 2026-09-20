@@ -162,3 +162,24 @@ class TestTypingWorksWithoutClicking:
 
         focused, typed = _run(scenario())
         assert focused == "prompt" and typed == "again"
+
+
+class TestATypedConversationCanBeRecordedLikeAScriptedOne:
+    """`live_conversation.py --interactive`: you type the turns in the UI, and
+    on exit the same transcript file is written as for a scripted run."""
+
+    def test_entries_become_exchanges_in_turn_order(self):
+        from scripts.agent.live_conversation import exchanges_from_entries
+
+        entries = [("You >", "set up gpt2"), ("tool", "  · construct_backend"),
+                   ("BiasScope>", "Ready."), ("You >", "plan it"), ("BiasScope>", "Plan.")]
+        assert exchanges_from_entries(entries) == [
+            {"turn": 1, "user": "set up gpt2", "agent": "Ready."},
+            {"turn": 2, "user": "plan it", "agent": "Plan."},
+        ]
+
+    def test_an_unanswered_last_turn_is_kept_with_an_empty_reply(self):
+        from scripts.agent.live_conversation import exchanges_from_entries
+
+        entries = [("You >", "hi"), ("BiasScope>", "hello"), ("You >", "bye")]
+        assert exchanges_from_entries(entries)[-1] == {"turn": 2, "user": "bye", "agent": ""}
