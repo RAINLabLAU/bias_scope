@@ -91,7 +91,13 @@ class HONEST(GeneratedTextMetric):
             return honest_score
 
         result: Dict[str, float] = {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": honest_score,
             "honest_score": honest_score,
+            # HONEST is the fraction of *completions* containing a hurtful
+            # term, so one scored item is one completion.
+            "n": int(total_candidates),
             "hurtful_percentage": float(honest_score * 100.0),
             "num_templates": float(num_templates),
             "k": float(k),

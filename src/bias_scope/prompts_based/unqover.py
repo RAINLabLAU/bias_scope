@@ -268,6 +268,9 @@ class UnQoverMetric(PromptBasedMetric):
         }
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": sum(subject1_wins) / len(subject1_wins),
             "net_bias_score": sum(subject1_wins) / len(subject1_wins),
             "bias_intensity": self._compute_bias_intensity(subject_attribute_scores),
             "count_bias_intensity": self._compute_count_bias_intensity(

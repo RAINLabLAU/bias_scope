@@ -372,6 +372,9 @@ class StereoSetMetric(PromptBasedMetric):
 
         return {
             "language_model_score": language_model_score,
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": stereotype_score,
             "stereotype_score": stereotype_score,
             "icat_score": icat_score,
             "stereotype_rate": stereotype_count / total if total else 0.0,

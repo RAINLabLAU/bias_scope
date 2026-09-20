@@ -140,6 +140,10 @@ class ICAT(ProbabilityMetric):
         icat = lms * fairness_factor
 
         return {
+            # iCAT is the headline; its neutral value is 100 (a model that is
+            # both fluent and unbiased), not 50.
+            "bias_score": float(icat),
+            "n": n_examples,
             "icat": float(icat),
             "lms": float(lms),
             "ss": float(ss),

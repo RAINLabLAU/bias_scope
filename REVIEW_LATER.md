@@ -1958,3 +1958,133 @@ substitute of its size already in the table is `Qwen2.5-1.5B-Instruct`
 **Risk if wrong:** none; nothing was faked.
 **To revisit:** accept the Gemma licence on the Hub for this account and
 re-run `--scenario causal --model-id google/gemma-2-2b-it`.
+
+<!-- The four entries below were RL-038 to RL-041 on the August
+`v0.2-metrics-and-framework` branch; those ids were taken by the agent work in
+September before the branches were merged (2026-09-20), so they are renumbered here.
+Their code changes to CrowSPairs/AUL/AULA (a `percentage` flag) were superseded by
+RL-060, and their headline/count fixes by RL-061 and RL-063; the every-metric test
+and tests/fixtures/tiny_inputs.py were kept (tests/test_run_every_metric.py). -->
+
+## RL-080 · decide · 2026-08-23 · Phase 2 / the PLL family reported the wrong scale
+**Encountered:** `CrowSPairs`, `AUL` and `AULA` returned a 0-1 fraction from
+`evaluate()` while their `MetricInfo` declared `neutral_value=50.0,
+value_range=(0.0, 100.0)` — the convention their papers use (Nangia et al.
+report 60.5 for BERT) and the one `results/emnlp/crows_pairs.json` records
+(58.62 vs a published 60.5). Nothing caught it: 0.667 sits inside (0, 100), so
+the range guard passed.
+**Consequence:** `normalized_deviation` = 0.667 - 50 = **-49.33**. A model
+preferring the stereotyping sentence in 4 of 6 pairs plotted as strongly
+*anti*-stereotypical in every profile and dumbbell figure. The sign was
+inverted for three faithful metrics.
+**Options:** (a) return the percentage always; (b) change MetricInfo to a 0-1
+scale; (c) make the scale a constructor flag.
+**Chosen:** (c) with percentage=True as the default, on the maintainer's steer.
+(b) was wrong — the paper's convention wins (Section 1) and the recorded
+reproduction is in percent. (a) would have broken every v0.1.x caller with no
+path back. The flag mirrors the existing `mode=` parameter.
+**Guarded, not just documented:** the three metrics now declare
+`details["scale"]`, and `run()` raises `BiasScopeError` naming
+`percentage=False` if a fraction score reaches it on a 0-100 metric. A
+docstring warning would have let the same bug back in through the compat flag.
+**Where:** src/bias_scope/probability_based/{crows_pairs,aul,aula}.py;
+src/bias_scope/base.py `_check_guards`;
+tests/test_probability_based/test_wordpiece_mode.py `TestPercentageScale`.
+**Risk if wrong:** a caller passing `percentage=False` to `run()` now gets an
+error where they previously got a (wrong) number.
+**To revisit:** check whether CAT, ICAT and StereoSetMetric agree with their
+declared scales — spot-checked as already percent, not yet asserted by a test.
+
+## RL-081 · verify · 2026-08-23 · Phase 2 / run() was unreachable for 12 metrics
+**Encountered:** `run()` finds the headline score under `bias_score`, `score`,
+`value` or `effect_size`. Twelve metrics named theirs `crows_pairs_score`,
+`aul_score`, `honest_score`, `ceat_score` and so on, so `run()` raised and
+`BiasSuite` skipped them silently — the whole probability family was
+unreachable through the library's own entry point. A second guard then rejected
+valid counts written as `float(len(pairs))`, because `_count_items` required
+`isinstance(value, int)`.
+**Found by:** running `BiasSuite` on bert-base-uncased. Not by a test.
+**PLAN.md 5.3 says** "a test in `tests/test_run.py` calls `run()` on every
+metric with tiny inputs and checks the `BiasResult` fields". **That test does
+not exist** — the file only exercises a fixture — yet the box was ticked.
+**Done:** `bias_score` alias added to all twelve; `_count_items` accepts an
+integral float; two invariant tests added.
+**Still owed:** the real every-metric `run()` test PLAN.md asks for, which
+needs tiny inputs for all 55. Until it exists, this class of bug can recur for
+any metric whose details dict drifts from the conventions.
+
+## RL-082 · verify · 2026-08-23 · Phase 2 / the every-metric run() test, and what it found
+**Encountered:** PLAN.md 5.3 requires "a test in `tests/test_run.py` [that]
+calls `run()` on every metric with tiny inputs and checks the `BiasResult`
+fields". It did not exist — the file only exercised a fixture — and the box was
+ticked. Three defects had already reached a tagged commit for want of it
+(RL-080, RL-081).
+**Done:** `tests/fixtures/tiny_inputs.py` gives inputs for 45 of 55 metrics;
+the other 10 load a dataset or call a service from inside `evaluate()` and are
+listed in `NEEDS_RESOURCES` with the reason. A test fails if a metric is in
+neither map, so a new metric cannot escape the check by being forgotten.
+**What it found immediately: 15 more real defects**, in two classes.
+- *headline* (9): `evaluate()` names its score something `run()` does not look
+  for, so the metric raises and `BiasSuite` skips it silently — BOLD, CAT, CBS,
+  ICAT, MarkedPersons, PsycholinguisticNorms, SentenceBiasScore,
+  SocialGroupSubstitution, StereotypeRuleHitRate. The earlier sweep (RL-081)
+  missed these because it grepped for a literal `<name>_score` key and these
+  name theirs differently, or nest it.
+- *count* (6): no key `_count_items` recognises, so `n` is 0 and the guard
+  rejects the result — CEAT, CoOccurrenceBiasScore, EMT, GenderPolarity,
+  HONEST, PairwiseLikelihoodPreference.
+**Chosen:** `xfail(strict=True)` per metric with its specific reason, recorded
+in `KNOWN_DEFECTS`, rather than deleting the assertions or loosening `run()`.
+Strict, so each flips to XPASS the moment it is fixed and the entry must then
+be removed.
+**Why not fixed here:** the *headline* half is mechanical, but the *count* half
+is not — `n` sizes the confidence interval, so each metric needs a decision
+about what one scored item is. A wrong `n` gives a confidently wrong interval,
+which is worse than the current loud refusal.
+**Where:** tests/fixtures/tiny_inputs.py; tests/test_run.py
+`TestRunOnEveryMetric`.
+**To revisit:** work through `KNOWN_DEFECTS` — 15 entries, each naming its
+class and the key involved. Until then, 15 of 55 metrics cannot be used through
+`run()` or `BiasSuite`, only through `evaluate()`.
+
+## RL-083 · decide · 2026-08-23 · Phase 2 / the 15 defects from RL-082, resolved
+**Done:** all fifteen are fixed, and `KNOWN_DEFECTS` is empty. 38 of 55 metrics
+now produce a valid `BiasResult` through `run()`; 20 of those carry a
+confidence interval.
+
+*headline* (7 fixed): CAT -> `ss` (the stereotype score, not `lms`); ICAT ->
+`icat`; CBS -> `cbs`; SentenceBiasScore -> `absolute_bias`;
+SocialGroupSubstitution -> `individual_unfairness_overall`;
+PsycholinguisticNorms -> the largest-magnitude `pn::<dimension>`, signed, so a
+quiet dimension cannot dilute a loud one; StereotypeRuleHitRate ->
+`any_hit_rate_per_1k`.
+
+*count* (6 fixed), each a decision about what one scored item is, because `n`
+sizes the interval: CEAT -> target stimuli (WEAT's convention, **not**
+`n_samples`, which counts bootstrap draws and would let a bigger resample fake
+a tighter interval); EMT -> prompts, since the maximum is taken within a prompt
+and averaged across them; HONEST -> completions; GenderPolarity -> the
+completions that actually carried a gendered term; CoOccurrenceBiasScore ->
+neutral-vocabulary terms; PairwiseLikelihoodPreference -> sentence pairs. Four
+of the six now also emit `per_item`, so they gain a bootstrap interval.
+
+**Two were not defects.** `BOLD` and `MarkedPersons` have no headline number
+*by design*, and giving them one would fabricate a metric the paper does not
+define — PLAN.md Section 1. They are in a new `NO_SCALAR_BY_DESIGN` map with
+the source that says so, and a test asserts `run()` refuses them loudly while
+`evaluate()` still returns everything.
+
+**Caught by an existing test.** My first pass gave BOLD a headline of the
+largest absolute gap. `test_no_aggregate_score_is_produced` failed with "the
+paper never collapses the five metrics; neither do we" — and it was right. The
+change was reverted. Worth recording: the composite-score prohibition is
+load-bearing, and it caught a violation written by someone who had just
+finished quoting it.
+
+**Also fixed here:** `StereotypeRuleHitRate`'s `per_item` was a 0/1 indicator
+while its score is a rate per 1,000, so the bootstrap interval did not bracket
+the score and `run()` refused it. `per_item` is now on the same scale.
+**Where:** the seven metric modules above; tests/fixtures/tiny_inputs.py.
+**To revisit:** the 15 in `NEEDS_RESOURCES` still have no `run()` coverage;
+they need integration tests with recorded dataset fixtures.
+

@@ -68,6 +68,15 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   running the suite for real rather than by a unit test.
 
 ### Breaking
+- **`CrowSPairs`, `AUL` and `AULA` now report a percentage by default.** Their
+  papers report percentages (Nangia et al. give 60.5 for BERT) and their
+  `MetricInfo` already declared `neutral_value=50.0, value_range=(0.0, 100.0)`,
+  but `evaluate()` returned a 0-1 fraction. `normalized_deviation` was then
+  `0.667 - 50 = -49.33`, so a stereotyped model appeared on the
+  **anti-stereotypical** side of every profile and dumbbell figure.
+  `percentage=False` returns the old fraction for continuity, and `run()`
+  raises rather than accepting it, because that combination reproduces the bug.
+  (REVIEW_LATER RL-038.)
 - **`CrowSPairs`, `AUL` and `AULA` now default to `mode="wordpiece"`.** All
   three are registered `faithful`, and `wordpiece` — the authors'
   pseudo-log-likelihood over WordPiece tokens — is the path that status refers
@@ -116,6 +125,26 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   recommended metric the agent quietly left out is a listed gap rather than
   an unnoticed omission. The Unicode minus in an agent's prose is normalised
   before figures are traced to tool results.
+- **Fifteen metrics could not be used through `run()` or `BiasSuite`.** Nine
+  named their headline score something `run()` does not look for (`ss`,
+  `icat`, `cbs`, `absolute_bias`, `pn::<dimension>`, ...), so they raised and
+  were skipped silently; six reported no item count `run()` recognises, so `n`
+  was 0 and the guard rejected them. All fixed, each `n` chosen deliberately
+  because it sizes the confidence interval. 38 of 55 metrics now return a
+  valid `BiasResult`, 20 of them with an interval. (REVIEW_LATER RL-083; merged from the August `v0.2-metrics-and-framework` commits, whose percent-scale and `bias_score` changes were superseded by RL-060/RL-061 above.)
+- `BOLD` and `MarkedPersons` are documented as having no headline number **by
+  design** — their papers define none, and inventing one would fabricate a
+  metric. `run()` refuses them loudly; `evaluate()` returns the full result.
+- **Twelve metrics were unreachable through `run()` and `BiasSuite`.**
+  CrowS-Pairs, AUL, AULA, HONEST, CEAT, StereoSet, UnQover and five others name
+  their headline score `<metric>_score`, which `run()` does not look for, so
+  every one raised and was skipped silently. Each now also exposes
+  `bias_score`, with a test that fails if any metric's headline becomes
+  unreachable again.
+- **Valid item counts were rejected on their Python type.** `_count_items`
+  required `isinstance(value, int)`; several metrics emit
+  `float(len(sentence_pairs))`, so `n` came back 0 and the `n > 0` guard
+  skipped them. Any integral count is now accepted. (REVIEW_LATER RL-081.)
 - **`run()` rejected legitimate results.** A metric whose per-item values are
   all equal gives a degenerate bootstrap interval `[v, v]`, and the mean can
   miss both endpoints by one ULP from summation order, so the bracketing guard

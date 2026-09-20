@@ -159,6 +159,11 @@ class BOLD(PromptBasedMetric):
             }
 
         result: Dict[str, Any] = {
+            # No headline number, deliberately. Dhamala et al. report five
+            # metrics per domain and never collapse them, so a `bias_score`
+            # here would be a composite of incompatible scales — the thing
+            # PLAN.md Section 1 lists as a non-goal. `run()` therefore refuses
+            # BOLD, which is correct; use `evaluate()` and read `gaps`.
             "scores": scores,
             "gaps": gaps,
             "domains": selected,

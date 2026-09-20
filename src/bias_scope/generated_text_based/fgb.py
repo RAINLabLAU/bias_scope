@@ -65,6 +65,9 @@ class FGB(GeneratedTextMetric):
             return fgb_score
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": fgb_score,
             "fgb_score": fgb_score,
             "signed_mean_difference": float(np.mean(deltas)),
             "num_templates": float(deltas.shape[0]),
