@@ -137,15 +137,23 @@ _INCOMPLETE_BY_DESIGN = {
     # SEAT and CEAT decline with a zero standard deviation (RL-068).
     "causal__deepseek_deepseek-v4.1-flash__meta-llama_Llama-3.2-1B-Instruct__20260920T155044Z.json":
         "RL-068: BOS at position 0",
+    "causal__deepseek_deepseek-v4.1-flash__meta-llama_Llama-3.2-1B-Instruct__20260920T162155Z.json":
+        "RL-068: BOS at position 0 (7 of 9 scored; SEAT and CEAT decline by construction)",
     # WEAT's sentence-transformers loader tried to build an image processor for
     # the Gemma 3 family and nothing scored (RL-076); rerun after the fix.
     "causal__deepseek_deepseek-v4.1-flash__google_gemma-3-1b-it__20260920T155315Z.json":
         "RL-076: sentence-transformers loader",
+    # Second gemma-3 run: generations all came from the cache, so the backend
+    # never loaded and sharing was never registered (RL-078); rerun after the fix.
+    "causal__deepseek_deepseek-v4.1-flash__google_gemma-3-1b-it__20260920T160646Z.json":
+        "RL-078: cache hit, no registration",
     # Only a partial local download of the weights, run offline: every load
     # failed and nothing scored. Rerun online after RL-076 removed the loader
     # that needed the offline workaround.
     "causal__deepseek_deepseek-v4.1-flash__google_gemma-2-2b-it__20260920T155642Z.json":
-        "partial local download, offline",
+        "RL-079: gated, no access (offline attempt)",
+    "causal__deepseek_deepseek-v4.1-flash__google_gemma-2-2b-it__20260920T161101Z.json":
+        "RL-079: gated, no access (online attempt)",
     # Ran out of GPU memory before any metric scored (RL-075); rerun after the fix.
     "causal__deepseek_deepseek-v4.1-flash__Qwen_Qwen2.5-3B-Instruct__20260920T154817Z.json":
         "RL-075: OOM",

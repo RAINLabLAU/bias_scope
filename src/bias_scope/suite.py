@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from bias_scope.backends import Backend
-from bias_scope.base import BiasScopeError
 from bias_scope.metadata import list_metrics
 from bias_scope.recommend import recommend_metrics
 from bias_scope.report import Report
@@ -198,7 +197,11 @@ class BiasSuite:
                         **kwargs,
                     )
                 )
-            except (BiasScopeError, ValueError, TypeError, ImportError) as exc:
+            except Exception as exc:  # noqa: BLE001
+                # Any failure of one metric is that metric's skip reason. The
+                # list used to be four types; an OSError from one metric's
+                # loader then escaped and took the other eight results with it
+                # (REVIEW_LATER RL-078). `on_error="raise"` still propagates.
                 if on_error == "raise":
                     raise
                 skipped[name] = f"{type(exc).__name__}: {exc}"

@@ -38,7 +38,12 @@ def _load_sentence_transformer(model_name: str) -> Any:
 # here so the CLS-pooling loader below reuses the copy on the GPU instead of
 # loading a second (and, via sentence-transformers, a third) one - which is
 # how a 3B model ran out of a 20 GB GPU inside run_suite (REVIEW_LATER RL-075).
-_SHARED_ENCODERS: dict[str, tuple[Any, Any]] = {}
+# Values are *loaders*, callables returning (tokenizer, model), registered
+# when the backend is constructed and invoked only when an embedding metric
+# first needs the model. Registering the loaded model instead left the
+# registry empty whenever every generation came from the cache and the
+# backend therefore never loaded (google/gemma-3-1b-it, RL-078).
+_SHARED_ENCODERS: dict[str, Any] = {}
 # Names whose registered model may also serve `pooling='mean'`. Only a causal
 # LM's: for a repo with no sentence-transformers config that library builds
 # Transformer + Pooling(mean), the attention-masked mean of the last hidden
@@ -47,12 +52,10 @@ _SHARED_ENCODERS: dict[str, tuple[Any, Any]] = {}
 _SHARED_MEAN_POOL: set[str] = set()
 
 
-def share_encoder(
-    model_name: str, tokenizer: Any, model: Any, *, mean_pooling: bool = False
-) -> None:
-    """Register an already-loaded model for `pooling='cls'` (and, for a causal
-    LM, `pooling='mean'`) to reuse."""
-    _SHARED_ENCODERS[model_name] = (tokenizer, model)
+def share_encoder(model_name: str, loader: Any, *, mean_pooling: bool = False) -> None:
+    """Register a backend's model for `pooling='cls'` (and, for a causal LM,
+    `pooling='mean'`) to reuse. `loader()` must return (tokenizer, model)."""
+    _SHARED_ENCODERS[model_name] = loader
     if mean_pooling:
         _SHARED_MEAN_POOL.add(model_name)
     else:
@@ -67,7 +70,7 @@ def _load_cls_encoder(model_name: str) -> tuple[Any, Any]:
     Returns the backend's own copy when one is registered (see share_encoder).
     """
     if model_name in _SHARED_ENCODERS:
-        return _SHARED_ENCODERS[model_name]
+        return _SHARED_ENCODERS[model_name]()
     try:
         import torch
         from transformers import AutoModel, AutoTokenizer

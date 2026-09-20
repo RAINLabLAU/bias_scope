@@ -33,8 +33,10 @@ export BIASSCOPE_AGENT_PROVIDER=openrouter
 export BIASSCOPE_AGENT_MODEL=deepseek/deepseek-v4.1-flash
 run() { python scripts/agent/live_conversation.py --scenario "$1" --model-id "$2" --device cuda; }
 for m in gpt2 gpt2-medium Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-1.5B-Instruct \\
-         meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it google/gemma-2-2b-it \\
+         meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it \\
          Qwen/Qwen2.5-3B-Instruct; do run causal "$m"; done
+# gated checkpoints already downloaded run with HF_HUB_OFFLINE=1 (see REPRODUCE.md);
+# google/gemma-2-2b-it is not accessible to this account (REVIEW_LATER RL-079)
 for m in bert-base-uncased bert-base-cased roberta-base; do run encoder "$m"; done
 for m in sentence-transformers/all-MiniLM-L6-v2 sentence-transformers/all-mpnet-base-v2; do
   run embedding "$m"

@@ -1912,3 +1912,41 @@ embedding number produced before 2026-09-20 16:00 UTC.
 **To revisit:** whether embedding metrics should force fp32 regardless of
 the generation dtype (May et al. and Guo & Caliskan computed in fp32); if so,
 share the model but cast the hidden states, and record which.
+
+## RL-078 · fix · 2026-09-20 · gemma-3-1b-it: a cache hit meant the backend never loaded, and one metric's OSError took the other eight with it
+**Encountered:** the second gemma-3-1b-it run, after RL-076. Every generation
+was served from `cache/generations/` (left by the first run), so
+`HuggingFaceBackend._load` was never called, the model was never registered
+for sharing, and WEAT fell back to the sentence-transformers loader that
+fails on the Gemma 3 family with "Can't load image processor". That OSError
+was not among the four exception types `BiasSuite.run` caught, so it escaped
+the per-metric loop and `run_suite` failed as a whole: 0 of 9 scored, though
+in-process the other eight complete. The agent reported the failure and no
+numbers.
+**Chosen:** two changes. `share_encoder` now takes a *loader*, registered in
+the backend's constructor and invoked only when an embedding metric asks, so
+sharing no longer depends on whether generation happened in this process.
+And `BiasSuite.run` catches any exception from one metric as that metric's
+skip reason (`on_error="raise"` still raises). Tests:
+`test_cls_pooling.py::…::test_registration_happens_at_construction_and_loads_lazily`,
+`test_framework.py::TestOneMetricsLoaderFailureDoesNotLoseTheRun`.
+**Risk if wrong:** a broad `except` in the suite can hide a library bug as a
+skip; the skip reason carries the exception type and message, and the agent's
+coverage check flags the run as incomplete, so it is visible, not silent.
+**To revisit:** none beyond RL-076's note about honouring a sentence-
+transformers config when one is cached.
+
+## RL-079 · blocked · 2026-09-20 · `google/gemma-2-2b-it` cannot be evaluated here: gated, and this account has no access
+**Encountered:** the local Hub token resolves `meta-llama/Llama-3.2-1B-Instruct`
+and `google/gemma-3-1b-it` (both cached in full) but gets 401 on
+`google/gemma-2-2b-it`'s weight shards; the local snapshot holds only the
+config and tokenizer from an earlier partial download. Two agent runs
+(offline, then online) recorded the failure honestly and scored nothing.
+**Chosen:** dropped from the 2026-09-20 experiment table per the obstacle
+playbook (gated model: substitute, record, tag blocked). The closest open
+substitute of its size already in the table is `Qwen2.5-1.5B-Instruct`
+(and `Qwen2.5-3B-Instruct` above it). Its two transcripts stay in
+`results/verification/agent_live/`, listed as incomplete by design.
+**Risk if wrong:** none; nothing was faked.
+**To revisit:** accept the Gemma licence on the Hub for this account and
+re-run `--scenario causal --model-id google/gemma-2-2b-it`.

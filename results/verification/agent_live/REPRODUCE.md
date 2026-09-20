@@ -80,8 +80,10 @@ When it finishes it writes one JSON transcript into this directory, named
 ```bash
 run() { python scripts/agent/live_conversation.py --scenario "$1" --model-id "$2" --device cuda; }
 for m in gpt2 gpt2-medium Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-1.5B-Instruct \
-         meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it google/gemma-2-2b-it \
+         meta-llama/Llama-3.2-1B-Instruct google/gemma-3-1b-it \
          Qwen/Qwen2.5-3B-Instruct; do run causal "$m"; done
+# gated checkpoints already downloaded: prefix the command with
+#   HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 BIASSCOPE_AGENT_INSPECT_LIVE=0
 for m in bert-base-uncased bert-base-cased roberta-base; do run encoder "$m"; done
 for m in sentence-transformers/all-MiniLM-L6-v2 sentence-transformers/all-mpnet-base-v2; do
   run embedding "$m"

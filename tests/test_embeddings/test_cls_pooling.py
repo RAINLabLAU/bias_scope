@@ -301,7 +301,21 @@ class TestMeanPoolingReusesACausalBackendsModel:
         # own pooling config; only a causal LM's registration covers mean pooling.
         from bias_scope.embeddings_based import encoder
 
-        encoder.share_encoder("some/encoder", object(), object(), mean_pooling=False)
+        encoder.share_encoder("some/encoder", lambda: (None, None), mean_pooling=False)
         assert "some/encoder" not in encoder._SHARED_MEAN_POOL
-        encoder.share_encoder("some/causal", object(), object(), mean_pooling=True)
+        encoder.share_encoder("some/causal", lambda: (None, None), mean_pooling=True)
         assert "some/causal" in encoder._SHARED_MEAN_POOL
+
+    def test_registration_happens_at_construction_and_loads_lazily(self):
+        # RL-078: with every generation served from the cache the backend never
+        # loaded, so a registration made inside _load never happened and WEAT
+        # fell back to the sentence-transformers loader.
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based import encoder
+
+        encoder._load_cls_encoder.cache_clear()
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal", dtype="fp32")
+        assert backend._model is None                      # nothing loaded yet
+        _, shared = encoder._load_cls_encoder("sshleifer/tiny-gpt2")
+        assert backend._model is not None                  # loaded on demand
+        assert shared is backend._model.base_model

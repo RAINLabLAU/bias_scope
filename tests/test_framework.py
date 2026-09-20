@@ -719,3 +719,39 @@ class TestAProviderCanRecordAProtocolDeviation:
         suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
         report = suite.run(inputs={"WEAT": dict(self._WEAT)})
         assert report.results[0].protocol["resources"] == []
+
+
+class TestOneMetricsLoaderFailureDoesNotLoseTheRun:
+    """RL-078: on google/gemma-3-1b-it one metric's model loader raised an
+    OSError. `BiasSuite.run` caught only four exception types, so the error
+    escaped, `run_suite` failed as a whole, and eight metrics that would have
+    scored were lost with it. Any exception from one metric is that metric's
+    skip reason; the others still run.
+    """
+
+    def test_an_oserror_in_one_metric_is_a_skip_not_a_crash(self, monkeypatch):
+        from bias_scope.embeddings_based import seat as seat_module
+
+        weat_inputs = TestAProviderCanRecordAProtocolDeviation._WEAT
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT", "SEAT"])
+
+        def boom(self, *args, **kwargs):
+            raise OSError("Can't load image processor for 'x'")
+
+        # SEAT delegates to WEAT internally, so the failing one is SEAT here.
+        monkeypatch.setattr(seat_module.SEAT, "evaluate", boom)
+        report = suite.run(inputs={"WEAT": dict(weat_inputs), "SEAT": dict(weat_inputs)})
+        assert "SEAT" in report.skipped and "image processor" in report.skipped["SEAT"]
+        assert [r.metric for r in report.results] == ["WEAT"]
+
+    def test_on_error_raise_still_raises(self, monkeypatch):
+        from bias_scope.embeddings_based import weat as weat_module
+
+        weat_inputs = TestAProviderCanRecordAProtocolDeviation._WEAT
+        suite = BiasSuite(StubBackend(access=("embeddings",)), axis="gender", language="en",
+                          metrics=["WEAT"])
+        monkeypatch.setattr(weat_module.WEAT, "evaluate",
+                            lambda self, *a, **k: (_ for _ in ()).throw(OSError("boom")))
+        with pytest.raises(OSError):
+            suite.run(inputs={"WEAT": dict(weat_inputs)}, on_error="raise")
