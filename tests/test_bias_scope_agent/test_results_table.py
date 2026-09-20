@@ -94,3 +94,28 @@ def test_the_legend_states_each_metrics_neutral_value_from_the_metadata():
     text = render_markdown(*pivot(runs))
     assert "neutral (no bias)" in text
     assert f"| WEAT | {list_metrics()['WEAT'].neutral_value:g} |" in text
+
+
+def _two_runs():
+    return latest_complete_runs([
+        _rec("a", "encoder", "2026-09-20T10:00:00", _FULL, ("WEAT", "SEAT"), ("WEAT", "SEAT")),
+        _rec("b", "embedding", "2026-09-20T10:00:00", _DEVIATING, ("CEAT",), ("CEAT",)),
+    ])
+
+
+def test_markdown_table_starts_with_a_neutral_value_row():
+    text = render_markdown(*pivot(_two_runs()))
+    header, sep, first = text.splitlines()[2:5]
+    assert header.startswith("| model | kind | WEAT | SEAT | CEAT |")
+    assert first.startswith("| *neutral value* |") and "| 0 | 0 | 0 |" in first
+
+
+def test_latex_table_has_the_same_rows_with_a_neutral_row_and_starred_deviations():
+    from scripts.agent.results_table import render_latex
+
+    text = render_latex(*pivot(_two_runs()))
+    assert r"\begin{tabular}" in text and r"\toprule" in text
+    assert "neutral value &  & 0 & 0 & 0" in text
+    assert r"0.08 (1000)$^{*}$" in text            # the deviation star, LaTeX-safe
+    assert r"a & encoder & 0.61 (16) & 1.04 (128) &" in text
+    assert "all-MiniLM" not in text                # only the given rows

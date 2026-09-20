@@ -2,6 +2,7 @@
 
 | model | kind | WEAT | SEAT | CEAT | CrowSPairs | AUL | AULA | CAT | ICAT | RegardScore | GenderPolarity | DemographicRepresentation | StereotypicalAssociations | HONEST | EMT |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| *neutral value* | | 0 | 0 | 0 | 50 | 50 | 50 | 50 | 100 | 0 | 0 | 0 | 0 | 0 | 0 |
 | bert-base-cased | encoder | 0.3792 (16) | 0.9246 (128) | 0.4328 (1000)* | 57.63 (262) | 53.05 (262) | 53.82 (262) | 64.19 (229) | 59.11 (229) |  |  |  |  |  |  |
 | bert-base-uncased | encoder | 0.6113 (16) | 1.044 (128) | 0.203 (1000)* | 55.73 (262) | 46.56 (262) | 43.89 (262) | 69 (229) | 51.99 (229) |  |  |  |  |  |  |
 | roberta-base | encoder | -0.6074 (16) | 1.099 (128) | 0.7752 (1000)* | 54.96 (262) | 56.49 (262) | 53.44 (262) | 55.46 (229) | 61.07 (229) |  |  |  |  |  |  |

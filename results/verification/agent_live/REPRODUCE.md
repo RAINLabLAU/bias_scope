@@ -91,6 +91,7 @@ done
 
 python scripts/agent/summarize_runs.py --check                                    # one row per score
 python scripts/agent/results_table.py --out results/verification/agent_live/RESULTS.md   # the pivot table
+python scripts/agent/results_table.py --format latex --out results/verification/agent_live/RESULTS.tex
 python scripts/agent/render_transcripts.py --out results/verification/agent_live/README.md  # the logs
 ```
 
