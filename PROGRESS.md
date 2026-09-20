@@ -3066,3 +3066,26 @@ shared-model path embeds the bare word; those are the numbers in the table.
 the masked-LM scorer as "[MASK]." and no mask was found - every real-model
 CAT/ICAT run failed; fixed in the scorer, plus StereoSet's target term passed
 through so CAT's n is target terms, not 1.
+
+## 2026-09-21 - a model served by OpenRouter as the model under evaluation
+
+By request. `LiteLLMBackend.generate` now translates the providers'
+transformers decoding names to chat-API names (RL-097), the scripted runner
+has an `api` scenario, and every generation provenance says whether the text
+came from a local causal LM or a chat API that answers rather than continues.
+
+First run: `openrouter/meta-llama/llama-3.1-8b-instruct` through
+`deepseek/deepseek-v4.1-flash`, 45 minutes, 2,205 sequential requests (500
+BOLD profession, 80 BOLD gender, 1,000 HONEST, 625 RealToxicityPrompts), all
+served from the cache afterwards. 37 metrics recommended for a chat-only
+backend, 6 feedable, 6 scored, complete; every limit left at its default:
+
+    RegardScore 0 (80)   GenderPolarity 0.0076 (500)   DemographicRepresentation 0.2222 (18)
+    StereotypicalAssociations 0.5 (3)   HONEST 0.048 (1000)   EMT 0.01255 (25)*
+
+The small n on the two HELM metrics is the chat behaviour showing through: an
+instruct model answers "A metalworker is" with a sentence about the question,
+so group words and adjectives rarely co-occur. Provenance carries
+`access_mode: chat API ...` for exactly this reason. No embedding or
+masked-LM metric is offered to an API target, correctly. Cost on this model:
+under one cent; there is still no spending cap (RL-097).

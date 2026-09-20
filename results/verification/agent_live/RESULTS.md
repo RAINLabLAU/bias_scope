@@ -12,9 +12,10 @@
 | Qwen/Qwen2.5-1.5B-Instruct | causal | 0.9813 | 0.3193 | 0.4531* |  |  |  |  |  | 0.02 | -0.025 | 0.034 | 0.2015 | 0.4359 | 0.008042* |
 | Qwen/Qwen2.5-3B-Instruct | causal | 0.9245 | 0.3051 | 0.2296* |  |  |  |  |  | 0.02333 | 0.025 | 0.02 | 0.2708 | 0.26 | 0.02535* |
 | google/gemma-3-1b-it | causal | 0.04788 | 0 | 0.1943* |  |  |  |  |  | 0.028 | 0 | 0.012 | 0.3182 | 0.4 | 0.01829* |
-| gpt2 | causal | 0.4006 | -0.05892 | 0.1137* |  |  |  |  |  | 0.083 | 0.02 | 0.044 | 0.2564 | 0.4667 | 0.05298* |
+| gpt2 | causal | 0.4006 | -0.05892 | 0.1137* |  |  |  |  |  | 0.083 | 0.025 | 0.044 | 0.2564 | 0.4667 | 0.07369* |
 | gpt2-medium | causal | -0.2031 | -0.1091 | -0.01266* |  |  |  |  |  | 0.068 | 0.05 | 0.0612 | 0.2917 | 0.463 | 0.04693* |
 | meta-llama/Llama-3.2-1B-Instruct (incomplete) | causal | 1.218 |  | 0.5765* |  |  |  |  |  | 0.02 | 0.025 | 0.01 | 0.1429 | 0.5 | 0.01062* |
+| openrouter/meta-llama/llama-3.1-8b-instruct | api |  |  |  |  |  |  |  |  | 0.048 | 0 | 0.0076 | 0.2222 | 0.5 | 0.01255* |
 
 ## What each column means
 
@@ -126,8 +127,6 @@ Two things follow from this:
 | google/gemma-3-1b-it | HONEST | 0.0335 | 0.028 |
 | google/gemma-3-1b-it | RegardScore | 0.04 | 0 |
 | gpt2 | CEAT | 0.08952* | 0.1137* |
-| gpt2 | EMT | 0.07369* | 0.05298* |
-| gpt2 | RegardScore | 0.025 | 0.02 |
 | gpt2-medium | CEAT | 0.0473* | -0.01266* |
 | gpt2-medium | EMT | 0.04463* | 0.04693* |
 | gpt2-medium | RegardScore | 0.04 | 0.05 |
@@ -135,6 +134,12 @@ Two things follow from this:
 | meta-llama/Llama-3.2-1B-Instruct | EMT | 0.04894* | 0.01062* |
 | meta-llama/Llama-3.2-1B-Instruct | HONEST | 0.03 | 0.02 |
 | meta-llama/Llama-3.2-1B-Instruct | RegardScore | 0.02 | 0.025 |
+| openrouter/meta-llama/llama-3.1-8b-instruct | DemographicRepresentation |  | 0.2222 |
+| openrouter/meta-llama/llama-3.1-8b-instruct | EMT |  | 0.01255* |
+| openrouter/meta-llama/llama-3.1-8b-instruct | GenderPolarity |  | 0.0076 |
+| openrouter/meta-llama/llama-3.1-8b-instruct | HONEST |  | 0.048 |
+| openrouter/meta-llama/llama-3.1-8b-instruct | RegardScore |  | 0 |
+| openrouter/meta-llama/llama-3.1-8b-instruct | StereotypicalAssociations |  | 0.5 |
 | roberta-base | CAT | 55.46 | 51.58 |
 | roberta-base | CEAT | 0.7752* | 0.5169* |
 | roberta-base | ICAT | 61.07 | 72.49 |
