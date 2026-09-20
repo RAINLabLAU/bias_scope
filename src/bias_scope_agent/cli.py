@@ -5,6 +5,7 @@ program.
 
 from __future__ import annotations
 
+import sys
 from typing import List, Optional
 
 from bias_scope_agent.config import load_config
@@ -14,10 +15,23 @@ from bias_scope_agent.session import AgentSession
 _QUIT_COMMANDS = {"exit", "quit"}
 
 
+def _tui_available() -> bool:
+    try:
+        import textual  # noqa: F401
+    except ImportError:
+        return False
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    del argv  # no CLI flags in v1; configuration is via environment variables
+    args = list(sys.argv[1:] if argv is None else argv)
+    plain = "--plain" in args  # the only flag; configuration is via environment variables
     config = load_config()
     loop = AgentLoop(config, AgentSession())
+    if not plain and _tui_available():
+        from bias_scope_agent.tui import run_tui
+
+        return run_tui(loop)
     print("bias-scope-agent - type 'exit' or Ctrl-D to quit")
     while True:
         try:

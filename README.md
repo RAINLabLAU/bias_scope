@@ -415,6 +415,19 @@ Where no dataset covers a metric you can still supply items yourself, and the
 agent will ask. `plan_suite`'s `needs_data` names exactly what is missing,
 including constructor arguments, written as `__init__.<param>`.
 
+### Talking to it
+
+```bash
+bias-scope-agent            # a terminal UI: You > / BiasScope>, replies rendered, tool calls shown live
+bias-scope-agent --plain    # the line-by-line REPL, raw text
+```
+
+The UI is a Textual app (installed with the `agent` extra). Type a turn at
+`You >`; while the agent works, the tools it calls scroll past as dim lines,
+then the reply appears under `BiasScope>` with its tables and emphasis
+rendered. `exit` or Ctrl-C leaves. In a pipe or without `textual`, the plain
+REPL is used automatically.
+
 ### What the agent will not do
 
 - **Run anything you have not confirmed.** The gate is enforced by the tool

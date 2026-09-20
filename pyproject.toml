@@ -58,6 +58,7 @@ viz = [
 agent = [
     "anthropic>=0.40.0",
     "huggingface_hub>=0.24.0",
+    "textual>=0.80",
 ]
 agent-openai = [
     "openai>=1.0.0",

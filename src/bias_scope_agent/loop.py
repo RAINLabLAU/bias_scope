@@ -18,7 +18,7 @@ provider-agnostic shape between turns.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from bias_scope_agent import introspection, tools
 from bias_scope_agent.config import AgentConfig
@@ -51,6 +51,9 @@ class AgentLoop:
         self.session = session
         self.client = client if client is not None else build_provider(config)
         self.messages: List[Dict[str, Any]] = []
+        #: Optional observer called as on_tool(name, input) before each tool
+        #: dispatch; the TUI shows the calls live. None means nobody listens.
+        self.on_tool: Optional[Callable[[str, Dict[str, Any]], None]] = None
 
     def run_turn(self, user_text: str, *, max_tool_rounds: int = 8) -> str:
         """Run one user turn to completion and return everything the model said.
@@ -98,6 +101,8 @@ class AgentLoop:
         for block in blocks:
             if block.type != "tool_use":
                 continue
+            if self.on_tool is not None:
+                self.on_tool(block.name, dict(block.input))
             try:
                 output = self._dispatch_one(block)
                 results.append(

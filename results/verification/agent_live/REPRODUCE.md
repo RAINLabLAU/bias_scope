@@ -197,8 +197,13 @@ Two things to keep in mind when reading a number:
 The same agent, with you typing instead of the script:
 
 ```bash
-bias-scope-agent
+bias-scope-agent            # terminal UI: You > / BiasScope>, Markdown rendered, tool calls shown live
+bias-scope-agent --plain    # the line-by-line REPL
 ```
+
+The scripted runner (`live_conversation.py`) never reads your keyboard: its
+three turns are fixed, and the `you>` lines it prints are its own. Use the
+command above when you want to type the turns yourself.
 
 Ask it about a model, ask for a plan, confirm, and it runs the same tools in
 the same order. The scripted runner exists so that runs are recorded and

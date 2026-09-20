@@ -478,3 +478,26 @@ class TestAnyToolExceptionIsReturnedToTheAgentNotRaised:
         assert results and results[0]["is_error"] is True
         assert "RuntimeError" in results[0]["content"]
         assert "gated repo" in results[0]["content"]
+
+
+class TestToolCallsCanBeObserved:
+    """The TUI shows each tool as the agent calls it. `AgentLoop.on_tool`, when
+    set, is called with the tool's name and input before the dispatch; unset,
+    nothing changes."""
+
+    def test_the_observer_sees_each_dispatch_in_order(self):
+        client = FakeClient(
+            [
+                FakeResponse(
+                    content=[tool_use("construct_backend", {"kind": "litellm",
+                                                            "model_id": "gpt-4o-mini"}, "c1")],
+                    stop_reason="tool_use",
+                ),
+                FakeResponse(content=[text_block("Backend ready.")], stop_reason="end_turn"),
+            ]
+        )
+        loop = AgentLoop(AgentConfig(), AgentSession(), client=client)
+        seen = []
+        loop.on_tool = lambda name, args: seen.append((name, args["model_id"]))
+        loop.run_turn("set up gpt-4o-mini")
+        assert seen == [("construct_backend", "gpt-4o-mini")]

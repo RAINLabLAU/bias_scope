@@ -983,3 +983,25 @@ both the paper's text and the reference's own arithmetic.
 
 **Consequence if reverted.** `details` loses `"std"` again; `bias_score`
 and every other existing key are unaffected, so this is purely additive.
+
+## 2026-09-20 · `bias-scope-agent` gets a Textual front end; `textual` joins the `agent` extra
+
+**Context.** The REPL printed the agent's replies as raw Markdown - tables as
+pipes and dashes, emphasis as asterisks - and gave no sign of what the agent
+was doing during a turn that loads a model and calls an API. The maintainer
+asked for a coloured terminal UI with a `You >` / `BiasScope>` exchange.
+
+**Decision.** `src/bias_scope_agent/tui.py`, a Textual `App`: one scrolling
+transcript (the user's line, then the tools the agent calls as dim lines as
+they are dispatched, then the reply rendered by Textual's `Markdown` widget),
+one input line. The agent turn runs in a worker thread so the UI keeps
+painting. `bias-scope-agent` launches it when stdin and stdout are terminals
+and `textual` is importable; `--plain` or a non-terminal keeps the old REPL,
+which the existing tests drive. `AgentLoop` gained one optional observer,
+`on_tool(name, input)`, called before each dispatch; nothing else in the loop,
+the gate or the tools changed.
+
+**New runtime dependency.** `textual>=0.80` in the `agent` extra (PLAN.md
+Section 1 asks for this note). It is a pure-Python terminal library already
+depending on `rich`, which the library uses; the core install is untouched.
+Headless tests use `App.run_test()` with a fake loop.
