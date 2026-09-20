@@ -1882,3 +1882,17 @@ change, and it is written down as such.
 **Process.** Twelve queued runs, five reruns, one model dropped. All
 scripts, tests and REVIEW_LATER entries (RL-074 to RL-079) committed;
 `ruff` clean, fast suite green, manifest valid.
+
+### Later - merging the three branches
+
+`merge/all-branches` = `agent-implementation` + the three unpushed August
+commits of `v0.2-metrics-and-framework` + a content-less record of local
+`main`'s August snapshot (superseded by origin's PR #29 and later branding
+commits). Both branches had fixed the same three defects in parallel; the
+September versions were kept (live-tested), and v0.2's every-metric `run()`
+test with `tests/fixtures/tiny_inputs.py`, its headline keys for the other
+metrics, and its demo script came in. Its RL-038..041 became RL-080..083.
+One entry the merge made stale: `CoOccurrenceBiasScore` now has the headline
+v0.2 gave it, which is the mean absolute bias the paper reports, so its
+metadata direction was corrected and it left `KNOWN_UNRUNNABLE` (RL-065
+updated). Fast suite 2161 passed, coverage 90%, slow validity gate green.

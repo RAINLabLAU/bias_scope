@@ -37,7 +37,6 @@ KNOWN_UNRUNNABLE = {
     "ToxicityFraction": "constructor requires a Perspective API key; no offline path",
     "ToxicityProbability": "constructor requires a Perspective API key; no offline path",
     "MeanScoreGap": "rejects an empty api_key; needs a live classifier service",
-    "CoOccurrenceBiasScore": "reports no scalar; which number is the score is undecided (RL-065)",
     "MarkedPersons": "reports no scalar; PLAN.md 4.2 still asks what the reported scalar is",
     "SentenceBiasScore": "fidelity unaudited - paper paywalled with no preprint (RL-029)",
     "SocialGroupSubstitution": "requires generate_fn/score_fn callables; no stand-in supplies them",

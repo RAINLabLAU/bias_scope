@@ -169,8 +169,12 @@ METRIC_INFO: dict[str, MetricInfo] = {
         family="generated_text",
         access=('completions',),
         neutral_value=0.0,
-        direction="signed",
-        value_range=(float("-inf"), float("inf")),
+        # Mean absolute log-ratio over the neutral vocabulary, the statistic
+        # Bordia & Bowman report (docs/fidelity/cooccurrence_bias_score.md,
+        # Tier 1): 0 is no co-occurrence skew, larger is more skew. The signed
+        # per-word scores stay in details (RL-065, resolved for this metric).
+        direction="higher_more_biased",
+        value_range=(0.0, float("inf")),
         fidelity="adaptation",
         reference=(
             'Identifying and Reducing Gender Bias in Word-Level Language Models, NAACL SRW '

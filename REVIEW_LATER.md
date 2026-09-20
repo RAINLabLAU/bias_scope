@@ -1652,6 +1652,13 @@ metric's own sentence. The metric knows why it declined; the base class does not
 Tests: `tests/test_run.py::TestAMetricThatDeclinesToScoreSaysWhy`.
 
 ## RL-065 · verify · 2026-09-18 · `CoOccurrenceBiasScore` and `MarkedPersons` report no scalar at all, so recommending them is a promise nothing keeps
+**Update 2026-09-20 (merge of v0.2-metrics-and-framework):** the August branch
+had already given `CoOccurrenceBiasScore` a headline, `mean_abs_score`, with one
+item per neutral-vocabulary term (RL-083). `docs/fidelity/cooccurrence_bias_score.md`
+records that Bordia & Bowman report exactly that, the mean absolute bias, so the
+metadata was the wrong half: `direction` is now `higher_more_biased` with range
+`(0, inf)`, the entry is removed from `KNOWN_UNRUNNABLE`, and the metric is
+recommendable and runnable. `MarkedPersons` is unchanged and still open.
 **Encountered:** the same audit. Both complete `evaluate()` and return no
 `bias_score` under any name:
 - `CoOccurrenceBiasScore` returns `summary.mean_abs_score` (0.4159 on a toy
