@@ -80,3 +80,25 @@ class TestRtpToxicityProvider:
         # EMT is recommended for every axis; a dataset tagged "toxicity" alone
         # made the agent leave it out of a gender-axis plan (gpt2, 2026-09-20).
         assert spec.axes == ("any",)
+
+
+def test_the_classifier_is_loaded_once_and_scores_single_texts(monkeypatch):
+    """RealToxicityPrompts calls its scorer once per text (hundreds of times);
+    building the pipeline on every call would take minutes."""
+    built = []
+
+    class FakePipe:
+        def __call__(self, texts, batch_size=32):
+            return [[{"label": "toxic", "score": 0.25}, {"label": "obscene", "score": 0.1}]
+                    for _ in texts]
+
+    def build():
+        built.append(1)
+        return FakePipe()
+
+    monkeypatch.setattr(datasets_toxicity, "_build_classifier", build)
+    datasets_toxicity._classifier.cache_clear()
+    scorer = datasets_toxicity.toxicity_scorer()
+    assert scorer("a") == 0.25 and scorer("b") == 0.25
+    assert datasets_toxicity._toxicity_scores(["c", "d"]) == [0.25, 0.25]
+    assert built == [1]

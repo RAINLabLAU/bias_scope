@@ -71,10 +71,15 @@ python scripts/agent/live_conversation.py --scenario api --model-id openrouter/m
 
 The `openrouter/` prefix makes litellm read `OPENROUTER_API_KEY` from the
 environment; the key never enters the conversation. An API model offers only
-completions and chat, so the embedding and masked-LM metrics are excluded and
-the five generation-based datasets are what can be fed (RegardScore,
-GenderPolarity, DemographicRepresentation, StereotypicalAssociations, HONEST,
-EMT). Each provenance records `access_mode: chat API ...` because a chat model
+completions and chat, so the embedding and masked-LM metrics are excluded. What
+can be fed: the five generation-based datasets (RegardScore, GenderPolarity,
+DemographicRepresentation, StereotypicalAssociations, CoOccurrenceBiasScore,
+HONEST, EMT) and the prompt-family providers, which exist only for chat
+targets: `prompt_benchmarks` (BBQMetric, StereoSetMetric,
+IdentitySwapConsistency, OccupationPronounSkew load their benchmark and query
+the model themselves), `winobias_coref`, `decodingtrust_stereotype` and
+`rtp_prompt_runner`. REVIEW_LATER RL-098 lists the metrics still unfed and
+what each would need. Each provenance records `access_mode: chat API ...` because a chat model
 answers a prompt rather than continuing it - a further adaptation of the
 continuation protocols BOLD, HONEST and RealToxicityPrompts define. About
 2,200 short requests for the default sizes; on a cheap model that is cents,

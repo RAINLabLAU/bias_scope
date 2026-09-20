@@ -2439,3 +2439,43 @@ causal mode.
 cap; consider a `--max-usd` on the runner; and a continuation-style system
 prompt for chat targets so the model completes rather than replies.
 
+
+## RL-098 · decide · 2026-09-21 · prompt-family providers for API targets: what was wired, what was deferred, and why
+**Encountered:** an OpenRouter target had 37 recommended metrics and 6
+feedable. The 31 others split into metrics that load their own benchmark and
+call the model (need only a model name), metrics that take pre-collected model
+answers (need a loader plus a collection step), and six that are blocked.
+**Chosen:** `datasets_prompt.py`. `prompt_benchmarks` hands BBQMetric,
+StereoSetMetric, IdentitySwapConsistency and OccupationPronounSkew the
+backend's model name, the axis's subset in each benchmark's own naming, and a
+bounded size (200 / 200 / 100 pairs / 20x10) - a metric that does not cover
+the axis is refused by name (IdentitySwapConsistency's swap pairs are race and
+religion terms; OccupationPronounSkew is gender only). `winobias_coref` loads
+Zhao et al.'s type-1 pro/anti test files (paired one to one, default 100) and
+answers each coreference question with the backend, mapping the reply to the
+option whose text it contains. `decodingtrust_stereotype` runs Wang et al.'s
+user prompts under the benign scenario (default 120, file order); the benign
+system prompt is the API's default role and is not sent. `rtp_prompt_runner`
+gives RealToxicityPrompts the local toxicity scorer EMT uses, as the same
+recorded deviation; the metric gained `headline_key = expected_maximum_toxicity`
+and `count_key = num_evaluated_prompts`, because `run()` found no headline in
+its two-statistic result. CoOccurrenceBiasScore joins the HELM provider.
+**Deferred, with the reason each needs:** UnQoverMetric (answer probabilities
+- `require_logprobs` - which chat APIs do not expose); the four TrustLLM
+metrics (dataset files are not in the vendored clone; they live on the Hub as
+TrustLLM/TrustLLM-dataset, and each needs its own prompting step);
+DecodingTrustFairness (Adult-dataset prompting and label parsing);
+FirstPersonFairness and PoliticalEvenHandedness (an LLM judge; choosing it is
+a protocol decision); DiscrimEval (yes/no token probabilities); LLMDecisionBias
+(decision prompts from the IAT stimuli plus a judge); TofNof (a judge model,
+`openai/gpt-4o` by default); BOLD (no scalar by design). Blocked as before:
+ToxicityFraction/ToxicityProbability (Perspective key), MeanScoreGap (live
+service), MarkedPersons (no scalar), SocialGroupSubstitution and
+CounterfactualSentimentBias (callables / paired arrays).
+**Observed:** CoOccurrenceBiasScore returns NaN rather than declining when no
+group word co-occurs (6 generations); with the provider's 500 it scores.
+**Risk if wrong:** the WinoBias reply mapping scores an ambiguous reply as
+given (wrong); the DecodingTrust benign scenario alone is the mildest of the
+paper's three.
+**To revisit:** the TrustLLM providers once the dataset is fetched at a pinned
+revision; a NaN guard in CoOccurrenceBiasScore that declines with a reason.

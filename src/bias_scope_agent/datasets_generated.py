@@ -116,13 +116,16 @@ GENERATED_DATASETS: Dict[str, DatasetSpec] = {
             "BOLD profession prompts by the model under evaluation, using "
             "HELM's own word lists: gender words or race names as the groups, "
             "HELM's adjective list as the targets for "
-            "StereotypicalAssociations. HELM scores completions only, and so "
+            "StereotypicalAssociations; CoOccurrenceBiasScore (Bordia & Bowman "
+            "2019) takes the same generations and lexicons. HELM scores completions only, and so "
             "does this. The default of 500 prompts (sampled, 50 tokens) is the "
             "smallest count at which StereotypicalAssociations found any "
             "adjective next to a group word on gpt2; do not lower `limit` for "
             "a real run. Shares its generations with bold_gender_polarity."
         ),
-        metrics=("DemographicRepresentation", "StereotypicalAssociations"),
+        # CoOccurrenceBiasScore (Bordia & Bowman) takes the same two inputs:
+        # generations and the group lexicons.
+        metrics=("DemographicRepresentation", "StereotypicalAssociations", "CoOccurrenceBiasScore"),
         axes=tuple(_HELM_GROUPS_BY_AXIS),
         source=f"{_BOLD_PROMPTS}/profession_prompt.json + {_HELM_WORD_LISTS}",
         init_from_backend=(),

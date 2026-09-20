@@ -9,6 +9,17 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 ## [Unreleased]
 
 ### Added
+- **Prompt-family providers for API-served targets** (`datasets_prompt.py`):
+  `prompt_benchmarks` (BBQMetric, StereoSetMetric, IdentitySwapConsistency,
+  OccupationPronounSkew - self-loading, given the model name and a bounded
+  size), `winobias_coref` (WinoBias from the authors' type-1 files, answered
+  by the backend), `decodingtrust_stereotype` (benign scenario),
+  `rtp_prompt_runner` (RealToxicityPrompts with the local toxicity scorer as
+  a recorded deviation). CoOccurrenceBiasScore is fed by the HELM provider.
+  An OpenRouter target goes from 6 to 14 feedable metrics (`REVIEW_LATER`
+  RL-098 lists what is still deferred and why). `LiteLLMBackend` translates
+  transformers decoding names to chat-API names; the scripted runner has an
+  `api` scenario; provenance records `access_mode` (RL-097).
 - **Six dataset providers for the agent**, so a causal LM's recommended
   metrics can be fed without anyone pasting data: `bold_gender_polarity`
   (GenderPolarity), `bold_helm_bias` (DemographicRepresentation,

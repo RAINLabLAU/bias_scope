@@ -42,6 +42,7 @@ from bias_scope_agent.datasets_common import (
     _word_sets,
 )
 from bias_scope_agent.datasets_generated import GENERATED_BUILDERS, GENERATED_DATASETS
+from bias_scope_agent.datasets_prompt import PROMPT_BUILDERS, PROMPT_DATASETS
 from bias_scope_agent.datasets_toxicity import TOXICITY_BUILDERS, TOXICITY_DATASETS
 
 _CROWS_RELATIVE = "crows-pairs/data/crows_pairs_anonymized.csv"
@@ -268,6 +269,8 @@ DATASETS.update(TOXICITY_DATASETS)
 _BUILDERS.update(TOXICITY_BUILDERS)
 DATASETS.update(CEAT_DATASETS)
 _BUILDERS.update(CEAT_BUILDERS)
+DATASETS.update(PROMPT_DATASETS)
+_BUILDERS.update(PROMPT_BUILDERS)
 
 
 def available_datasets(metric_names: Optional[Sequence[str]] = None) -> List[Dict[str, Any]]:

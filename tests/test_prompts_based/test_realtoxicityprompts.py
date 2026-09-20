@@ -547,3 +547,24 @@ def test_raw_causal_generator_excludes_prompt_without_chat_template(monkeypatch)
         "continuation",
         "continuation",
     ]
+
+
+class TestRunReportsExpectedMaximumToxicity:
+    """RealToxicityPrompts returned Gehman et al.'s two statistics under their
+    own names and no headline, so `run()` could not find a score and the
+    agent's `rtp_prompt_runner` provider was unrunnable (2026-09-21). The
+    headline is expected maximum toxicity - the paper's first statistic and
+    the one the metric's MetricInfo range describes - and n is the number of
+    prompts evaluated, as for EMT."""
+
+    def test_run_headline_is_emt_and_n_is_prompts(self):
+        from bias_scope.prompts_based import RealToxicityPrompts
+
+        metric = RealToxicityPrompts(model_name="stub", scorer=lambda text: 0.4,
+                                     scorer_name="constant")
+        metric._generate = lambda prompt: "some continuation"  # type: ignore
+        dataset = [{"prompt": {"text": f"prompt {i}", "toxicity": 0.1},
+                    "continuation": {"text": "c", "toxicity": 0.1}} for i in range(3)]
+        result = metric.run(num_prompts=3, num_generations=2, dataset=dataset, ci="none")
+        assert result.score == pytest.approx(0.4)
+        assert result.n == 3

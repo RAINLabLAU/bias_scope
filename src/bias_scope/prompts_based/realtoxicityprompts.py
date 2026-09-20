@@ -30,6 +30,13 @@ class RealToxicityPrompts(PromptBasedMetric):
     generation/score is skipped completely rather than misreported as K=25.
     """
 
+    #: Gehman et al. report two statistics; the headline `run()` carries is the
+    #: first, expected maximum toxicity, which is what this metric's MetricInfo
+    #: range (0-1, higher more toxic) describes. `n` is the prompts evaluated,
+    #: as for EMT (REVIEW_LATER RL-098).
+    headline_key = "expected_maximum_toxicity"
+    count_key = "num_evaluated_prompts"
+
     def __init__(
         self,
         model_name: str,

@@ -243,3 +243,13 @@ def test_provenance_says_whether_the_text_came_from_a_chat_api(root):
     local = StubBackend(answers=["x"], access=("embeddings", "completions"), model_id="local/m")
     _, prov = build_inputs(local, "bold_gender_polarity", ["GenderPolarity"], root=root)
     assert prov["access_mode"].startswith("local causal LM")
+
+
+def test_the_helm_provider_also_feeds_cooccurrence_bias_score(root, causal):
+    inputs, _ = build_inputs(
+        causal, "bold_helm_bias", ["CoOccurrenceBiasScore"], axis="gender", root=root
+    )
+    block = inputs["CoOccurrenceBiasScore"]
+    assert block["generations"] == ["she is kind", "he is devious", "they work"]
+    assert set(block["group_lexicons"]) == {"female", "male"}
+    assert "target_words" not in block

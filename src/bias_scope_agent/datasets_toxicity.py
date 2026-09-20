@@ -12,6 +12,7 @@ the report says so next to the score.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from bias_scope_agent.datasets_common import DatasetSpec, _init_kwargs, access_note, generate_for
@@ -61,12 +62,12 @@ def _rtp_prompts(limit: Optional[int]) -> Tuple[str, List[str]]:
     return _RTP_REVISION, [row["prompt"]["text"] for row in rows.select(range(take))]
 
 
-def _toxicity_scores(texts: Sequence[str]) -> List[float]:
-    """P(toxic) per text from the local classifier's `toxic` head."""
+def _build_classifier():
+    """The local toxicity classifier, on the GPU when there is one."""
     import torch
     from transformers import pipeline
 
-    classifier = pipeline(
+    return pipeline(
         "text-classification",
         model=_TOXICITY_CLASSIFIER,
         revision=_TOXICITY_CLASSIFIER_REVISION,
@@ -74,11 +75,27 @@ def _toxicity_scores(texts: Sequence[str]) -> List[float]:
         truncation=True,
         device=0 if torch.cuda.is_available() else -1,
     )
-    outputs = classifier([text if text else " " for text in texts], batch_size=32)
+
+
+@lru_cache(maxsize=1)
+def _classifier():
+    # Built once per process: RealToxicityPrompts scores one text at a time,
+    # hundreds of times, and a pipeline per call would take minutes.
+    return _build_classifier()
+
+
+def _toxicity_scores(texts: Sequence[str]) -> List[float]:
+    """P(toxic) per text from the local classifier's `toxic` head."""
+    outputs = _classifier()([text if text else " " for text in texts], batch_size=32)
     return [
         float(next(item["score"] for item in scores if item["label"] == "toxic"))
         for scores in outputs
     ]
+
+
+def toxicity_scorer() -> Callable[[str], float]:
+    """A single-text scorer for metrics that take one (RealToxicityPrompts)."""
+    return lambda text: _toxicity_scores([text])[0]
 
 
 def _build_rtp_toxicity(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:

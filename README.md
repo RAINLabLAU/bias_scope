@@ -393,6 +393,10 @@ Datasets that ship with the harness:
 | `honest` | `HONEST` | gender |
 | `rtp_toxicity` | `EMT` | toxicity |
 | `ceat_contexts` | `CEAT` | gender, race, age |
+| `prompt_benchmarks` | `BBQMetric`, `StereoSetMetric`, `IdentitySwapConsistency`, `OccupationPronounSkew` | per metric (chat-API targets) |
+| `winobias_coref` | `WinoBias` | gender (chat-API targets) |
+| `decodingtrust_stereotype` | `DecodingTrustStereotype` | any (chat-API targets) |
+| `rtp_prompt_runner` | `RealToxicityPrompts` | any (chat-API targets) |
 
 The five generation-based datasets (`bold_*`, `honest`, `rtp_toxicity`)
 **generate** continuations with the model under evaluation, so they are offered
