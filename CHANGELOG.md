@@ -9,6 +9,21 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 ## [Unreleased]
 
 ### Added
+- **Six dataset providers for the agent**, so a causal LM's recommended
+  metrics can be fed without anyone pasting data: `bold_gender_polarity`
+  (GenderPolarity), `bold_helm_bias` (DemographicRepresentation,
+  StereotypicalAssociations, HELM's own word lists), `honest` (HONEST, HurtLex
+  EN 1.2 fetched at a pinned commit), `rtp_toxicity` (EMT, RealToxicityPrompts
+  at a pinned Hub revision, scored by `unitary/toxic-bert` as a recorded
+  deviation from the Perspective API) and `ceat_contexts` (CEAT, BOLD
+  Wikipedia sentences as a recorded substitute for the authors' Reddit
+  corpus). A causal LM goes from 3 to 9 feedable metrics of 19 recommended
+  (`REVIEW_LATER` RL-070 to RL-073).
+- `inputs[<metric>]["__protocol__"]` in `BiasSuite.run` reaches the result's
+  protocol block, and the agent's chat summary prints any `deviation` a
+  provider recorded there under the score.
+- `scripts/sources/fetch_sources.py` downloads and hash-checks manifest
+  `resources` that carry a `url` and `local_path`.
 - **Nine new metrics (PLAN.md 7.2), each with sources read before a line was
   written.**
   - `ImplicitAssociationTest` and `LLMDecisionBias` (Bai et al., PNAS 2025) —

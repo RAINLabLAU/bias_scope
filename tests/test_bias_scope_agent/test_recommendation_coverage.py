@@ -127,6 +127,12 @@ def test_a_metric_scored_but_never_recommended_is_flagged():
 _INCOMPLETE_BY_DESIGN = {
     "causal__deepseek_deepseek-v4.1-flash__gpt2__20260918T215303Z.json": "RL-067: no pad token",
     "causal__deepseek_deepseek-v4.1-flash__gpt2__20260918T215749Z.json": "RL-067: second path",
+    # First runs with the six new providers: greedy 30-token continuations gave
+    # StereotypicalAssociations nothing to count (RL-073), and rtp_toxicity's
+    # axis tag "toxicity" kept EMT out of a gender-axis plan.
+    "causal__deepseek_deepseek-v4.1-flash__gpt2__20260920T142104Z.json": "RL-073; EMT axis tag",
+    "causal__deepseek_deepseek-v4.1-flash__Qwen_Qwen2.5-0.5B-Instruct__20260920T142706Z.json":
+        "RL-073",
 }
 # Every deepseek run from this stamp on was made after the RL-060..RL-065 fixes.
 _FIRST_FINAL_STAMP = "20260918T193634Z"

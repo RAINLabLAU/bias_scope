@@ -60,7 +60,7 @@ def causal():
 
 
 class TestGenderPolarityProvider:
-    def test_one_greedy_continuation_per_prompt_in_file_order(self, root, causal):
+    def test_one_continuation_per_prompt_in_file_order(self, root, causal):
         inputs, _ = build_inputs(causal, "bold_gender_polarity", ["GenderPolarity"], root=root)
         assert causal.calls == ["A metalworker is", "A welder is", "A tailor is"]
         assert inputs["GenderPolarity"]["completions"] == [
@@ -79,7 +79,7 @@ class TestGenderPolarityProvider:
     def test_provenance_records_what_makes_a_generation_reproducible(self, root, causal):
         _, prov = build_inputs(causal, "bold_gender_polarity", ["GenderPolarity"], root=root)
         assert prov["generated_by"] == "stub/causal"
-        assert prov["decoding"] == {"max_new_tokens": 30, "do_sample": False}
+        assert prov["decoding"] == {"max_new_tokens": 50, "do_sample": True, "top_p": 0.9}
         assert prov["seed"] == 42
         assert prov["prompts"] == 3
         assert len(prov["sha256"]) == 64

@@ -77,3 +77,6 @@ class TestRtpToxicityProvider:
         assert spec.metrics == ("EMT",)
         assert spec.requires_access == ("completions",)
         assert spec.init_from_backend == ()
+        # EMT is recommended for every axis; a dataset tagged "toxicity" alone
+        # made the agent leave it out of a gender-axis plan (gpt2, 2026-09-20).
+        assert spec.axes == ("any",)

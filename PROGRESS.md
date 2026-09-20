@@ -1768,3 +1768,74 @@ called "not comparable to WEAT's d"; WEAT's sign called absent).
 
 `ruff check src tests scripts/agent` clean; fast suite 2038 passed, 2 xfailed;
 `-m slow` on `test_framework.py` and `test_recommendation_validity.py` green.
+
+## 2026-09-20 — six dataset providers: a causal LM's recommended metrics fed without human input
+
+Follow-on to yesterday, by request: 3 of 19 recommended metrics were feedable
+for a causal LM and the user wants the agent to evaluate the major
+recommended metrics on its own, retrieving what it needs. Six providers now
+serve the six metrics that could run but had no data path.
+
+**What each feeds, and from where.** `bold_gender_polarity` → GenderPolarity
+(BOLD profession prompts continued by the model, BOLD §4.5 unigram lists);
+`bold_helm_bias` → DemographicRepresentation and StereotypicalAssociations
+(same generations, HELM's own `bias_word_lists.py` loaded from the vendored
+file, adjectives as targets); `honest` → HONEST (Nozza's en binary templates,
+K=20 sampled 5-token continuations, HurtLex EN 1.2 conservative level -
+CC BY-NC-SA, so fetched at a pinned commit into git-ignored `third_party/`
+rather than vendored; `fetch_sources.py` gained resource download with a
+hash check); `rtp_toxicity` → EMT (RealToxicityPrompts at a pinned Hub
+revision, K=25 nucleus samples, 20 tokens); `ceat_contexts` → CEAT (each
+WEAT word's contexts from BOLD's 23,679 Wikipedia sentences, N=1,000).
+
+**Two of them substitute what the paper used, and the result says so.** No
+Perspective key, so EMT is scored by `unitary/toxic-bert`; no Reddit corpus,
+so CEAT's contexts are Wikipedia sentences embedded as sentences. The metric
+classes' fidelity badges are static, so a new key `__protocol__` in a metric's
+inputs carries `resources` with a `deviation` into the result's protocol block
+(`BiasSuite.run`), and `summarize_report` prints it under the score:
+
+    [faithful] EMT: 0.05298 (n=50)
+        deviation: toxicity scored by the local classifier unitary/toxic-bert, not the
+        Perspective API Gehman et al. used; EMT values are not comparable to the paper's
+
+RL-070 (HONEST causal decoding), RL-071 (CEAT corpus and pooling), RL-072
+(EMT classifier) and RL-073 (BOLD profession prompts, decoding) record the
+choices. All resources are in `sources/SOURCES.yaml` with sha256.
+
+**Process note.** The first two providers were written before their tests,
+against the project's rule; the tests followed in the same commit and the
+remaining four were test-first. Recorded here rather than hidden.
+
+**The first live runs exposed two defects, both measured and fixed.**
+StereotypicalAssociations declined on both models: greedy 30-token
+continuations of gpt2 are degenerate ("He is a skilled metalsmith, and he is
+a skilled metalsmith...") and even 500 contained no HELM adjective next to a
+gender word; nucleus-sampled 50-token continuations give it 0.467 at 500
+prompts and 0.464 at 1,000, so that is the default now, seeded, shared
+between the two BOLD providers through the cache. And EMT was left out of the
+gpt2 plan because `rtp_toxicity` was tagged axis "toxicity" while the plan
+was axis "gender"; the dataset is now `axes: any`, with the reason in its
+description. The two transcripts are kept and listed as incomplete by design.
+
+**Final runs, `deepseek/deepseek-v4.1-flash`, one plan / one confirmation /
+one report each, every number `summarize_report`'s own:**
+
+    causal  gpt2                    WEAT 0.5183 (16)  SEAT -0.0486 (128)  CEAT 0.0801 (1000)*
+                                    EMT 0.0530 (50)*  RegardScore 0.02 (100)  GenderPolarity 0.044 (500)
+                                    HONEST 0.083 (1000)  DemographicRepresentation 0.2564 (78)
+                                    StereotypicalAssociations 0.4667 (15)
+    causal  Qwen2.5-0.5B-Instruct   WEAT 0.847 (16)   SEAT 0.2512 (128)   CEAT 0.0652 (1000)*
+                                    EMT 0.0320 (25)*  RegardScore 0 (80)      GenderPolarity 0.032 (500)
+                                    HONEST 0.016 (1000)  DemographicRepresentation 0.3824 (51)
+                                    StereotypicalAssociations 0.5 (4)
+    * recorded deviation printed under the score
+
+Coverage: 19 recommended, **9 feedable, 9 scored**, on both models
+(`recommendation_coverage.complete = True`); the ten unfed are exactly
+`KNOWN_UNRUNNABLE`. HONEST on gpt2 at 0.083 sits inside the published
+0.08-0.12 band even in causal mode. StereotypicalAssociations' `n` is target
+words scored (15 and 4) - small, and honest about it.
+
+`ruff check src tests scripts/agent scripts/sources` clean; fast suite green;
+`check_manifest.py` valid.

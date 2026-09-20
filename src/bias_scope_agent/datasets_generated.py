@@ -34,7 +34,12 @@ _HONEST_TEMPLATES = "honest/resources/binary/en_template.tsv"
 # see sources/SOURCES.yaml, metric HONEST, resources).
 _HURTLEX = "lexica/hurtlex/hurtlex_EN.tsv"
 _SEED = 42
-_GREEDY = {"max_new_tokens": 30, "do_sample": False}
+# Decoding for the BOLD-profession providers. Measured on gpt2 (2026-09-20,
+# REVIEW_LATER RL-073): greedy 30-token continuations are degenerate - even 500
+# of them contained no HELM adjective next to a gender word, so
+# StereotypicalAssociations declined - while nucleus-sampled 50-token ones give
+# it a stable score at 500 prompts (0.467) and 1,000 (0.464). Seeded, so fixed.
+_PROFESSION_DECODING = {"max_new_tokens": 50, "do_sample": True, "top_p": 0.9}
 
 # BOLD's unigram gender lexicon, Dhamala et al. 2021 Sec. 4.5, quoted in
 # docs/fidelity/bold_metrics.md. The paper's own lists, not a substitute.
@@ -75,7 +80,9 @@ GENERATED_DATASETS: Dict[str, DatasetSpec] = {
             "scored with BOLD's own male/female unigram lists (Sec. 4.5). The "
             "profession domain is used because a gender-domain prompt names "
             "its subject's gender and would measure the prompt, not the "
-            "model. Generation is the slow part: keep `limit` modest."
+            "model. The default of 500 prompts (sampled, 50 tokens) is what "
+            "these lexicon metrics need to see enough mentions; do not lower "
+            "`limit` for a real run. Shares its generations with bold_helm_bias."
         ),
         metrics=("GenderPolarity",),
         axes=("gender",),
@@ -109,7 +116,10 @@ GENERATED_DATASETS: Dict[str, DatasetSpec] = {
             "HELM's own word lists: gender words or race names as the groups, "
             "HELM's adjective list as the targets for "
             "StereotypicalAssociations. HELM scores completions only, and so "
-            "does this. Generation is the slow part: keep `limit` modest."
+            "does this. The default of 500 prompts (sampled, 50 tokens) is the "
+            "smallest count at which StereotypicalAssociations found any "
+            "adjective next to a group word on gpt2; do not lower `limit` for "
+            "a real run. Shares its generations with bold_gender_polarity."
         ),
         metrics=("DemographicRepresentation", "StereotypicalAssociations"),
         axes=tuple(_HELM_GROUPS_BY_AXIS),
@@ -174,10 +184,10 @@ def _build_bold_regard(backend, metrics, axis, limit, root, allowed) -> Tuple[Di
     return inputs, provenance
 
 
-# 200 prompts: on gpt2, 10 prompts gave no adjective/group co-occurrence at all and
-# both HELM metrics declined to score. Both BOLD-profession providers share one
-# generation cache ("bold_profession"), so the second costs nothing.
-_PROFESSION_DEFAULT_LIMIT = 200
+# 500 prompts, for the same reason as the decoding above. Both BOLD-profession
+# providers share one generation cache ("bold_profession"), so the second costs
+# nothing.
+_PROFESSION_DEFAULT_LIMIT = 500
 
 
 def _profession_prompts(root: Path, limit: Optional[int]) -> Tuple[Path, List[str]]:
@@ -195,7 +205,7 @@ def _generation_provenance(path: Path, prompts: List[str], backend, dataset: str
         "sha256": _sha256(path),
         "prompts": len(prompts),
         "generated_by": backend.model_id,
-        "decoding": _GREEDY,
+        "decoding": _PROFESSION_DECODING,
         "seed": _SEED,
         "dataset": dataset,
     }
@@ -203,7 +213,7 @@ def _generation_provenance(path: Path, prompts: List[str], backend, dataset: str
 
 def _build_gender_polarity(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict, Dict]:
     path, prompts = _profession_prompts(root, limit)
-    texts = generate_for(backend, prompts, _GREEDY, "bold_profession", _SEED)
+    texts = generate_for(backend, prompts, _PROFESSION_DECODING, "bold_profession", _SEED)
     inputs = {
         name: {
             "__init__": _init_kwargs(name, backend, allowed),
@@ -215,7 +225,7 @@ def _build_gender_polarity(backend, metrics, axis, limit, root, allowed) -> Tupl
     }
     provenance = _generation_provenance(path, prompts, backend, "bold_gender_polarity")
     provenance["lexicon"] = "BOLD Sec. 4.5 male/female unigram lists (9 + 9 terms)"
-    provenance["note"] = "profession-domain prompts; one greedy continuation per prompt"
+    provenance["note"] = "profession-domain prompts; one sampled continuation per prompt"
     return inputs, provenance
 
 
@@ -238,7 +248,7 @@ def _build_helm_bias(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict
     groups = {k: list(v) for k, v in getattr(lists, _HELM_GROUPS_BY_AXIS[axis]).items()}
     targets = list(lists.ADJECTIVE_LIST)
     path, prompts = _profession_prompts(root, limit)
-    texts = generate_for(backend, prompts, _GREEDY, "bold_profession", _SEED)
+    texts = generate_for(backend, prompts, _PROFESSION_DECODING, "bold_profession", _SEED)
     inputs: Dict[str, Dict[str, Any]] = {}
     for name in metrics:
         block = {"__init__": _init_kwargs(name, backend, allowed), "generations": list(texts),
@@ -254,7 +264,7 @@ def _build_helm_bias(backend, metrics, axis, limit, root, allowed) -> Tuple[Dict
         "targets": f"ADJECTIVE_LIST ({len(targets)} words)",
     }
     provenance["axis"] = axis
-    provenance["note"] = "completions only, as HELM scores; one greedy continuation per prompt"
+    provenance["note"] = "completions only, as HELM scores; one sampled continuation per prompt"
     return inputs, provenance
 
 

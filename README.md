@@ -387,10 +387,24 @@ Datasets that ship with the harness:
 | `weat` | `WEAT` | gender, race, age |
 | `seat` | `SEAT` | gender, race, age |
 | `bold_regard` | `RegardScore` | gender |
+| `bold_gender_polarity` | `GenderPolarity` | gender |
+| `bold_helm_bias` | `DemographicRepresentation`, `StereotypicalAssociations` | gender, race |
+| `honest` | `HONEST` | gender |
+| `rtp_toxicity` | `EMT` | toxicity |
+| `ceat_contexts` | `CEAT` | gender, race, age |
 
-`bold_regard` **generates** continuations with the model under evaluation, so it
-is offered only to backends that can generate — a causal LM can use it, an
-encoder cannot.
+The five generation-based datasets (`bold_*`, `honest`, `rtp_toxicity`)
+**generate** continuations with the model under evaluation, so they are offered
+only to backends that can generate — a causal LM can use them, an encoder
+cannot. Generations are seeded and cached under `cache/generations/`.
+
+Two providers substitute a resource the paper used and **say so in the
+result**: `rtp_toxicity` scores with `unitary/toxic-bert` because the
+Perspective API needs a key, and `ceat_contexts` draws contexts from BOLD's
+Wikipedia sentences rather than the authors' Reddit sample. Each writes the
+substitution into the result's protocol, and `summarize_report` prints it as a
+`deviation:` line under the score, so a `faithful` badge is never the whole
+story.
 
 These datasets live under `third_party/`, which is git-ignored. Restore them
 with `python scripts/sources/fetch_sources.py --all`; a loader that cannot find

@@ -1742,3 +1742,81 @@ On bert-base-cased it described WEAT as "relative to a permutation null"
 transcripts does not take the prose as the library's statement.
 **To revisit:** the system prompt could hand the agent each metric's
 one-line docstring formula so its interpretation has something to quote.
+
+## RL-070 · decide · 2026-09-20 · HONEST on a causal LM: which decoding stands in for "top-K mask fills"
+**Encountered:** the `honest` provider must turn Nozza et al.'s mask-fill
+protocol into generation. `docs/fidelity/honest.md` records the causal mode as
+an adaptation ("generate one token, K times") but fixes no decoding; the
+authors' GPT-2 recipe is a Colab notebook not in their repo;
+`scripts/experiments/emnlp_reproduction.py` used K=5, `max_new_tokens=5`,
+`do_sample=True, top_k=50, temperature=1.0`.
+**Chosen:** K=20 (the paper's Table 4 caption, per the fidelity note) with the
+reproduction's decoding (5 tokens, top-k 50 sampling), seeded. A one-token
+continuation is usually a BPE fragment that cannot match a HurtLex lemma, so
+five tokens scanned by HONEST's sentence mode was preferred. On gpt2, 10
+templates give 0.095 - inside the published 0.08-0.12 band.
+**Risk if wrong:** K and length both move the number; nothing here is
+comparable to a mask-fill HONEST and the provenance says so.
+**To revisit:** read the authors' GPT Colab (README "Compute HONEST score with
+GPT models") and align K, length and sampling with it.
+
+## RL-071 · decide · 2026-09-20 · CEAT contexts come from BOLD's Wikipedia sentences, embedded as sentences
+**Encountered:** Guo & Caliskan sample each WEAT word's contexts from a Reddit
+corpus that is not vendored and whose license is unrecorded; the user chose a
+substitute over skipping. A second, separate deviation: `CEAT.evaluate` with
+string inputs embeds each context as a whole sentence (position-0 pooling),
+while the authors take the word's own token embedding inside the sentence.
+**Chosen:** `ceat_contexts` draws up to 50 sentences per word (whole word,
+case-insensitive) from the vendored `bold/wikipedia/*_wiki.json` (23,679
+sentences, CC-BY-SA); words with none are dropped and listed (none dropped for
+WEAT-6). N=1,000 samples, as the paper reports, not the metric's default 100
+(RL-021). Both deviations are written into the result's protocol `resources`
+and printed under the score. gpt2, WEAT-6: CES 0.0801.
+**Risk if wrong:** a CEAT number produced this way measures sentence-vector
+association in encyclopaedic text, not word-in-context association in Reddit;
+it must never be compared to the paper's tables.
+**To revisit:** a word-token extraction path in CEAT (embed the sentence, read
+the target word's position) would remove the second deviation; the first
+needs the authors' corpus.
+
+## RL-072 · decide · 2026-09-20 · EMT scored by `unitary/toxic-bert` because there is no Perspective API key
+**Encountered:** Gehman et al. score with the Perspective API; the library's
+faithful path needs a key the user does not have. The library had no local
+toxicity classifier of its own (the `RealToxicityPrompts` adaptation uses a
+keyword table), so one had to be chosen.
+**Chosen:** `unitary/toxic-bert` (Detoxify's Jigsaw-trained model, Apache-2.0,
+pinned revision `4d6c22e7`), reading its `toxic` head. `rtp_toxicity` records
+the substitution as a protocol deviation that `summarize_report` prints under
+the score, and SOURCES.yaml lists the classifier as a resource. Prompts are
+the authors' Hub release at a pinned revision, in file order (the paper
+samples 10K stratified by prompt toxicity); K=25, nucleus p=0.9, 20 tokens.
+**Risk if wrong:** EMT's class badge stays `faithful`; only the deviation line
+and the protocol say otherwise. A reader of the badge alone is misled.
+**To revisit:** with a key, add a `perspective` scorer and make the classifier
+a `prepare_inputs` option; consider whether `BiasResult` should carry a
+run-level fidelity that overrides the class badge.
+
+## RL-073 · decide · 2026-09-20 · BOLD profession prompts as the prompt source for GenderPolarity and HELM's metrics
+**Encountered:** GenderPolarity, DemographicRepresentation and
+StereotypicalAssociations score free-form generations; neither BOLD nor HELM
+fixes which prompts a third party should use. BOLD's gender-domain prompts name
+their subject's gender, so a gender score on them measures the prompt.
+**Chosen:** BOLD's `profession_prompt.json` (10,195 prompts, 18 groups), first
+500 in file order, one nucleus-sampled (p=0.9) 50-token continuation each,
+seeded, shared between the two providers through the generation cache.
+HELM's adjective list, not its profession list, as StereotypicalAssociations
+targets, because profession prompts would make profession targets co-occur by
+construction. The decoding and count were measured, not guessed: on gpt2,
+greedy 30-token continuations are degenerate ("He is a skilled metalsmith,
+and he is a skilled metalsmith...") and even 500 of them contained no HELM
+adjective next to a gender word, so StereotypicalAssociations declined in the
+first two live runs; sampled 50-token continuations give it 0.467 at 500
+prompts and 0.464 at 1,000, with DemographicRepresentation seeing 78 and 183
+group mentions. The provider descriptions now tell the agent not to lower
+`limit` for a real run, because the Qwen run had passed 50.
+**Risk if wrong:** a different prompt set or decoding gives a different
+number; these are prompt- and decoding-conditioned scores and the provenance
+records both. Sampling makes the two BOLD-profession scores depend on the
+seed, which is recorded.
+**To revisit:** offer the prompt domain and the decoding as `prepare_inputs`
+options.

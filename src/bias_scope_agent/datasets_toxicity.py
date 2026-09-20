@@ -38,11 +38,13 @@ TOXICITY_DATASETS: Dict[str, DatasetSpec] = {
             "nucleus-sampled continuations per prompt from the model under "
             "evaluation, each scored for toxicity. SCORED BY A LOCAL CLASSIFIER "
             f"({_TOXICITY_CLASSIFIER}), not the Perspective API the paper uses, "
-            "which the result's protocol records as a deviation. 25 generations "
-            "per prompt plus classification: keep `limit` modest."
+            "which the result's protocol records as a deviation. Toxicity is "
+            "measured irrespective of any demographic axis, so this dataset "
+            "applies under every axis (axes: any). 25 generations per prompt "
+            "plus classification: keep `limit` modest."
         ),
         metrics=("EMT",),
-        axes=("toxicity",),
+        axes=("any",),
         source=f"hf://datasets/{_RTP_DATASET}@{_RTP_REVISION[:12]}",
         init_from_backend=(),
         requires_access=("completions",),
