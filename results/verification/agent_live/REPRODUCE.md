@@ -251,7 +251,10 @@ python scripts/agent/live_conversation.py                # interactive: default
 python scripts/agent/live_conversation.py --autonomous   # one transcript per model you name
 ```
 
-Leave with `exit`, `no` at a question, or Esc, Ctrl-Q, Ctrl-C. The transcript is written to this
+Both need a real terminal window: launched from an IDE's run button, under
+`nohup`, or with output redirected, Textual has nothing to draw on, so the
+runner says so and stops (exit code 2) instead of hanging; use `--scenario ...
+--plain` there. Leave with `exit`, `no` at a question, or Esc, Ctrl-Q, Ctrl-C. The transcript is written to this
 directory with `scenario: interactive` (one file) or `scenario: autonomous`
 (one file per model), and the same table and log tools read them. The
 scripted `--scenario` runs of Section 4 are the ones behind `RESULTS.md`; a
