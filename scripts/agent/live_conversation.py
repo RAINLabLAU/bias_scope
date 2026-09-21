@@ -179,8 +179,12 @@ def run_conversation(config: AgentConfig, turns: List[str], tui: bool = False) -
     return {"exchanges": exchanges, "dispatched": loop.dispatched}
 
 
+def _on_a_terminal() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def _tui_wanted(plain: bool) -> bool:
-    if plain or not sys.stdout.isatty():
+    if plain or not _on_a_terminal():
         return False
     try:
         import textual  # noqa: F401
@@ -436,6 +440,13 @@ def main() -> int:
     mode = mode_of(args)
     config = load_config()
     print(f"agent LLM: {config.provider} / {config.model}")
+    if mode != "scripted" and not _on_a_terminal():
+        print(f"{mode} mode draws a terminal UI, but this is not an interactive terminal "
+              "(stdin or stdout is a pipe or a file - an IDE run button, nohup, a redirect).\n"
+              "Run it in a terminal window, or play a fixed script without the UI:\n"
+              "    python scripts/agent/live_conversation.py --scenario causal "
+              "--model-id gpt2 --plain")
+        return 2
     if mode == "autonomous":
         records = record_autonomous(config, args.device)
         for record in records:

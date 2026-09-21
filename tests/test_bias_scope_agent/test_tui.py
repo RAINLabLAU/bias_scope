@@ -411,3 +411,23 @@ class TestTheRunnerDefaultsToInteractiveAndHasAnAutonomousMode:
         monkeypatch.setattr(cli, "AgentLoop", lambda config, session: FakeLoop())
         assert cli.main(["--autonomous", "--device", "cpu"]) == 0
         assert callable(seen["turns_for"]) and isinstance(seen["fresh"], FakeLoop)
+
+
+class TestTheRunnerSaysWhyTheUIDidNotAppear:
+    """Reported 2026-09-21: 'if I run it it doesn't show the tui'. Off a real
+    terminal (an IDE run button, a pipe, nohup) Textual draws nothing and the
+    interactive and autonomous modes hung silently. They must say so and stop."""
+
+    def test_interactive_off_a_terminal_prints_a_hint_and_does_not_start_the_ui(
+        self, monkeypatch, capsys
+    ):
+        from scripts.agent import live_conversation as lc
+
+        monkeypatch.setattr(lc.sys, "argv", ["live_conversation.py"])
+        monkeypatch.setattr(lc, "_on_a_terminal", lambda: False)
+        config = type("C", (), {"provider": "p", "model": "m"})()
+        monkeypatch.setattr(lc, "load_config", lambda: config)
+        monkeypatch.setattr(lc, "record_interactive", lambda config: pytest.fail("UI started"))
+        assert lc.main() == 2
+        out = capsys.readouterr().out
+        assert "terminal" in out and "--scenario" in out and "--plain" in out

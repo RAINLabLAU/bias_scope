@@ -3154,3 +3154,10 @@ reported-numbers checks; `main()`'s transcript tail became `_finish` and
 The four-turn smoke test of the interactive path from last night (nothing
 ran in it) failed the coverage test and was moved to `invalidated/` with a
 note. README, REPRODUCE.md, CHANGELOG and PLAN Item 13 updated.
+
+Follow-up the same day: "if I run it it doesn't show the tui". On a real
+terminal it does (checked under a pseudo-terminal); off one (an IDE run
+button, a pipe, a redirect) Textual drew nothing and the interactive and
+autonomous modes hung silently. The runner now checks that stdin and stdout
+are a terminal before either mode, prints why and the `--scenario ... --plain`
+alternative, and exits 2. Test-first in `test_tui.py`.
