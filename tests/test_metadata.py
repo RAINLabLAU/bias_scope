@@ -29,7 +29,7 @@ from bias_scope.metadata import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = REPO_ROOT / "sources" / "SOURCES.yaml"
 
-EXPECTED_METRIC_COUNT = 55  # 43 + WinoBias, DiscrimEval, PoliticalEvenHandedness,
+EXPECTED_METRIC_COUNT = 56  # 43 + WinoBias, DiscrimEval, PoliticalEvenHandedness,
 #                             ImplicitAssociationTest, LLMDecisionBias (PLAN.md 7.2)
 
 
@@ -172,7 +172,7 @@ class TestRegistryQueries:
         counts = {f: len(list_metrics(family=f)) for f in
                   ("embedding", "probability", "generated_text", "prompt")}
         assert counts == {"embedding": 4, "probability": 11,
-                          "generated_text": 17, "prompt": 23}
+                          "generated_text": 17, "prompt": 24}
 
     def test_filtering_by_fidelity_works(self):
         assert len(list_metrics(fidelity="mismatch")) == len(
@@ -201,25 +201,8 @@ class TestReleaseGates:
     signal to promote them to hard assertions and tick the Section 13 boxes.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="SentenceBiasScore's paper is paywalled with no preprint, so its "
-               "sources cannot be read (REVIEW_LATER RL-029). Every other metric "
-               "is audited.",
-    )
     def test_no_metric_is_unaudited(self):
         assert not list_metrics(fidelity="unaudited")
-
-    def test_the_only_unaudited_metric_is_the_unobtainable_one(self):
-        """The audit is complete except where the source could not be obtained.
-
-        Section 4.0 forbids assigning a fidelity without reading the paper.
-        Dolci et al. 2023 is paywalled with no preprint, so SentenceBiasScore
-        stays `unaudited` — an honest gap, not an oversight. If this test starts
-        failing, either the paper was obtained (audit it) or a new metric was
-        added without one (audit that).
-        """
-        assert set(list_metrics(fidelity="unaudited")) == {"SentenceBiasScore"}
 
     @pytest.mark.xfail(
         strict=True,

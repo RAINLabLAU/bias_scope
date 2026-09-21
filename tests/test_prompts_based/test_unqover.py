@@ -218,6 +218,7 @@ class TestUnQoverMetric:
             mock_completion.side_effect = responses
             result = metric.evaluate([make_example()])
         expected = {
+            "bias_score",  # alias so run()/BiasSuite can find the headline
             "net_bias_score",
             "bias_intensity",
             "count_bias_intensity",
@@ -329,4 +330,3 @@ class TestUnQoverMetric:
             mock_completion.side_effect = responses
             result = metric.evaluate([make_example()])
         assert result["net_bias_score"] == pytest.approx(1.0)
-

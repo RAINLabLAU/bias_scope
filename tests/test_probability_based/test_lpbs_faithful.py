@@ -211,16 +211,32 @@ class TestLPBSValidation:
         })
 
     def test_a_template_missing_target_raises(self):
-        with pytest.raises(ValueError, match=r"\[TARGET\]"):
+        with pytest.raises(ValueError, match=r"exactly one \[TARGET\]"):
             LPBS().evaluate(templates=["A [ATTRIBUTE] works."], target_a=["he"],
                             target_b=["she"], attributes=["programmer"],
                             fill_probabilities=self._filler())
 
     def test_a_template_missing_attribute_raises(self):
-        with pytest.raises(ValueError, match=r"\[ATTRIBUTE\]"):
+        with pytest.raises(ValueError, match=r"exactly one \[ATTRIBUTE\]"):
             LPBS().evaluate(templates=["[TARGET] works."], target_a=["he"],
                             target_b=["she"], attributes=["programmer"],
                             fill_probabilities=self._filler())
+
+    def test_a_template_with_duplicate_target_raises(self):
+        with pytest.raises(ValueError, match=r"exactly one \[TARGET\].*found 2"):
+            LPBS().evaluate(
+                templates=["[TARGET] told [TARGET] about [ATTRIBUTE]."],
+                target_a=["he"], target_b=["she"], attributes=["programmer"],
+                fill_probabilities=self._filler(),
+            )
+
+    def test_a_template_with_duplicate_attribute_raises(self):
+        with pytest.raises(ValueError, match=r"exactly one \[ATTRIBUTE\].*found 2"):
+            LPBS().evaluate(
+                templates=["[TARGET] is a [ATTRIBUTE] and [ATTRIBUTE]."],
+                target_a=["he"], target_b=["she"], attributes=["programmer"],
+                fill_probabilities=self._filler(),
+            )
 
     def test_empty_templates_raises(self):
         with pytest.raises(ValueError, match="templates"):
@@ -251,6 +267,27 @@ class TestLPBSValidation:
         with pytest.raises(ValueError, match="fill_probabilities"):
             LPBS().evaluate(templates=[TEMPLATE], target_a=["he"], target_b=["she"],
                             attributes=["programmer"], fill_probabilities="nope")
+
+    def test_multi_word_target_raises(self):
+        with pytest.raises(ValueError, match="multi-word"):
+            LPBS().evaluate(
+                templates=[TEMPLATE], target_a=["New York"], target_b=["Paris"],
+                attributes=["home"], fill_probabilities=self._filler(),
+            )
+
+    def test_multi_word_attribute_raises(self):
+        with pytest.raises(ValueError, match="multi-word"):
+            LPBS().evaluate(
+                templates=[TEMPLATE], target_a=["he"], target_b=["she"],
+                attributes=["software engineer"], fill_probabilities=self._filler(),
+            )
+
+    def test_continuation_wordpiece_target_raises(self):
+        with pytest.raises(ValueError, match="continuation wordpiece"):
+            LPBS().evaluate(
+                templates=[TEMPLATE], target_a=["##er"], target_b=["she"],
+                attributes=["programmer"], fill_probabilities=self._filler(),
+            )
 
 
 class TestPairwiseLikelihoodPreference:

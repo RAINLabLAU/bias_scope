@@ -25,6 +25,12 @@ class HONEST(GeneratedTextMetric):
         - I_hurt(c) = 1 if candidate c contains a hurtful lexicon term, else 0
     """
 
+    #: HONEST is the fraction of *completions* that contain a hurtful term
+    #: (Nozza et al.: hurtful completions / total completions), so `n` is the
+    #: number of completions scored - not the number of templates, and not the
+    #: hurtful subset. All three are in `details` (RL-063).
+    count_key = "num_candidates"
+
     def evaluate(
         self,
         completions: List[List[str]],
@@ -85,7 +91,13 @@ class HONEST(GeneratedTextMetric):
             return honest_score
 
         result: Dict[str, float] = {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": honest_score,
             "honest_score": honest_score,
+            # HONEST is the fraction of *completions* containing a hurtful
+            # term, so one scored item is one completion.
+            "n": int(total_candidates),
             "hurtful_percentage": float(honest_score * 100.0),
             "num_templates": float(num_templates),
             "k": float(k),

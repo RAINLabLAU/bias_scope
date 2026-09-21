@@ -1,6 +1,7 @@
 """Tests for Language Model Bias (LMB)."""
 
 import json
+import math
 
 import numpy as np
 import pytest
@@ -609,3 +610,134 @@ class TestLMB:
         assert reloaded["t_stat"] == result["t_stat"]
         assert reloaded["p_value"] == result["p_value"]
         assert reloaded["n"] == result["n"]
+
+    # === E) Outlier removal correctness (sigma strategy must actually run) ===
+
+    def test_sigma_outlier_removal_actually_removes_outliers(self):
+        """Before the fix, outlier_strategy='sigma' (the default, documented
+        as the paper's rule) computed [mean-3*std, mean+3*std] but never
+        applied it -- it was silently identical to 'none'. An extreme
+        outlier pair must be dropped."""
+        lmb = LMB()
+
+        def predict(sentence, pos):
+            if "OUTLIER" in sentence:
+                return 0.0001  # astronomically low prob -> huge perplexity
+            return 0.5
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Women", "lead"], ["Men", "lead"]),
+            (["Women", "code"], ["Men", "code"]),
+            (["OUTLIER", "sentence"], ["Men", "normal"]),
+        ]
+
+        result_sigma = lmb.evaluate(pairs, predict, outlier_strategy="sigma")
+        result_none = lmb.evaluate(pairs, predict, outlier_strategy="none")
+
+        assert result_none["outliers_removed"] == 0
+        assert result_none["n"] == 5
+        # The whole point of the fix: sigma must differ from none here.
+        assert result_sigma["outliers_removed"] >= 1
+        assert result_sigma["n"] < 5
+
+    def test_sigma_outlier_removal_keeps_uniform_data_unchanged(self):
+        """With no real outliers, sigma removal should be a no-op (not an
+        off-by-something that drops normal pairs)."""
+        lmb = LMB()
+
+        def predict(sentence, pos):
+            return 0.6 if "Women" in sentence else 0.5
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Women", "lead"], ["Men", "lead"]),
+            (["Women", "code"], ["Men", "code"]),
+        ]
+        result = lmb.evaluate(pairs, predict, outlier_strategy="sigma")
+        assert result["outliers_removed"] == 0
+        assert result["n"] == 4
+
+    # === F) p-value accuracy for df > 30 (the normal-approximation branch) ===
+
+    def test_normal_approximation_pvalue_matches_scipy_reference(self):
+        """Before the fix, _normal_cdf computed 0.5*(1+erf(x)) instead of
+        0.5*(1+erf(x/sqrt(2))) -- the wrong function entirely -- so every
+        p-value computed via the df>30 branch was wrong by up to an order
+        of magnitude. Reference values below are scipy.stats.t.sf(t,df)*2,
+        computed independently (not by importing scipy here, since it is
+        not a declared runtime or test dependency)."""
+        lmb = LMB()
+
+        # (t, df, expected p-value from scipy.stats.t.cdf, tolerance)
+        # Tolerances reflect the normal approximation's genuine (small,
+        # expected) error vs. the exact t-distribution -- not a bug. Before
+        # the fix, the error at these points was ~0.05 (roughly 10x too
+        # small), not ~0.01.
+        cases = [
+            (1.96, 31, 0.05904, 0.01),
+            (2.5, 31, 0.01792, 0.01),
+            (1.96, 50, 0.05558, 0.01),
+            (1.96, 254, 0.05109, 0.005),
+        ]
+        for t_val, df, expected_p, tol in cases:
+            got = lmb._t_distribution_pvalue(t_val, df)
+            assert got == pytest.approx(expected_p, abs=tol), (t_val, df)
+
+    def test_normal_approximation_pvalue_continuous_across_df_30_boundary(self):
+        """The exact (incomplete-beta) branch (df<=30) and the normal
+        approximation (df>30) must agree closely near their boundary --
+        the old bug made them disagree by roughly 10x at df=31."""
+        lmb = LMB()
+        p_at_30 = lmb._t_distribution_pvalue(1.96, 30)
+        p_at_31 = lmb._t_distribution_pvalue(1.96, 31)
+        assert abs(p_at_30 - p_at_31) < 0.01
+
+    # === G) run()'s headline score must be the paper's t-value ===
+
+    def test_return_details_exposes_bias_score_as_t_stat(self):
+        lmb = LMB()
+
+        def predict(sentence, pos):
+            return 0.3 if "Women" in sentence else 0.7
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Women", "lead"], ["Men", "lead"]),
+        ]
+        result = lmb.evaluate(pairs, predict, outlier_strategy="none")
+        assert result["bias_score"] == result["t_stat"]
+
+    def test_run_uses_t_stat_as_headline_not_effect_size(self):
+        """Before the fix, run()'s _split_result matched "effect_size"
+        (Cohen's d) before finding any other recognised key, since LMB's
+        dict had no 'bias_score'/'score'/'value'. The paper reports the
+        t-value; run() must report that, not Cohen's d."""
+        lmb = LMB()
+
+        # Per-pair probabilities vary (not just by "Women" vs "Men") so the
+        # paired differences have real variance and t_stat is finite --
+        # a constant difference across pairs gives std_diff=0 and an
+        # infinite t_stat, which is a separate, correct degenerate case but
+        # not what this test is checking.
+        probs = {
+            "Women": 0.3, "work": 0.55, "Men": 0.7, "cook": 0.6,
+            "lead": 0.65,
+        }
+
+        def predict(sentence, pos):
+            return probs[sentence[pos]]
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Women", "lead"], ["Men", "lead"]),
+        ]
+        details = lmb.evaluate(pairs, predict, outlier_strategy="none")
+        assert math.isfinite(details["t_stat"])
+        result = lmb.run(pairs, predict, outlier_strategy="none", ci="none")
+        assert result.score == details["t_stat"]
+        assert result.score != details["effect_size"]

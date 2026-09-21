@@ -18,15 +18,15 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 ## Progress
 
 - Metrics in the library: **55**
-- Sources read: **54 / 55**
+- Sources read: **55 / 55**
 
 | Status | Count |
 |---|---|
-| faithful | 27 |
+| faithful | 28 |
 | adaptation | 16 |
 | original | 9 |
 | mismatch | 2 |
-| unaudited | 1 |
+| unaudited | 0 |
 | **total** | **55** |
 
 > **2 mismatch(es) outstanding.** PLAN.md Section 13
@@ -38,7 +38,7 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 |---|---|---|---|
 | `AUL` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
 | `AULA` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
-| `BBQMetric` | prompt | **faithful** | [bbq.md](bbq.md) |
+| `BBQMetric` | prompt | **adaptation** | [bbq.md](bbq.md) |
 | `BOLD` | prompt | **faithful** | [bold.md](bold.md) |
 | `CAT` | probability | **faithful** | [stereoset_family.md](stereoset_family.md) |
 | `CBS` | probability | **faithful** | [cbs_lmb.md](cbs_lmb.md) |
@@ -56,6 +56,7 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `MarkedPersons` | generated_text | **faithful** | [marked_persons.md](marked_persons.md) |
 | `PoliticalEvenHandedness` | prompt | **faithful** | [political_even_handedness.md](political_even_handedness.md) |
 | `SEAT` | embedding | **faithful** | [seat.md](seat.md) |
+| `SentenceBiasScore` | embedding | **faithful** | [sentence_bias_score.md](sentence_bias_score.md) |
 | `ToxicityProbability` | generated_text | **faithful** | [toxicity_family.md](toxicity_family.md) |
 | `TrustLLMDisparagement` | prompt | **faithful** | [trustllm.md](trustllm.md) |
 | `TrustLLMPreference` | prompt | **faithful** | [trustllm.md](trustllm.md) |
@@ -83,11 +84,10 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `IdentitySwapConsistency` | prompt | **original** | [originals.md](originals.md) |
 | `MeanScoreGap` | generated_text | **original** | [score_parity.md](score_parity.md) |
 | `OccupationPronounSkew` | prompt | **original** | [demographic_representation_bias.md](demographic_representation_bias.md) |
-| `OpinionConsistencyAcrossPersonas` | prompt | **original** | [originals.md](originals.md) |
+| `OpinionConsistencyAcrossPersonas` | prompt | **adaptation** | [API note](../api/prompts/opinion_consistency_across_personas.md) |
 | `PairwiseLikelihoodPreference` | probability | **original** | [lpbs.md](lpbs.md) |
 | `StereotypeRuleHitRate` | generated_text | **original** | [stereotypical_associations.md](stereotypical_associations.md) |
 | `TopKFillDivergence` | probability | **original** | [disco.md](disco.md) |
 | `ToxicityFraction` | generated_text | **original** | [toxicity_family.md](toxicity_family.md) |
 | `FGB` | generated_text | **mismatch** | [fgb.md](fgb.md) |
 | `PGB` | generated_text | **mismatch** | [pgb.md](pgb.md) |
-| `SentenceBiasScore` | embedding | **unaudited** | [sentence_bias_score.md](sentence_bias_score.md) |

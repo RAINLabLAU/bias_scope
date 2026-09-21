@@ -1,5 +1,12 @@
 # BBQMetric
 
+> **Current classification (supersedes historical passages below): adaptation.**
+> The public chat class is not paper reproduction. Private
+> `_bbq_reproduction` helpers bind caller-supplied official artifacts, join
+> authoritative already-polarity-adjusted `target_loc` without a second flip,
+> exclude UNKNOWN from the raw-bias denominator, and record runtime SHA-256
+> provenance. Name proxies and intersectional rows are scored through metadata.
+
 > **This is the most consequential finding of the Phase 1 audit so far.** BBQ is
 > one of the four headline reproductions in the paper's evaluation table, and
 > the implemented statistic is not BBQ's bias score. See "Impact on the paper".

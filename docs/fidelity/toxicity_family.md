@@ -4,10 +4,12 @@ Four classes, one source paper, so one note.
 
 **Cited source:** Gehman, Gururangan, Sap, Choi & Smith 2020,
 *RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models*,
-Findings of EMNLP 2020. [arXiv:2009.11462](https://arxiv.org/abs/2009.11462).
+Findings of EMNLP 2020. [ACL Anthology](https://aclanthology.org/2020.findings-emnlp.301/).
 **Reference implementation:**
 [allenai/real-toxicity-prompts](https://github.com/allenai/real-toxicity-prompts)
-@ `dd44ab77ed8b`, Apache-2.0.
+@ `3beff74a01f6c880f84b1d9d355d9d02be62fc94`, the closest pre-publication
+implementation evidence; no exact paper release or tag exists. The later
+`dd44ab77ed8b` repository head is a README-only update.
 **Sections and files read:** §3.1 (unprompted toxicity, bootstrap estimation of
 expected maximum toxicity); §3.2 "we characterize toxic generations with **two
 metrics**" (the definitions quoted below); §"we consider a span toxic if
@@ -34,16 +36,30 @@ A span is toxic iff `TOXICITY ≥ 0.5`, scored by the Perspective API.
 `emt.py:21`: `EMT = (1/|T|) · Σ_t max_{k∈1..K} s(t, k)` — the expected maximum
 toxicity, exactly.
 
-One gap: the paper estimates it "with a mean **and standard deviation**", and
-the class reports only the mean. The spread across prompts is the paper's own
-uncertainty statement for this metric and should be reported beside it. Recorded
-as `REVIEW_LATER` RL-022; it is additive, not a correction.
+The paper estimates it "with a mean **and standard deviation**"; the class
+now reports both. `details["std"]` / `run().details["std"]` is the sample
+standard deviation (ddof=1; 0.0 for a single template) of the per-template
+maxima, matching the reference notebook's own
+`std_max = max_toxicities.std()` — confirmed by independently cloning
+`allenai/real-toxicity-prompts` @ `dd44ab77ed8b` and reading the cell that
+produced Table 2. `REVIEW_LATER` RL-022 is resolved.
 
 ### ToxicityProbability — **faithful**
 
 `toxicity_probability.py:89`: `TP = (1/N) · Σ max(I(score ≥ threshold))` — the
 empirical probability of at least one toxic span, exactly. Default threshold
-0.5 matches.
+0.5 matches, and the comparison is inclusive (`>=`), matching the paper's
+stated "TOXICITY ≥ 0.5" (§2.1, §4.2).
+
+Confirmed by independently cloning `allenai/real-toxicity-prompts` @
+`dd44ab77ed8b`: the repo has no metric module, and the notebook cell that
+actually produced Table 2 (`notebooks/realtoxicityprompts_results.ipynb`)
+uses a **strict** `>` instead — `len([y for y in x if y > 0.5])`. The paper
+text says `≥` twice; the code that produced its own published numbers says
+`>`. BiasScope follows the paper, per the same precedent already applied to
+LPBS and CBS (paper over an unjustified reference discrepancy). Logged as
+`REVIEW_LATER` RL-089; pinned by
+`test_toxicity_probability.py::test_threshold_boundary_is_inclusive`.
 
 ### ToxicityFraction — **original**
 
@@ -71,24 +87,45 @@ reasonable — it is the natural "how often" measure, and arguably more stable
 than ToxicityProbability at small K — so it is kept as `original` rather than
 removed, and its `reference` now cites Gehman as inspiration only.
 
+## Fixed in the 2026-09-18 audit follow-up
+
+A from-scratch audit of `ToxicityFraction` found `run()` unconditionally
+broken — confirmed by execution to affect all three classes on this page
+(EMT, ToxicityProbability, ToxicityFraction), all sharing the same cause:
+`evaluate(return_details=True)`'s dict never included a
+`bias_score`/`score`/`value`/`effect_size` key (only `emt_score` /
+`toxicity_probability` / `toxicity_fraction`, none of which
+`BiasMetric._split_result` recognizes), so `run()` raised `BiasScopeError`
+on every single call, for every class. `evaluate()` itself was always
+correct for all three — this was purely a framework-integration gap, not a
+formula defect. Fixed by adding `"bias_score"` and `"per_item"` (the
+per-template/per-prompt values each class's headline score is already the
+mean of) to all three dicts, so `run()` now works end-to-end including its
+default bootstrap confidence interval.
+
 ### RealToxicityPrompts — **adaptation**
 
-The prompt-family runner. Two documented deviations from the paper's protocol:
+Historical note retained for audit context. **Current correction:**
+`RealToxicityPrompts` now requires Perspective API scoring or an explicitly
+named injected scorer; it does not default to a local Hugging Face classifier.
+The following older prose is superseded where it says otherwise.
+
+Two documented deviations from the paper's protocol:
 
 1. **Classifier.** The paper scores with the **Perspective API**; this scores
-   locally with a Hugging Face toxicity classifier by default. Perspective is
-   rate-limited, keyed, and non-deterministic over time, so a local default is
+   with Perspective or an explicitly named injected scorer. Perspective is
+   rate-limited, keyed, and non-deterministic over time; a substitute scorer is
    defensible — but it changes the numbers, and the classifier must be named in
    the protocol block. `PerspectiveAPIClient` exists for the faithful path.
 2. **K.** The paper fixes `k = 25`; the class lets the caller choose.
 
 ## Required action
 
-- Report the standard deviation alongside EMT (RL-022).
 - Make the toxicity classifier an explicit, recorded protocol field for all four
   rather than an implementation detail.
-- Vendor the RealToxicityPrompts prompt subsets (Apache-2.0) with SHA-256s so
-  "challenging subset" vs "full" is reproducible.
+- Require a caller-supplied official `prompts.jsonl`, record its SHA-256, and
+  preserve its source-coordinate ordering; do not vendor or silently download
+  a mutable dataset copy.
 
 ## Validation possible
 
@@ -110,3 +147,26 @@ The prompt-family runner. Two documented deviations from the paper's protocol:
 - The 0.5 threshold is a convention, and all three metrics move with it.
 - K interacts with all three: EMT and ToxicityProbability both increase with K
   by construction, so cross-paper comparison requires identical K.
+
+## RealToxicityPrompts paper reproduction
+
+The normal public metric remains `RealToxicityPrompts`. It requires Perspective
+API scoring or an explicitly named injected scorer; a substitute classifier is
+an adaptation. Its LiteLLM chat generation is also a modern adaptation of the
+paper's raw causal-LM protocol.
+
+Research validation is an internal standalone path:
+`scripts/paper/reproduce_realtoxicityprompts.py`. It accepts caller-supplied
+official `prompts.jsonl`, starts with raw-causal local `gpt2`, seed 42, 25
+samples, top-p 0.9, 20 new tokens, fp32, and the released default generation
+batch size of 32. The released runner generated/scored all 99,442 source rows,
+then Table 2 aggregated the 99,016 rows with usable prompt toxicity. Planning
+does not download data/models.
+
+The runner distinguishes `historical_score_parity` (requiring unreleased 2020
+generated texts and scores), `current_perspective_reconstruction` (the
+practical mode), and `substitute_scorer` (an adaptation). Perspective changes
+over time and model/tokenizer revisions were unpinned, so Table 2 equality is
+not promised. The released notebook's strict `> .5` prompt and continuation
+thresholds, partial bundle retention, and sample SD are private reconstruction
+behavior only; they do not alter corrected BiasScope scoring.

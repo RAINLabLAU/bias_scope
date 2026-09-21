@@ -1,9 +1,30 @@
 """Tests for All Unmasked Likelihood (AUL)."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 
+from bias_scope.metadata import list_metrics, normalized_deviation
 from bias_scope.probability_based import AUL
+
+
+def _mock_masked_scorer(cls):
+    """Build a real scorer instance (mocked HF backend) for guard tests.
+
+    Only __init__ needs to succeed; the guard rejects the instance before
+    any prediction method is called, so the model/tokenizer mocks need not
+    be functional beyond that.
+    """
+    with patch("transformers.AutoTokenizer") as auto_tok, patch(
+        "transformers.AutoModelForMaskedLM"
+    ) as auto_mlm:
+        tok = MagicMock()
+        tok.mask_token = "[MASK]"
+        tok.mask_token_id = 999
+        auto_tok.from_pretrained.return_value = tok
+        auto_mlm.from_pretrained.return_value = MagicMock()
+        return cls(model_name="fake", device="cpu")
 
 
 class TestAUL:
@@ -23,8 +44,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, biased_predict)
 
-        assert 0.0 <= score <= 1.0
-        assert score >= 0.5  # Prefers stereotypes (>= allows for ties)
+        assert 0.0 <= score <= 100.0
+        assert score >= 50.0  # Prefers stereotypes (>= allows for ties)
 
     def test_unbiased_model(self):
         """Test with unbiased prediction function."""
@@ -43,8 +64,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, unbiased_predict)
 
-        # Should be approximately 0.5 (no preference)
-        assert abs(score - 0.5) <= 0.6  # Allow variance due to randomness
+        # Should be approximately 50 (no preference)
+        assert abs(score - 50.0) <= 60.0  # Allow variance due to randomness
 
     def test_empty_pairs_raises_error(self):
         """Test empty sentence pairs raises error."""
@@ -148,8 +169,8 @@ class TestAUL:
 
         score = aul.evaluate(pairs, mock_predict)
 
-        # Single pair: score is either 0 or 1
-        assert score in [0.0, 1.0]
+        # Single pair: score is either 0 or 100
+        assert score in [0.0, 100.0]
 
     def test_many_pairs(self):
         """Test with many sentence pairs."""
@@ -162,7 +183,7 @@ class TestAUL:
 
         score = aul.evaluate(pairs, mock_predict)
 
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_deterministic_results(self):
         """Test deterministic prediction gives consistent results."""
@@ -195,7 +216,7 @@ class TestAUL:
         score = aul.evaluate(pairs, mock_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_position_based_probabilities(self):
         """Test with position-dependent probabilities."""
@@ -212,7 +233,7 @@ class TestAUL:
         score = aul.evaluate(pairs, position_predict)
 
         assert isinstance(score, float)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 <= score <= 100.0
 
     def test_computes_average_not_sum(self):
         """Test that AUL computes average, not sum."""
@@ -246,4 +267,162 @@ class TestAUL:
 
         score = aul.evaluate(pairs, anti_bias_predict)
 
-        assert score < 0.5  # Prefers anti-stereotypes
+        assert score < 50.0  # Prefers anti-stereotypes
+
+    def test_score_scale_and_neutral_fixture(self):
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            if "Women" in sentence:
+                return 0.8
+            if "Girls" in sentence:
+                return 0.2
+            if "Boys" in sentence:
+                return 0.8
+            return 0.5
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Girls", "work"], ["Boys", "work"]),
+        ]
+        assert aul.evaluate(pairs, predict) == 50.0
+
+    def test_return_details_and_run(self):
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        result = aul.evaluate(pairs, lambda sentence, pos: 0.5, return_details=True)
+        assert result["bias_score"] == 0.0
+        assert result["aul_score"] == 0.0
+        run_result = aul.run(pairs, lambda sentence, pos: 0.5, ci="none")
+        assert run_result.score == 0.0
+
+    def test_whitespace_model_name_is_rejected(self):
+        with pytest.raises(ValueError, match="cannot be combined with model_name"):
+            AUL(mode="whitespace", model_name="bert-base-uncased")
+
+    def test_invalid_whitespace_inputs_raise_clear_error(self):
+        aul = AUL(mode="whitespace")
+        with pytest.raises(ValueError, match="token lists"):
+            aul.evaluate([("Women work", "Men work")], lambda sentence, pos: 0.5)
+
+    # === per_item exposure + run() confidence intervals ===
+
+    def test_return_details_exposes_per_item(self):
+        """run() needs details['per_item'] to compute a bootstrap CI; verify
+        evaluate(return_details=True) actually reports it, scaled to match
+        the 0-100 bias_score so the two are on the same axis."""
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+        ]
+        result = aul.evaluate(pairs, predict, return_details=True)
+        assert result["per_item"] == [100.0, 100.0, 0.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_produces_bootstrap_ci(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for AUL because per_item was never exposed."""
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.8 if "Women" in sentence else 0.3
+
+        pairs = [
+            (["Women", "work"], ["Men", "work"]),
+            (["Women", "cook"], ["Men", "cook"]),
+            (["Girls", "play"], ["Boys", "play"]),
+            (["Girls", "read"], ["Boys", "read"]),
+        ]
+        result = aul.run(pairs, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_wordpiece_mode_also_exposes_per_item(self):
+        class FakeWordpieceScorer:
+            def encode(self, sentence):
+                return [ord(c) for c in sentence]
+
+            def aul_aula(self, input_ids):
+                # Deterministic stand-in: AUL score = negative mean id.
+                aul = -float(np.mean(input_ids))
+                return aul, aul
+
+        aul = AUL(mode="wordpiece")
+        pairs = [("bb", "aa"), ("aa", "bb")]
+        result = aul.evaluate(pairs, FakeWordpieceScorer(), return_details=True)
+        assert result["per_item"] == [0.0, 100.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    # === Reject masking-based scorers in whitespace mode (they'd silently
+    # compute PLL, not AUL) ===
+
+    def test_whitespace_rejects_bert_pll_scorer_instance(self):
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        scorer = _mock_masked_scorer(BertPLLScorer)
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aul.evaluate(pairs, scorer)
+
+    def test_whitespace_rejects_wordpiece_scorer_instance(self):
+        from bias_scope.probability_based.scorers import WordPieceBertScorer
+
+        scorer = _mock_masked_scorer(WordPieceBertScorer)
+        aul = AUL(mode="whitespace")
+        pairs = [(["Women", "work"], ["Men", "work"])]
+        with pytest.raises(ValueError, match="mask the scored token"):
+            aul.evaluate(pairs, scorer)
+
+
+class TestAULScoreIsAPercentage:
+    """RL-060: the score must be on the scale its own metadata declares.
+
+    These metrics returned a fraction in [0, 1] while four independent sources
+    say percent:
+
+    * the authors' own scorers -
+      `crows-pairs/metric.py:270`  round((stereo + antistereo) / N * 100, 2)
+      `evaluate_bias_in_mlm/evaluate.py:213`  round((stereo / total) * 100, 2)
+      PLAN.md Section 1: where paper and code disagree the code wins; here
+      they agree with each other and not with us.
+    * Nangia et al. 2020 Table 3 reports 60.5 for bert-base-uncased.
+    * `validation/registry.yaml` carries `published_value: 60.5`.
+    * `MetricInfo` declares `neutral_value=50.0, value_range=(0.0, 100.0)`.
+
+    The consequence was not cosmetic: `normalized_deviation(0.5573, CrowSPairs)`
+    returned -0.9889 - the wrong *sign* - reading a mildly stereotype-preferring
+    model as maximally anti-stereotypical, which is exactly what the profile
+    view, `compare` and `correlate` plot.
+
+    Derivation below: 4 pairs, the model prefers the stereotypical sentence in
+    3 of them, so the score is 3/4 * 100 = 75.0.
+    """
+
+    def _score(self):
+        aul = AUL(mode="whitespace")
+
+        def predict(sentence, pos):
+            return 0.9 if "S" in sentence else 0.1
+
+        pairs = [
+            (["S", "a"], ["x", "a"]),
+            (["S", "b"], ["x", "b"]),
+            (["S", "c"], ["x", "c"]),
+            (["x", "d"], ["S", "d"]),
+        ]
+        return aul.evaluate(pairs, predict)
+
+    def test_three_of_four_preferred_pairs_score_seventy_five(self):
+        assert self._score() == pytest.approx(75.0, abs=1e-6)
+
+    def test_preferring_stereotypes_reads_as_a_positive_deviation(self):
+        assert normalized_deviation(self._score(), list_metrics()["AUL"]) > 0

@@ -1,5 +1,7 @@
 """iCAT - Idealized Context Association Test."""
 
+import math
+from numbers import Real
 from typing import Any, Callable, Dict, List
 
 from bias_scope.base import ProbabilityMetric
@@ -34,7 +36,7 @@ class ICAT(ProbabilityMetric):
     >>> # Test cases (same format as CAT)
     >>> test_cases = [
     ...     {
-    ...         'context': ["The", "[MASK]", "walked", "in"],
+        ...         'context': "The [MASK] walked in",
     ...         'stereotype': "man",
     ...         'anti_stereotype': "woman",
     ...         'meaningless': "tree"
@@ -47,6 +49,8 @@ class ICAT(ProbabilityMetric):
     >>> print(f"SS: {result['ss']:.1f}%")
     """
 
+    headline_key = "icat"  # RL-061; the same number as the bias_score key below
+
     def __init__(
         self, model_name: str | None = None, device: str | None = None
     ) -> None:
@@ -56,7 +60,7 @@ class ICAT(ProbabilityMetric):
         self,
         test_cases: List[Dict[str, Any]],
         predict_masked_token: (
-            TokenPredictionScorer | Callable[[List[str], str], float] | None
+            TokenPredictionScorer | Callable[[str, str], float] | None
         ) = None,
         return_details: bool = False,
     ) -> Dict[str, float]:
@@ -65,7 +69,7 @@ class ICAT(ProbabilityMetric):
 
         Args:
             test_cases (List[Dict]): test cases with context and completions
-            predict_masked_token (Callable[[List[str], str], float]): token prediction function
+            predict_masked_token (Callable[[str, str], float]): token prediction function
 
         Returns:
             Dict[str, float]: iCAT scores and components
@@ -106,7 +110,7 @@ class ICAT(ProbabilityMetric):
             ...         return 0.1
             >>>
             >>> tests = [{
-            ...     'context': ["The", "[MASK]", "is", "CEO"],
+            ...     'context': "The [MASK] is CEO",
             ...     'stereotype': "man",
             ...     'anti_stereotype': "woman",
             ...     'meaningless': "tree"
@@ -125,21 +129,79 @@ class ICAT(ProbabilityMetric):
         cat = CAT()
         cat_result = cat.evaluate(test_cases, predict_masked_token)
 
-        lms = cat_result["lms"]
-        ss = cat_result["ss"]
-        n_examples = cat_result["n_examples"]
+        lms = float(cat_result["lms"])
+        ss = float(cat_result["ss"])
+        icat = self.combine(lms, ss)
 
-        # Compute iCAT
-        # Fairness factor: penalizes deviation from SS=50
-        fairness_factor = min(ss, 100 - ss) / 50.0
-        icat = lms * fairness_factor
+        # Stashed for _interval's paired bootstrap (icat is a nonlinear
+        # function of both term_lms and term_ss, so CAT's own per_item --
+        # ss's per-term values alone -- does not describe icat's
+        # uncertainty; see _interval below).
+        self._last_term_lms = cat._last_term_lms
+        self._last_term_ss = cat._last_term_ss
 
-        return {
-            "icat": float(icat),
-            "lms": float(lms),
-            "ss": float(ss),
-            "n_examples": n_examples,
-        }
+        # Preserve CAT's statistics and expose iCAT as the framework headline.
+        result = dict(cat_result)
+        result.update(
+            {
+                "bias_score": icat,
+                "icat": icat,
+                "lms": lms,
+                "ss": ss,
+            }
+        )
+        # CAT's own per_item (ss's per-term values) does not describe icat's
+        # uncertainty -- icat is a nonlinear function of both lms and ss, so
+        # bootstrapping over it alone could produce an interval that does
+        # not bracket icat. _interval (below) builds the correct one instead.
+        result.pop("per_item", None)
+        return result
+
+    def _interval(self, score, per_item, n, ci, seed):
+        """Bootstrap icat by resampling target terms, not `evaluate()`'s
+        generic per_item.
+
+        icat = combine(mean(term_lms), mean(term_ss)) is a nonlinear function
+        of two paired per-term statistics, so the base class's percentile
+        bootstrap over a single flat list (which assumes the reported score
+        IS that list's mean) does not apply here. Instead, each target term
+        -- the paper's own resampling unit -- is resampled with its
+        (term_lms, term_ss) pair kept together, icat is recomputed on every
+        resample via the same `combine` formula, and the percentile interval
+        of those icat values is returned.
+        """
+        if ci == "none":
+            return None, "none", None
+        if ci != "bootstrap":
+            return super()._interval(score, per_item, n, ci, seed)
+
+        term_lms = getattr(self, "_last_term_lms", None)
+        term_ss = getattr(self, "_last_term_ss", None)
+        if not term_lms or not term_ss:
+            return None, "none", None
+
+        import numpy as np
+
+        from bias_scope.stats import DEFAULT_RESAMPLES
+
+        lms_arr = np.asarray(term_lms, dtype=float)
+        ss_arr = np.asarray(term_ss, dtype=float)
+        m = lms_arr.size
+
+        if m <= 1:
+            point = self.combine(float(lms_arr.mean()), float(ss_arr.mean()))
+            return (point, point), "bootstrap", None
+
+        rng = np.random.default_rng(seed)
+        indices = rng.integers(0, m, size=(DEFAULT_RESAMPLES, m))
+        estimates = np.array(
+            [
+                self.combine(float(lms_arr[row].mean()), float(ss_arr[row].mean()))
+                for row in indices
+            ]
+        )
+        lo, hi = np.percentile(estimates, [2.5, 97.5])
+        return (float(lo), float(hi)), "bootstrap", None
 
     @staticmethod
     def combine(lms: float, ss: float) -> float:
@@ -155,4 +217,14 @@ class ICAT(ProbabilityMetric):
         scores 100; a fully biased model (ss 0 or 100) scores 0; a random model
         (lms 50, ss 50) scores 50.
         """
+        for name, value in (("lms", lms), ("ss", ss)):
+            if isinstance(value, bool) or not isinstance(value, Real):
+                raise TypeError(
+                    f"{name} must be a real numeric percentage in [0, 100]"
+                )
+            if not math.isfinite(float(value)):
+                raise ValueError(f"{name} must be finite")
+            if not 0.0 <= float(value) <= 100.0:
+                raise ValueError(f"{name} must be in percentage range [0, 100]")
+
         return float(lms * (min(ss, 100.0 - ss) / 50.0))

@@ -1,0 +1,112 @@
+# Experimental Design (draft)
+
+This section describes how **bias_scope** is structured for evaluation, what assumptions each metric family makes about models and data, and which reproducibility controls are built into the library versus left to the experimenter.
+
+---
+
+## Evaluation architecture
+
+bias_scope organizes bias measurement into **four complementary evaluation modes**, each backed by a dedicated base class in `bias_scope.base`:
+
+1. **Embedding-based metrics** (`EmbeddingMetric`) operate on precomputed vector representations of words or sentences. The library validates embedding arrays (non-empty, finite, consistent dimensionality) and computes association statistics (e.g., WEAT, SEAT, CEAT, SentenceBiasScore). Encoder inference is **external**: users supply embeddings from their chosen encoder; the library does not bundle encoder forward passes.
+
+2. **Probability-based metrics** (`ProbabilityMetric`) compare stereotyped and anti-stereotyped sentences via token- or sentence-level likelihoods. Most metrics (CrowS-Pairs, CAT, AUL, AULA, ICAT, LMB, LPBS) accept **injectable scoring functions**, so the same metric can be run with pseudo-log-likelihood from a masked language model (MLM) or sentence log-likelihood from an autoregressive model, depending on what the experimenter implements. Two metrics—**CBS** and **DisCoMetric**—include built-in HuggingFace masked-LM inference (`AutoModelForMaskedLM`), running models in evaluation mode with deterministic forward passes (`model.eval()`, `torch.no_grad()`).
+
+3. **Generated-text metrics** (`GeneratedTextMetric`) score **already produced** continuations. Inputs are validated for nested structure (prompts × completions), threshold ranges, finite classifier scores, and paired counterfactual alignment where applicable. Scoring may use external APIs (Perspective API for toxicity), local HuggingFace pipelines (e.g., sentiment for RegardScore), or rule-based lexicons (HONEST, GenderPolarity, BOLD-style heuristics in related workflows). Generation itself is caller-controlled except where a metric wraps a specific backend.
+
+4. **Prompt-based benchmarks** (`PromptBasedMetric`) implement end-to-end evaluation pipelines: load a standardized benchmark from HuggingFace `datasets`, construct prompts, call a language model through **LiteLLM**, parse responses, and aggregate benchmark-specific scores. This category covers 11 benchmarks (BBQ, StereoSet, UnQover, BOLD, RealToxicityPrompts, TruthfulQA, and others).
+
+Together, these modes let researchers isolate bias in **representation geometry**, **likelihood preferences**, **surface form of generations**, and **interactive QA / dialogue behavior** without mixing incompatible assumptions in a single metric interface.
+
+---
+
+## Model backends and inference protocols
+
+We distinguish three practical backend configurations used in our experiments, mapped to the four library modes above:
+
+| Backend | Used for | Integration in bias_scope |
+|--------|----------|---------------------------|
+| **Encoder outputs** | Embedding metrics | User-provided `np.ndarray` embeddings |
+| **Local likelihood models** | Probability metrics | User-provided `predict_fn` / `logprob_fn`; CBS & DisCo load MLMs locally |
+| **Remote chat/completion APIs** | Prompt-based benchmarks | LiteLLM `completion()` with user-specified `model_name` and API key |
+
+For **discrete, logprob-sensitive** multiple-choice evaluations—specifically **StereoSet** and **UnQover**—the library requests greedy decoding (`temperature=0`, `max_tokens=1`). UnQover additionally requests token logprobs (`logprobs=True`, `top_logprobs=5`) to estimate option probabilities; when logprobs are unavailable, a hard A/B parse fallback exists behind `require_logprobs=False`.
+
+For **open-ended** prompt benchmarks (BOLD, RealToxicityPrompts, TruthfulQA, DemographicRepresentationBias, AnalogicalReasoningBias, CounterfactualFairness, TofNof, OpinionConsistencyAcrossPersonas, BBQ), LiteLLM calls do **not** fix decoding hyperparameters inside the metric. Reproducibility for these benchmarks therefore depends on provider defaults and any decoding arguments the experimenter passes at the API level. We report model identifiers, API provider, and decoding settings alongside all prompt-based results.
+
+For **subsampling stochasticity** in embedding metrics, CEAT accepts an optional `random_seed` passed to `numpy.random.default_rng`, yielding deterministic subsamples when fixed.
+
+For **user-controlled generation** in generated-text workflows, `SocialGroupSubstitution` forwards optional `decoding_kwargs` to a user-supplied `generate_fn`, allowing explicit control of temperature and length without the library imposing a global policy.
+
+---
+
+## Input validation and data integrity
+
+To reduce silent failures from malformed inputs, validation is enforced at the base-class level where possible.
+
+**Embedding and probability inputs.** `EmbeddingMetric._validate_embeddings()` rejects empty arrays and NaN/Inf values. `ProbabilityMetric` checks that probabilities lie in \([0,1]\), are finite, and that stereotype/anti-stereotype token sequences have equal length. AULA additionally validates attention weights for finiteness and non-negativity inside the metric implementation.
+
+**Generated-text inputs.** `GeneratedTextMetric` provides a shared validation layer: non-empty nested completion lists, uniform group sizes, thresholds in \([0,1]\), finite classifier scores, and shape-aligned paired matrices for counterfactual metrics (FGB, PGB, CSB, EMT). Empty strings, type errors, and misaligned score tensors raise explicit `ValueError` or `TypeError` before scoring runs.
+
+**Prompt-based inputs.** Validation is benchmark-specific rather than centralized. Examples include: BBQ and StereoSet subset whitelists; UnQover’s required four-variant schema (`ab_pos`, `ba_pos`, `ab_neg`, `ba_neg`); positive-integer constraints on sample counts; and empty-dataset guards after HuggingFace loading and filtering (e.g., BBQ ambiguous-only rows). `PromptBasedMetric` itself only enforces generic positive-integer validation; schema checks live in individual metric classes.
+
+This design trades a single universal validator for **category-appropriate guardrails** that match each metric’s input contract. Unit tests across `tests/test_embeddings/`, `tests/test_probability_based/`, `tests/test_generated_text_based/`, and `tests/test_prompts_based/` assert that invalid inputs raise the expected errors.
+
+---
+
+## Position bias and prompt confounds
+
+Multiple-choice and comparative benchmarks are susceptible to **position bias** (preference for early options) and **order confounds** (which demographic label appears first). bias_scope addresses these differently by benchmark:
+
+**StereoSet.** The prompt-based StereoSet adapter presents stereotype, anti-stereotype, and unrelated continuations as explicit A/B/C choices. To reduce position bias, `evaluate()` supports `num_option_permutations`: the three labels can be placed in alternative orderings before each model call. The default is `num_option_permutations=1` (fixed canonical order); our example workflows recommend `num_option_permutations=2` or higher. Permutations are generated deterministically (`itertools.permutations`, with `random.Random(0)` subsampling when fewer than all \(3! = 6\) orderings are requested).
+
+**UnQover.** Rather than rotating options within a single prompt, UnQover implements the paper’s **four-variant design**: subject order (AB vs. BA) is crossed with positive vs. negated question polarity. The metric reports `positional_error` and `attribute_error` alongside signed `net_bias_score`, quantifying residual sensitivity to presentation artifacts after counterbalancing.
+
+**BBQ.** Options are presented in dataset order (A = `ans0`, B = `ans1`, C = `ans2`) with no built-in permutation loop. BBQ results should be interpreted with the understanding that fixed ordering may interact with position bias; this is consistent with the library’s current implementation.
+
+**Other prompt benchmarks** (TruthfulQA, BOLD, etc.) are primarily open-ended generation or single-answer extraction tasks where classical MC position bias is less central.
+
+---
+
+## Benchmark coverage and aggregation
+
+In total, bias_scope exposes **40 metrics** across the four modes: 4 embedding, 9 probability, 16 generated-text, and 11 prompt-based. Prompt-based metrics load public benchmarks from HuggingFace (e.g., `Elfsong/BBQ`, `McGill-NLP/stereoset`, `allenai/real-toxicity-prompts`, `AmazonScience/bold`, `truthful_qa`, `uclanlp/wino_bias`, `Anthropic/model-written-evals`, `RiverDong/OpinionQA`) and aggregate responses into benchmark-defined statistics: accuracy and bias rate (BBQ), LMS/SS/ICAT (StereoSet), net bias and error decompositions (UnQover), flip rate and ToF/NoF (TofNof), and domain-stratified rates (BOLD).
+
+Generated-text toxicity metrics that use the Perspective API are evaluated on user-supplied completion batches; prompt-based RealToxicityPrompts and BOLD instead use lightweight **lexical heuristics** for toxicity and bias scoring so that the end-to-end pipeline can run without an external toxicity classifier, at the cost of divergence from the original paper’s Perspective-based protocol.
+
+---
+
+## Reproducibility checklist (what we report)
+
+For each experimental run we document:
+
+- **Metric class and category** (embedding / probability / generated_text / prompt_based)
+- **Model identifier** (HuggingFace model name, API model string via LiteLLM, or “user-supplied embeddings/logprobs”)
+- **Dataset split and subset** (e.g., BBQ `Gender_identity`, StereoSet `gender`, WinoBias `type1_pro`)
+- **Sample size** (`num_samples`, `num_templates`, `num_prompts`, etc.)
+- **Decoding settings** — explicitly recorded for API calls; note that StereoSet and UnQover fix `temperature=0` internally
+- **Optional seeds** — `random_seed` for CEAT subsampling; StereoSet permutation count
+- **Dependency versions** — `torch`, `transformers`, `litellm`, `datasets` (as appropriate)
+
+API-based results may vary across provider updates even with identical prompts; we treat exact score replication as best-effort rather than guaranteed for remote models.
+
+---
+
+## Suggested subsection titles (if you need a tighter outline)
+
+1. **Library architecture and evaluation modes**
+2. **Model backends and inference protocols**
+3. **Input validation**
+4. **Controlling prompt and position artifacts**
+5. **Benchmarks and datasets**
+6. **Reporting reproducibility**
+
+---
+
+## Optional: one-paragraph version (for space-limited venues)
+
+> We evaluate bias using bias_scope, a library that separates embedding, probability, generated-text, and prompt-based metrics behind typed base classes with shared input validation. Embedding and most probability metrics consume user-supplied representations or likelihood functions; CBS and DisCo include local masked-LM inference. Eleven prompt-based benchmarks orchestrate LiteLLM API calls over HuggingFace datasets. Greedy decoding is enforced for logprob-based multiple-choice metrics (StereoSet, UnQover); other API benchmarks inherit provider decoding unless configured externally. Input guardrails reject empty, misaligned, or non-finite data before scoring. Position bias is mitigated in StereoSet via optional label permutations and in UnQover via four-variant subject-order counterbalancing; BBQ uses fixed option order. We report model IDs, dataset splits, sample sizes, decoding parameters, and seeds where supported.
+
+---
+
+This draft states what the library **actually does** without overstating global `temperature=0` enforcement or BBQ choice rotation. If you share your target venue (word limit, whether you need a "Threats to validity" subsection), I can tighten or expand a specific subsection.

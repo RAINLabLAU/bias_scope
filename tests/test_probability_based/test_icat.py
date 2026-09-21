@@ -25,7 +25,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "is", "CEO"],
+                "context": "The [MASK] is CEO",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -65,7 +65,7 @@ class TestICAT:
 
             tests_ss40.append(
                 {
-                    "context": ["The", "[MASK]", "works", context_marker],
+                    "context": f"The [MASK] works {context_marker}",
                     "stereotype": "man",
                     "anti_stereotype": "woman",
                     "meaningless": "tree",
@@ -98,7 +98,7 @@ class TestICAT:
 
             tests_ss60.append(
                 {
-                    "context": ["The", "[MASK]", "works", context_marker],
+                    "context": f"The [MASK] works {context_marker}",
                     "stereotype": "man",
                     "anti_stereotype": "woman",
                     "meaningless": "tree",
@@ -106,7 +106,7 @@ class TestICAT:
             )
 
         def predict_ss60(context, candidate):
-            context_str = "".join(context)
+            context_str = context
 
             if candidate in ["man", "woman"]:
                 if "stereo" in context_str:
@@ -141,7 +141,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -167,7 +167,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -196,7 +196,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -228,7 +228,7 @@ class TestICAT:
             return 0.5
 
         # Missing required keys
-        tests = [{"context": ["The", "[MASK]"]}]  # Missing stereotype, etc.
+        tests = [{"context": "The [MASK]"}]  # Missing stereotype, etc.
 
         with pytest.raises(ValueError, match="missing required key"):
             icat.evaluate(tests, mock_predict)
@@ -242,7 +242,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "person", "works"],  # No [MASK]!
+                "context": "The person works",  # No [MASK]!
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -261,7 +261,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -310,7 +310,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -338,7 +338,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -372,7 +372,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -396,7 +396,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -415,7 +415,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -444,7 +444,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -477,7 +477,7 @@ class TestICAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -496,3 +496,122 @@ class TestICAT:
         assert reloaded["lms"] == result["lms"]
         assert reloaded["ss"] == result["ss"]
         assert reloaded["n_examples"] == result["n_examples"]
+
+    def test_combine_matches_paper_regression(self):
+        assert ICAT.combine(85.4, 58.3) == pytest.approx(71.2236)
+
+    @pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf])
+    def test_combine_rejects_non_finite_values(self, value):
+        with pytest.raises(ValueError, match="finite"):
+            ICAT.combine(value, 50.0)
+
+    @pytest.mark.parametrize("lms, ss", [(-1.0, 50.0), (101.0, 50.0), (50.0, -1.0), (50.0, 101.0)])
+    def test_combine_rejects_out_of_range_values(self, lms, ss):
+        with pytest.raises(ValueError, match="range"):
+            ICAT.combine(lms, ss)
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_combine_rejects_booleans(self, value):
+        with pytest.raises(TypeError, match="real numeric"):
+            ICAT.combine(value, 50.0)
+
+    @pytest.mark.parametrize("value", ["50", object()])
+    def test_combine_rejects_non_numeric_values(self, value):
+        with pytest.raises(TypeError, match="real numeric"):
+            ICAT.combine(value, 50.0)
+
+    def test_combine_accepts_percentage_boundaries_and_small_values(self):
+        assert ICAT.combine(0.0, 0.0) == 0.0
+        assert ICAT.combine(100.0, 100.0) == 0.0
+        assert ICAT.combine(0.8, 50.0) == pytest.approx(0.8)
+
+    # === run() confidence intervals ===
+
+    def test_evaluate_does_not_leak_cats_per_item(self):
+        """CAT's own per_item (per-term ss) does not describe icat's
+        uncertainty -- icat is a nonlinear function of both lms and ss, so it
+        must not be reused verbatim under ICAT's key."""
+        icat = ICAT()
+
+        def predict(context, candidate):
+            return {"man": 0.8, "woman": 0.2, "tree": 0.05}.get(candidate, 0.5)
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+        ]
+        result = icat.evaluate(tests, predict, return_details=True)
+        assert "per_item" not in result
+
+    def test_run_produces_bootstrap_ci_for_icat_itself(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for ICAT. The interval must bracket the actual icat
+        score, not some other statistic."""
+        icat = ICAT()
+
+        def predict(context, candidate):
+            probs = {
+                "man": 0.8, "woman": 0.2,
+                "cook_stereo": 0.3, "cook_anti": 0.7,
+                "lead_stereo": 0.6, "lead_anti": 0.4,
+                "nurse_stereo": 0.35, "nurse_anti": 0.65,
+                "tree": 0.05, "cloud": 0.05, "rock": 0.05, "sky": 0.05,
+            }
+            return probs[candidate]
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+            {"context": "The [MASK] cooks", "stereotype": "cook_stereo", "anti_stereotype": "cook_anti",  # noqa: E501
+             "meaningless": "cloud", "target": "cook"},
+            {"context": "The [MASK] runs the team", "stereotype": "lead_stereo", "anti_stereotype": "lead_anti",  # noqa: E501
+             "meaningless": "rock", "target": "leader"},
+            {"context": "The [MASK] treats patients", "stereotype": "nurse_stereo", "anti_stereotype": "nurse_anti",  # noqa: E501
+             "meaningless": "sky", "target": "nurse"},
+        ]
+        result = icat.run(tests, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_bootstrap_ci_degenerate_with_single_target_term(self):
+        icat = ICAT()
+
+        def predict(context, candidate):
+            return {"man": 0.8, "woman": 0.2, "tree": 0.05}.get(candidate, 0.5)
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+        ]
+        result = icat.run(tests, predict)
+        assert result.ci == (result.score, result.score)
+
+    def test_run_uses_icat_as_headline_and_preserves_cat_details(self):
+        def predict(context, candidate):
+            return {"stereo": 0.8, "anti": 0.4, "unrelated": 0.1}[candidate]
+
+        result = ICAT().run(
+            [
+                {
+                    "context": "The [MASK] works",
+                    "stereotype": "stereo",
+                    "anti_stereotype": "anti",
+                    "meaningless": "unrelated",
+                },
+                {
+                    "context": "The [MASK] works",
+                    "stereotype": "anti",
+                    "anti_stereotype": "stereo",
+                    "meaningless": "unrelated",
+                },
+            ],
+            predict,
+            ci="none",
+        )
+
+        assert result.score == result.details["icat"] == 100.0
+        assert result.details["lms"] == 100.0
+        assert result.details["ss"] == 50.0
+        assert result.details["aggregation"] == "flat"

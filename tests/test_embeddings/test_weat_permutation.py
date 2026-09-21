@@ -44,22 +44,37 @@ class TestPermutationPValue:
         assert details["p_value_exact"] is True
         assert details["num_partitions"] == math.comb(8, 4)
 
-    def test_maximally_separated_sets_give_the_smallest_possible_p(self):
-        """No partition beats the observed split, so p = 1/70."""
+    def test_maximally_separated_sets_give_zero_strict_p_value(self):
+        """The paper's strict test excludes the observed equal partition."""
         X, Y, A, B = _orthogonal_sets(n=4)
         details = WEAT().evaluate((X, Y), (A, B), return_details=True)
-        # The observed partition is itself one of the 70 and is counted, so the
-        # floor is 1/70 rather than 0 — a p-value of exactly 0 is not a p-value.
+        assert details["p_value"] == 0.0
+
+    def test_conservative_tie_policy_counts_equal_partitions(self):
+        """May et al.'s later convention uses >= rather than the paper's >."""
+        X, Y, A, B = _orthogonal_sets(n=4)
+        details = WEAT().evaluate(
+            (X, Y), (A, B), return_details=True, tie_policy="conservative"
+        )
         assert details["p_value"] == pytest.approx(1 / math.comb(8, 4))
+
+    def test_strict_tie_counterexample_is_zero(self):
+        """X=A=e1 and Y=B=e2 has only equality and a smaller partition."""
+        X = np.array([[1.0, 0.0]])
+        Y = np.array([[0.0, 1.0]])
+        strict = WEAT().evaluate((X, Y), (X, Y), return_details=True)
+        conservative = WEAT().evaluate(
+            (X, Y), (X, Y), return_details=True, tie_policy="conservative"
+        )
+        assert strict["p_value"] == 0.0
+        assert conservative["p_value"] == pytest.approx(0.5)
 
     def test_identical_target_sets_are_not_significant(self):
         """Property 1 (null): identical target sets show no association.
 
-        The observed statistic is exactly 0. Every partition has a complement
-        with the negated statistic, so at least half of them tie or exceed 0 —
-        p >= 0.5 by construction, and certainly not significant. (An earlier
-        version of this test expected p = 1.0, which the symmetry argument
-        shows is wrong: only the *observed* partition is forced to tie.)
+        The observed statistic is exactly 0. Every positive partition has a
+        negative complement; strict ties are excluded, so p <= 0.5. (The
+        conservative May et al. convention would include the ties instead.)
         """
         rng = np.random.default_rng(1)
         shared = rng.normal(size=(8, 8))
@@ -67,14 +82,14 @@ class TestPermutationPValue:
         A, B = rng.normal(size=(4, 8)), rng.normal(size=(4, 8))
         details = WEAT().evaluate((X, Y), (A, B), return_details=True)
         assert details["effect_size"] == pytest.approx(0.0, abs=1e-12)
-        assert details["p_value"] >= 0.5
+        assert 0.0 <= details["p_value"] <= 0.5
 
     def test_p_value_is_in_the_unit_interval(self):
         rng = np.random.default_rng(2)
         for _ in range(5):
             X, Y, A, B = (rng.normal(size=(4, 8)) for _ in range(4))
             details = WEAT().evaluate((X, Y), (A, B), return_details=True)
-            assert 0.0 < details["p_value"] <= 1.0
+            assert 0.0 <= details["p_value"] <= 1.0
 
     def test_sampling_is_used_when_there_are_too_many_partitions(self):
         """|X| = |Y| = 12 gives C(24,12) = 2.7M partitions; sample instead."""
@@ -94,15 +109,44 @@ class TestPermutationPValue:
         second = WEAT().evaluate((X, Y), (A, B), **kwargs)["p_value"]
         assert first == second
 
-    def test_unequal_target_sizes_skip_the_test_rather_than_guessing(self):
-        """Caliskan's partitions require |X| = |Y|; anything else has no p-value."""
+    def test_run_seed_controls_sampled_permutations(self):
+        rng = np.random.default_rng(124)
+        X, Y, A, B = (rng.normal(size=(12, 6)) for _ in range(4))
+        first = WEAT().run((X, Y), (A, B), seed=1, n_permutation_samples=25)
+        second = WEAT().run((X, Y), (A, B), seed=2, n_permutation_samples=25)
+        assert first.details["permutation_seed"] == first.protocol["permutation_seed"] == 1
+        assert second.details["permutation_seed"] == second.protocol["permutation_seed"] == 2
+        assert first.p_value != second.p_value
+
+    def test_explicit_permutation_seed_overrides_run_seed(self):
+        rng = np.random.default_rng(124)
+        X, Y, A, B = (rng.normal(size=(12, 6)) for _ in range(4))
+        first = WEAT().run(
+            (X, Y), (A, B), seed=1, permutation_seed=7, n_permutation_samples=25
+        )
+        second = WEAT().run(
+            (X, Y), (A, B), seed=2, permutation_seed=7, n_permutation_samples=25
+        )
+        assert first.protocol["permutation_seed"] == second.protocol["permutation_seed"] == 7
+        assert first.p_value == second.p_value
+
+    @pytest.mark.parametrize("n_samples", [0, -1, 1.5, True, False])
+    def test_invalid_permutation_sample_count_is_rejected(self, n_samples):
+        rng = np.random.default_rng(6)
+        X, Y, A, B = (rng.normal(size=(4, 8)) for _ in range(4))
+        with pytest.raises(ValueError, match="positive non-Boolean integer"):
+            WEAT().evaluate(
+                (X, Y), (A, B), n_permutation_samples=n_samples
+            )
+
+    def test_unequal_target_sizes_are_rejected(self):
+        """Canonical WEAT requires equal target-set sizes."""
         rng = np.random.default_rng(5)
         X = rng.normal(size=(3, 8))
         Y = rng.normal(size=(5, 8))
         A, B = rng.normal(size=(4, 8)), rng.normal(size=(4, 8))
-        details = WEAT().evaluate((X, Y), (A, B), return_details=True)
-        assert details["p_value"] is None
-        assert "equal size" in details["p_value_note"]
+        with pytest.raises(ValueError, match="equal sizes"):
+            WEAT().evaluate((X, Y), (A, B), return_details=True)
 
     def test_the_effect_size_is_unchanged_by_adding_the_p_value(self):
         """Regression guard: the headline number must not move."""
@@ -115,7 +159,7 @@ class TestPermutationPValue:
     def test_run_carries_the_p_value_onto_the_result(self):
         X, Y, A, B = _orthogonal_sets(n=4)
         result = WEAT().run((X, Y), (A, B))
-        assert result.p_value == pytest.approx(1 / math.comb(8, 4))
+        assert result.p_value == 0.0
 
 
 class TestStandardDeviationConvention:

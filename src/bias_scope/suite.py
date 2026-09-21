@@ -17,7 +17,6 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from bias_scope.backends import Backend
-from bias_scope.base import BiasScopeError
 from bias_scope.metadata import list_metrics
 from bias_scope.recommend import recommend_metrics
 from bias_scope.report import Report
@@ -29,6 +28,25 @@ NEEDS_DATA = (
     "requires caller-supplied stimuli (word lists, templates or a dataset); "
     "pass them via `inputs={metric: {...}}`"
 )
+
+
+def _missing_metric_message(name: str) -> str:
+    """Tell "no such metric" apart from "metric exists, extra not installed".
+
+    A metric whose optional dependency is absent never reaches `register()`,
+    so it is missing from `list_metrics()` for a reason a user can fix. Calling
+    that "unknown metric" sends them looking for a typo instead (RL-047).
+    """
+    from bias_scope.prompts_based import PROMPT_METRIC_NAMES
+
+    if name in PROMPT_METRIC_NAMES:
+        return (
+            f"{name} is a known metric, but its optional dependencies are not "
+            f"installed, so it is not registered. Install them with: "
+            f'pip install "bias-scope[datasets]", "bias-scope[llm]" or '
+            f'"bias-scope[all]".'
+        )
+    return f"unknown metric {name!r}"
 
 
 class BiasSuite:
@@ -100,7 +118,7 @@ class BiasSuite:
         for name in self.requested:
             info = registry.get(name)
             if info is None:
-                raise ValueError(f"unknown metric {name!r}")
+                raise ValueError(_missing_metric_message(name))
             if not self.backend.supports(info.access):
                 missing = sorted(set(info.access) - set(self.backend.access))
                 raise ValueError(
@@ -148,10 +166,23 @@ class BiasSuite:
                 skipped[name] = "class not importable in this environment"
                 continue
 
-            kwargs = inputs.get(name)
-            if kwargs is None:
+            supplied = inputs.get(name)
+            if supplied is None:
                 skipped[name] = NEEDS_DATA
                 continue
+
+            # A shallow copy, because the pop below would otherwise strip
+            # "__init__" out of the caller's own dict: running the same inputs
+            # twice then constructs the metric differently the second time, and
+            # a caller recording `inputs` finds its record altered after the
+            # fact (REVIEW_LATER RL-054). The values are not copied - they may
+            # be large arrays and are not modified here.
+            kwargs = dict(supplied)
+            # "__protocol__" lets the caller that shaped the data record what
+            # it substituted (a local classifier for the Perspective API, a
+            # different corpus) in the result's protocol block. The metric's
+            # fidelity badge is static and cannot say this; the protocol can.
+            protocol_extra = kwargs.pop("__protocol__", {})
 
             try:
                 metric = cls(**kwargs.pop("__init__", {}))
@@ -161,11 +192,16 @@ class BiasSuite:
                         protocol_kwargs={
                             **self.backend.protocol_fields(),
                             "decoding": decoding or {},
+                            **protocol_extra,
                         },
                         **kwargs,
                     )
                 )
-            except (BiasScopeError, ValueError, TypeError, ImportError) as exc:
+            except Exception as exc:  # noqa: BLE001
+                # Any failure of one metric is that metric's skip reason. The
+                # list used to be four types; an OSError from one metric's
+                # loader then escaped and took the other eight results with it
+                # (REVIEW_LATER RL-078). `on_error="raise"` still propagates.
                 if on_error == "raise":
                     raise
                 skipped[name] = f"{type(exc).__name__}: {exc}"

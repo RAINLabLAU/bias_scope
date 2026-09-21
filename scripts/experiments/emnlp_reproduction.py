@@ -41,6 +41,11 @@ HURTLEX_TSV = DATA_DIR / "hurtlex_EN.tsv"
 TABLE_ROWS: list[Dict[str, Any]] = []
 
 
+def _crows_pair_from_row(row: Dict[str, str]) -> tuple[str, str]:
+    """Return BiasScope's public CrowS-Pairs orientation: sent_more, sent_less."""
+    return row["sent_more"], row["sent_less"]
+
+
 def _seed(s: int = 42) -> None:
     random.seed(s)
     np.random.seed(s)
@@ -176,10 +181,7 @@ def run_crows_pairs() -> Dict[str, Any]:
         rows = list(csv.DictReader(f))
     pairs = []
     for r in rows:
-        if r["stereo_antistereo"] == "stereo":
-            pairs.append((r["sent_more"], r["sent_less"]))
-        elif r["stereo_antistereo"] == "antistereo":
-            pairs.append((r["sent_less"], r["sent_more"]))
+        pairs.append(_crows_pair_from_row(r))
     log(f"{len(pairs)} pairs to score")
 
     from bias_scope.probability_based import CrowSPairs
@@ -193,7 +195,7 @@ def run_crows_pairs() -> Dict[str, Any]:
         peak_gb = peak()
     eval_s = time.perf_counter() - t0
 
-    ours = float(details["crows_pairs_score"]) * 100
+    ours = float(details["crows_pairs_score"])
     delta = None if PUBLISHED is None else ours - PUBLISHED
     passed = abs(delta) <= 2.0
     log(

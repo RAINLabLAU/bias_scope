@@ -8,8 +8,10 @@ Social Biases in Sentence Encoders*, NAACL 2019.
 `e3559fb669ca4832743b42fee715994c15c7f1af`, CC-BY-4.0 — the authors' own repo.
 **Sections and files read:** §"The Sentence Encoder Association Test" (SEAT as
 WEAT applied to sentence vectors, the pooling requirement, the bleached
-templates); `sentbias/weat.py:178-192` (shared with WEAT);
-`sentbias/encoders/bert.py:15-27` (`encode`).
+templates); **Appendix A** (p-value and effect-size computation);
+Appendix C / Table 3 (per-encoder pooling); `sentbias/weat.py:178-192` (shared
+effect size), `sentbias/weat.py::p_val_permutation_test` (`>=` convention,
+99,999 + 1 sampling); `sentbias/encoders/bert.py:15-27` (`encode`).
 **Family / access:** embedding / `embeddings`
 
 ## Definition in the paper
@@ -24,9 +26,22 @@ templates); `sentbias/weat.py:178-192` (shared with WEAT);
 Words are slotted into "semantically bleached" templates — `"This is <word>."`,
 `"<word> is here."`, `"This will <word>."`, `"<word> are things."` — chosen to
 "convey little specific meaning beyond that of the terms inserted into them".
+Each encoder in Table 3 has its own pooling (CBoW mean, InferSent max, GenSen
+last, USE native, ELMo mean+layer-sum, GPT last token, **BERT `[CLS]`**).
 
-The statistic is WEAT's, unchanged: same `s(w, A, B)`, same effect size, same
-one-sided permutation p-value. Only the inputs differ.
+The **effect size** is WEAT's, unchanged: same `s(w, A, B)`, same standardised
+mean difference with an unbiased (`ddof=1`) standard deviation. Appendix A:
+"we compute the effect size identically".
+
+The **permutation p-value differs from Caliskan's**. Appendix A, verbatim:
+
+> in our nonparametric version, the equality has positive probability, so we
+> implement the more conservative non-strict inequality:
+> `Pr[s(Xi, Yi, A, B) ≥ s(X, Y, A, B)]`.
+
+and, for the sampled case, "we sample 99,999 partitions uniformly with
+replacement and hallucinate that one more partition satisfied the inequality
+… when sampling, we can never observe a p-value less than 1e-5".
 
 ## Definition in the reference code
 
@@ -51,20 +66,38 @@ spurious disagreement.
 
 ## Current BiasScope implementation
 
-`src/bias_scope/embeddings_based/seat.py` delegates to `WEAT` with the same
-effect size, so it inherits WEAT's `ddof=1` and its permutation test.
+`src/bias_scope/embeddings_based/seat.py` delegates the mathematics to `WEAT`,
+so it inherits WEAT's `s(w, A, B)`, effect size, and `ddof=1`.
 
-**Changed in 0.2.0:** the default is now `pooling="cls"`, matching the
-reference's position-0 protocol. It was `"mean"`, which is not what May et al.
-did. PLAN.md 4.2 asks for exactly this.
+**Permutation convention (fixed after the 2026-09 audit):** `SEAT.evaluate` now
+delegates with `tie_policy="conservative"` (WEAT's name for the non-strict
+`>=`) and `n_permutation_samples=100_000` by default, reproducing Appendix A:
+
+- exact enumeration when there are ≤ 100,000 equal-size partitions;
+- otherwise the conservative branch draws 99,999 partitions and counts the
+  observed one, so the p-value is floored at 1e-5;
+- `tie_policy="strict"` is still selectable for Caliskan's `>` convention.
+
+`SEAT.run` threads and records `permutation_seed` the same way `WEAT.run` does.
+
+**Pooling:** the default is `pooling="cls"` (matches the BERT row of Table 3).
+This is a BiasScope convenience for raw Hugging Face encoders — the reference's
+position 0 is its first content wordpiece (`pytorch_pretrained_bert` adds no
+special tokens), while BiasScope's is the real `[CLS]`. BiasScope does **not**
+reproduce the full per-encoder pooling table, and the default model
+(`all-MiniLM-L6-v2`, a mean-pooling model) is a poor match for `cls`. Exact
+reproductions should pass precomputed sentence embeddings from the intended
+encoder protocol.
 
 ## Verdict
 
-**faithful.**
+**faithful for the scoring statistic (effect size and p-value); the bleached
+templates and per-encoder pooling table are not reproduced.**
 
-The statistic is WEAT's and matches. The pooling default now matches the
-reference's protocol, and the `[CLS]`-vs-first-token subtlety is documented
-rather than silently absorbed.
+The effect size matches WEAT/Caliskan exactly; the p-value now matches May et
+al.'s Appendix A convention. What SEAT does not do is build the sentence
+stimuli or match each encoder's pooling — the caller supplies sentence
+embeddings, and `MetricInfo.deviation_note` says so.
 
 ## Required action
 

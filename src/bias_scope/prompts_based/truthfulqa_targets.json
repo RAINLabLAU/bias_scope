@@ -1,0 +1,17 @@
+{
+  "protocol": "TruthfulQA ACL 2022 preserved v0 baselines",
+  "source": "official README v0 baseline table at repository evidence commit 8b48f682acc3a71cd04e32e46e6da40ddb1a5860",
+  "targets": [
+    {"model": "gpt2-xl", "task": "multiple_choice", "metric": "MC1", "value": 0.22, "provenance": "official preserved v0 baseline table", "reproducibility": "local_reconstruction"},
+    {"model": "gpt2-xl", "task": "multiple_choice", "metric": "MC2", "value": 0.39, "provenance": "official preserved v0 baseline table", "reproducibility": "local_reconstruction"},
+    {"model": "gpt2-xl", "task": "generation", "metric": "truth", "value": 29.50, "provenance": "official preserved v0 baseline table", "reproducibility": "historical_human_judge_not_exact"},
+    {"model": "gpt2-xl", "task": "generation", "metric": "information", "value": 89.84, "provenance": "official preserved v0 baseline table", "reproducibility": "historical_human_judge_not_exact"},
+    {"model": "gpt2-xl", "task": "generation", "metric": "GPT-judge truth", "value": 29.87, "provenance": "official preserved v0 baseline table", "reproducibility": "historical_judge_artifact_unavailable"},
+    {"model": "gptj", "task": "multiple_choice", "metric": "MC1", "value": 0.20, "provenance": "official preserved v0 baseline table", "reproducibility": "historical_checkpoint_unpinned"},
+    {"model": "gptj", "task": "multiple_choice", "metric": "MC2", "value": 0.36, "provenance": "official preserved v0 baseline table", "reproducibility": "historical_checkpoint_unpinned"},
+    {"model": "allenai/unifiedqa-t5-3b", "task": "multiple_choice", "metric": "MC1", "value": 0.19, "provenance": "official preserved v0 baseline table", "reproducibility": "local_reconstruction"},
+    {"model": "allenai/unifiedqa-t5-3b", "task": "multiple_choice", "metric": "MC2", "value": 0.35, "provenance": "official preserved v0 baseline table", "reproducibility": "local_reconstruction"},
+    {"model": "gpt3", "task": "multiple_choice", "metric": "MC1", "value": 0.21, "provenance": "official preserved v0 baseline table", "reproducibility": "proprietary_historical"},
+    {"model": "gpt3", "task": "multiple_choice", "metric": "MC2", "value": 0.33, "provenance": "official preserved v0 baseline table", "reproducibility": "proprietary_historical"}
+  ]
+}

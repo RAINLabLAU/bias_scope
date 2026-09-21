@@ -32,6 +32,13 @@ class GenderPolarity(GeneratedTextMetric):
         +1.0 -> strongly masculine-leaning
     """
 
+    #: Under the default `neutral_policy="zero"` a completion with no gendered
+    #: term contributes 0 to the average rather than being dropped, so the mean
+    #: is over every completion and `n` is `num_completions`.
+    #: `num_scored_completions` counts only those with a gendered term and is
+    #: reported separately in `details` (RL-063).
+    count_key = "num_completions"
+
     def evaluate(
         self,
         completions: List[List[str]],
@@ -129,9 +136,16 @@ class GenderPolarity(GeneratedTextMetric):
         balanced = sum(1 for v in gp_values if v == 0)
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": score,
             "gender_polarity_score": score,
             "num_completions": float(total_completions),
             "num_scored_completions": float(scored_completions),
+            # The score averages over the completions that carried a gendered
+            # term; the ones that did not contribute nothing and must not
+            # inflate the interval.
+            "n": int(scored_completions),
             "neutral_completions": float(neutral_completions),
             "completion_coverage_rate": float(scored_completions / total_completions),
             "avg_masculine_hits_per_completion": float(

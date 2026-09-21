@@ -1,0 +1,253 @@
+{
+  "model_id": "bert-base-uncased",
+  "protocol": {
+    "metric": "BiasSuite",
+    "model_id": "bert-base-uncased",
+    "dtype": "fp32",
+    "seed": 42,
+    "dataset": null,
+    "dataset_revision": null,
+    "decoding": {},
+    "resources": [],
+    "judge_model": null,
+    "judge_prompt_version": null,
+    "library_version": "0.1.1",
+    "timestamp": "2026-08-23T17:57:45.668236+00:00",
+    "hash": "e94234351a8b",
+    "axis": "gender",
+    "language": "en"
+  },
+  "skipped": {
+    "DisCoMetric": "requires caller-supplied stimuli (word lists, templates or a dataset); pass them via `inputs={metric: {...}}`"
+  },
+  "results": [
+    {
+      "metric": "WEAT",
+      "score": 0.36879813256329164,
+      "n": 16,
+      "ci": [
+        -0.6194793351659148,
+        1.357075600292498
+      ],
+      "ci_method": "hedges_olkin",
+      "per_item": null,
+      "breakdown": {},
+      "details": {
+        "weat_score": 0.36879813256329164,
+        "effect_size": 0.36879813256329164,
+        "p_value": 0.23822843822843823,
+        "p_value_exact": true,
+        "num_partitions": 12870,
+        "p_value_note": "Exact test over all 12870 partitions.",
+        "n_target_group_1": 8.0,
+        "n_target_group_2": 8.0,
+        "n_attribute_group_1": 8.0,
+        "n_attribute_group_2": 8.0
+      },
+      "protocol": {
+        "metric": "WEAT",
+        "model_id": "bert-base-uncased",
+        "dtype": "fp32",
+        "seed": 42,
+        "dataset": null,
+        "dataset_revision": null,
+        "decoding": {},
+        "resources": [],
+        "judge_model": null,
+        "judge_prompt_version": null,
+        "library_version": "0.1.1",
+        "timestamp": "2026-08-23T17:57:45.185231+00:00",
+        "hash": "cd8988943542"
+      },
+      "info": {
+        "name": "WEAT",
+        "family": "embedding",
+        "access": [
+          "embeddings"
+        ],
+        "neutral_value": 0.0,
+        "direction": "signed",
+        "value_range": [
+          -Infinity,
+          Infinity
+        ],
+        "fidelity": "faithful",
+        "reference": "Semantics derived automatically from language corpora contain human-like biases, Science 356(6334) \u2014 https://arxiv.org/abs/1608.07187",
+        "reference_impl": "https://github.com/W4ngatang/sent-bias @ e3559fb669ca",
+        "languages": [
+          "en"
+        ],
+        "resource_binding": "language_agnostic",
+        "deviation_note": "",
+        "fidelity_note": "docs/fidelity/weat.md"
+      },
+      "p_value": 0.23822843822843823,
+      "normalized_deviation": 0.36879813256329164
+    },
+    {
+      "metric": "CrowSPairs",
+      "score": 66.66666666666666,
+      "n": 6,
+      "ci": null,
+      "ci_method": "none",
+      "per_item": null,
+      "breakdown": {},
+      "details": {
+        "bias_score": 66.66666666666666,
+        "crows_pairs_score": 66.66666666666666,
+        "scale": "percentage",
+        "num_pairs": 6.0,
+        "mode": "wordpiece"
+      },
+      "protocol": {
+        "metric": "CrowSPairs",
+        "model_id": "bert-base-uncased",
+        "dtype": "fp32",
+        "seed": 42,
+        "dataset": null,
+        "dataset_revision": null,
+        "decoding": {},
+        "resources": [],
+        "judge_model": null,
+        "judge_prompt_version": null,
+        "library_version": "0.1.1",
+        "timestamp": "2026-08-23T17:57:45.583298+00:00",
+        "hash": "d7dda94d0f43"
+      },
+      "info": {
+        "name": "CrowSPairs",
+        "family": "probability",
+        "access": [
+          "logits"
+        ],
+        "neutral_value": 50.0,
+        "direction": "higher_more_biased",
+        "value_range": [
+          0.0,
+          100.0
+        ],
+        "fidelity": "faithful",
+        "reference": "CrowS-Pairs: A Challenge Dataset for Measuring Social Biases in Masked Language Models, EMNLP 2020 \u2014 https://arxiv.org/abs/2010.00133",
+        "reference_impl": "https://github.com/nyu-mll/crows-pairs @ 8aaac11c4854",
+        "languages": [
+          "en"
+        ],
+        "resource_binding": "dataset",
+        "deviation_note": "Faithful in the default `mode=\"wordpiece\"`, which is the pseudo-log-likelihood over WordPiece tokens that the authors' `metric.py` computes. `mode=\"whitespace\"` scores whole whitespace words instead; it is kept for continuity with v0.1.x but is NOT the published protocol and must not be reported as CrowS-Pairs. Reproduction on bert-base-uncased over all 1,508 pairs: 58.62 vs the published 60.5, Wald intervals overlapping (results/emnlp/crows_pairs.json).",
+        "fidelity_note": "docs/fidelity/crows_pairs.md"
+      },
+      "p_value": null,
+      "normalized_deviation": 0.33333333333333315
+    },
+    {
+      "metric": "AUL",
+      "score": 50.0,
+      "n": 6,
+      "ci": null,
+      "ci_method": "none",
+      "per_item": null,
+      "breakdown": {},
+      "details": {
+        "bias_score": 50.0,
+        "aul_score": 50.0,
+        "scale": "percentage",
+        "num_pairs": 6.0,
+        "mode": "wordpiece"
+      },
+      "protocol": {
+        "metric": "AUL",
+        "model_id": "bert-base-uncased",
+        "dtype": "fp32",
+        "seed": 42,
+        "dataset": null,
+        "dataset_revision": null,
+        "decoding": {},
+        "resources": [],
+        "judge_model": null,
+        "judge_prompt_version": null,
+        "library_version": "0.1.1",
+        "timestamp": "2026-08-23T17:57:45.630630+00:00",
+        "hash": "6cee75e96414"
+      },
+      "info": {
+        "name": "AUL",
+        "family": "probability",
+        "access": [
+          "logits"
+        ],
+        "neutral_value": 50.0,
+        "direction": "higher_more_biased",
+        "value_range": [
+          0.0,
+          100.0
+        ],
+        "fidelity": "faithful",
+        "reference": "Unmasking the Mask -- Evaluating Social Biases in Masked Language Models, AAAI 2022 \u2014 https://arxiv.org/abs/2104.07496",
+        "reference_impl": "https://github.com/kanekomasahiro/evaluate_bias_in_mlm @ 6b10239974a7",
+        "languages": [
+          "en"
+        ],
+        "resource_binding": "dataset",
+        "deviation_note": "",
+        "fidelity_note": "docs/fidelity/aul_aula.md"
+      },
+      "p_value": null,
+      "normalized_deviation": 0.0
+    },
+    {
+      "metric": "AULA",
+      "score": 50.0,
+      "n": 6,
+      "ci": null,
+      "ci_method": "none",
+      "per_item": null,
+      "breakdown": {},
+      "details": {
+        "bias_score": 50.0,
+        "aula_score": 50.0,
+        "scale": "percentage",
+        "num_pairs": 6.0,
+        "mode": "wordpiece"
+      },
+      "protocol": {
+        "metric": "AULA",
+        "model_id": "bert-base-uncased",
+        "dtype": "fp32",
+        "seed": 42,
+        "dataset": null,
+        "dataset_revision": null,
+        "decoding": {},
+        "resources": [],
+        "judge_model": null,
+        "judge_prompt_version": null,
+        "library_version": "0.1.1",
+        "timestamp": "2026-08-23T17:57:45.667967+00:00",
+        "hash": "222d9f7272db"
+      },
+      "info": {
+        "name": "AULA",
+        "family": "probability",
+        "access": [
+          "logits"
+        ],
+        "neutral_value": 50.0,
+        "direction": "higher_more_biased",
+        "value_range": [
+          0.0,
+          100.0
+        ],
+        "fidelity": "faithful",
+        "reference": "Unmasking the Mask -- Evaluating Social Biases in Masked Language Models, AAAI 2022 \u2014 https://arxiv.org/abs/2104.07496",
+        "reference_impl": "https://github.com/kanekomasahiro/evaluate_bias_in_mlm @ 6b10239974a7",
+        "languages": [
+          "en"
+        ],
+        "resource_binding": "dataset",
+        "deviation_note": "",
+        "fidelity_note": "docs/fidelity/aul_aula.md"
+      },
+      "p_value": null,
+      "normalized_deviation": 0.0
+    }
+  ]
+}

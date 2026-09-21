@@ -2,18 +2,40 @@
 
 ::: bias_scope.embeddings_based.seat.SEAT
 
+## Input and result contract
+
+Canonical SEAT takes precomputed sentence embeddings for fully formed,
+caller-supplied sentence stimuli. Callers are responsible for constructing
+May et al.'s semantically bleached templates; BiasScope does not create
+templates automatically.
+
+Raw sentence strings are accepted as a BiasScope convenience and encoded
+directly. The default CLS pooling uses Hugging Face special-token CLS
+representations, so it is not an exact reproduction of May et al.'s original
+per-encoder extraction setup. For experimental reproduction, provide precomputed
+sentence embeddings extracted with the intended encoder protocol.
+
+evaluate() returns the SEAT effect size by default. return_details=True also
+returns the permutation p-value and metadata. run() returns a BiasResult
+containing the effect size and p-value.
+
+The effect size is WEAT's, unchanged (`ddof=1`). The permutation p-value follows
+May et al.'s Appendix A rather than Caliskan's: the inequality is the non-strict
+`Pr[s(Xi,Yi,A,B) >= s(X,Y,A,B)]` (`tie_policy="conservative"`, the default) and
+the sampled estimate is floored at 1e-5 (`n_permutation_samples=100_000`, the
+default). Pass `tie_policy="strict"` for Caliskan's `>` convention.
+
 ## Example
 
 ```python
 # --------------------------------------------------------------
 # SEAT - Sentence Encoder Association Test
 #
-# Adapts WEAT to sentence-level embeddings. Instead of encoding
-# bare words, SEAT wraps them in a sentence template
-# (e.g. "This is <word>") and compares sentence-level associations.
+# Adapts WEAT to sentence-level embeddings. The caller constructs
+# sentence templates/stimuli and SEAT compares their representations.
 #
-# This example uses the built-in text embedding path, so the metric
-# handles sentence encoding for you.
+# This example uses BiasScope's convenience text-encoding path.
+# It does not construct templates automatically.
 # --------------------------------------------------------------
 
 from bias_scope.embeddings_based import SEAT
@@ -33,11 +55,13 @@ family_words = [
     "cousins", "marriage", "wedding", "relatives",
 ]
 
-# --- Wrap in sentence templates (the SEAT approach) ---
+# --- Wrap in a bleached sentence template (the SEAT approach) ---
+# Minimal illustration: a full SEAT run expands each term across several
+# templates ("This is <word>.", "<word> is here.", ...), not just one.
 male_sentences = [f"This is {name}." for name in male_names]
 female_sentences = [f"This is {name}." for name in female_names]
-career_sentences = [f"This is about {word}." for word in career_words]
-family_sentences = [f"This is about {word}." for word in family_words]
+career_sentences = [f"This is {word}." for word in career_words]
+family_sentences = [f"This is {word}." for word in family_words]
 
 # --- Evaluate ---
 print(f"Embedding sentence inputs with {MODEL_NAME}...")

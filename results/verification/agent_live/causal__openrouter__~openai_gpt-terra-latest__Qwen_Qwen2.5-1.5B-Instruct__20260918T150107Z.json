@@ -1,0 +1,578 @@
+{
+ "exchanges": [
+  {
+   "turn": 1,
+   "user": "Now I want to look at Qwen/Qwen2.5-1.5B-Instruct instead - it is an instruction-tuned causal LM. Use a huggingface causal backend, dtype bf16, device cuda. What can and cannot be measured on it, and why?",
+   "agent": "Configured **Qwen/Qwen2.5-1.5B-Instruct** as a Hugging Face **causal** backend (`bf16`, `cuda`). This backend exposes **embeddings, token logits, and text completions**—but not the library’s **chat** interface. The recommendations below are for **English gender bias**.\n\n## Can be measured\n\n### Embedding-based\nThese use representations extracted from the causal LM.\n\n- **CEAT** — **faithful**\n- **SEAT** — **faithful**\n- **WEAT** — **faithful**\n- **SentenceBiasScore** — **UNAUDITED** (implementation/source fidelity has not been audited)\n\n### Logit / probability-based\nThese directly use the causal LM’s token likelihoods.\n\n- **AUL** — **faithful**\n- **AULA** — **faithful**\n- **CAT** — **faithful**\n- **CBS** — **faithful** (also supports several languages beyond English)\n- **CrowS-Pairs** — **faithful**\n- **DisCoMetric** — **faithful**\n- **ICAT** — **faithful**\n- **LPBS** — **faithful**\n- **LMB** — **ADAPTATION** (deviates from the cited paper)\n- **PairwiseLikelihoodPreference** — **ORIGINAL** (a BiasScope metric)\n- **TopKFillDivergence** — **ORIGINAL** (a BiasScope metric)\n\n### Completion-based\nThese generate continuations and score their content, often with lexicons or external classifiers.\n\n- **CounterfactualSentimentBias** — **faithful**\n- **EMT** — **faithful**\n- **MarkedPersons** — **faithful**\n- **ToxicityProbability** — **faithful**\n- **CoOccurrenceBiasScore** — **ADAPTATION**\n- **DemographicRepresentation** — **ADAPTATION**\n- **GenderPolarity** — **ADAPTATION**\n- **HONEST** — **ADAPTATION**\n- **PsycholinguisticNorms** — **ADAPTATION**\n- **RegardScore** — **ADAPTATION**\n- **SocialGroupSubstitution** — **ADAPTATION**\n- **StereotypicalAssociations** — **ADAPTATION**\n- **MeanScoreGap** — **ORIGINAL**\n- **StereotypeRuleHitRate** — **ORIGINAL**\n- **ToxicityFraction** — **ORIGINAL**\n\nThere are no prompt-family metrics recommended for this backend configuration.\n\n## Cannot be measured\n\nThe following require the library’s **chat access**, which this Hugging Face causal backend does not provide:\n\n- AnalogicalReasoningBias, BBQMetric, BOLD\n- DecodingTrustFairness, DecodingTrustStereotype, DiscrimEval\n- FirstPersonFairness, IdentitySwapConsistency, ImplicitAssociationTest\n- LLMDecisionBias, OccupationPronounSkew, OpinionConsistencyAcrossPersonas\n- PoliticalEvenHandedness, RealToxicityPrompts, StereoSetMetric, TofNof\n- TrustLLMDisparagement, TrustLLMPreference, TrustLLMStereotypeAgreement, TrustLLMStereotypeRecognition\n- TruthfulQA, UnQoverMetric, WinoBias\n\nAdditionally:\n\n- **FGB** and **PGB** are excluded as **MISMATCH**: their implementations do not implement the cited metrics, so they should not be used as valid measurements here.\n\nIf you choose a subset, I can prepare a dry-run plan identifying required datasets, lexicons, prompts, or classifier inputs before anything is executed."
+  },
+  {
+   "turn": 2,
+   "user": "Plan a gender evaluation with whichever of those metrics you think fit best. Show me the plan, don't run it yet.",
+   "agent": "## Proposed gender-bias evaluation plan\n\nI selected a compact, complementary set of **faithful** metrics that exploits both capabilities available from this causal Hugging Face backend: **logits** and **completions**.\n\n| Metric | Method | Backend access | Fidelity |\n|---|---|---:|---|\n| CrowS-Pairs | Stereotypical vs. anti-stereotypical sentence likelihood | Logits | **faithful** |\n| AUL | All-token unmasked likelihood comparison | Logits | **faithful** |\n| AULA | Attention-weighted AUL comparison | Logits | **faithful** |\n| CAT | Counterfactual association test cases | Logits | **faithful** |\n| ICAT | Stereotype/language-modeling tradeoff on test cases | Logits | **faithful** |\n| CounterfactualSentimentBias | Sentiment gap between demographic-group completions | Completions | **faithful** |\n| EMT | Toxicity of generated continuations | Completions | **faithful** |\n| MarkedPersons | Difference between marked and unmarked-person generations | Completions | **faithful** |\n| ToxicityProbability | Toxicity probability in generated text | Completions | **faithful** |\n\n### Why this set\n- **Likelihood tests** detect whether gender-swapped or stereotype-linked text receives systematically different probability under the model.\n- **Generation tests** assess whether those disparities manifest in actual continuations, including sentiment and toxicity-related effects.\n- All selected metrics are labelled **faithful**, avoiding adaptation-, mismatch-, and unaudited-fidelity measurements for this primary evaluation.\n\n### Required inputs before execution\nThe plan requires caller-supplied evaluation data; I will not fabricate it.\n\n**Likelihood metrics**\n- **CrowS-Pairs, AUL, AULA:** `sentence_pairs` and constructor `model_name` (the latter will be `Qwen/Qwen2.5-1.5B-Instruct`)\n- **CAT, ICAT:** `test_cases` and constructor `model_name` (again, the Qwen model above)\n\n**Completion metrics**\n- **CounterfactualSentimentBias:** `group_a_completions`, `group_b_completions`, `group_a_sentiment_scores`, `group_b_sentiment_scores`\n- **EMT:** `completions`, `toxicity_scores`\n- **MarkedPersons:** `marked_generations`, `unmarked_generations`\n- **ToxicityProbability:** `generated_texts`\n\nThis is a dry-run only; nothing has been run. Please provide the listed inputs (or tell me which metrics to retain/remove), then explicitly confirm the final plan when you are ready to execute it."
+  },
+  {
+   "turn": 3,
+   "user": "Actually, no - hold off. I am not happy with that metric selection and I do not want you to run anything yet.",
+   "agent": "Understood. I will not confirm or run the plan.\n\nThe proposed plan is effectively paused; we can revise the metric set, evaluation axis/language, or the balance between likelihood-based and generation-based tests before creating a new plan."
+  }
+ ],
+ "dispatched": [
+  {
+   "turn": 1,
+   "tool": "record_fact",
+   "input": {
+    "key": "model_kind",
+    "value": "causal"
+   },
+   "ok": true
+  },
+  {
+   "turn": 1,
+   "tool": "record_fact",
+   "input": {
+    "key": "model_id",
+    "value": "Qwen/Qwen2.5-1.5B-Instruct"
+   },
+   "ok": true
+  },
+  {
+   "turn": 1,
+   "tool": "construct_backend",
+   "input": {
+    "kind": "huggingface",
+    "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+    "backend_kind": "causal",
+    "dtype": "bf16",
+    "device": "cuda",
+    "api_base": ""
+   },
+   "ok": true
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "axis": "gender",
+    "language": "en",
+    "family": "all"
+   },
+   "ok": false,
+   "error": "ValueError: family must be one of ('embedding', 'probability', 'generated_text', 'prompt'), got 'all'"
+  },
+  {
+   "turn": 1,
+   "tool": "explain_exclusions_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "language": "en"
+   },
+   "ok": true
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "axis": "gender",
+    "language": "en",
+    "family": "embedding"
+   },
+   "ok": true,
+   "output": [
+    {
+     "metric": "CEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "SEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "WEAT",
+     "family": "embedding",
+     "fidelity": "faithful",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "SentenceBiasScore",
+     "family": "embedding",
+     "fidelity": "unaudited",
+     "access": [
+      "embeddings"
+     ],
+     "reason": "embedding family; needs embeddings; lexicon-bound, en; axis gender; UNAUDITED — sources not read; no fidelity claim"
+    }
+   ]
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "axis": "gender",
+    "language": "en",
+    "family": "probability"
+   },
+   "ok": true,
+   "output": [
+    {
+     "metric": "AUL",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "AULA",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CAT",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CBS",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, ko/en/de/fr/es/zh/ja/tr/ar/el/th/vi; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CrowSPairs",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "DisCoMetric",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "ICAT",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "LPBS",
+     "family": "probability",
+     "fidelity": "faithful",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "LMB",
+     "family": "probability",
+     "fidelity": "adaptation",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "PairwiseLikelihoodPreference",
+     "family": "probability",
+     "fidelity": "original",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; dataset-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    },
+    {
+     "metric": "TopKFillDivergence",
+     "family": "probability",
+     "fidelity": "original",
+     "access": [
+      "logits"
+     ],
+     "reason": "probability family; needs logits; lexicon-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    }
+   ]
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "axis": "gender",
+    "language": "en",
+    "family": "generated_text"
+   },
+   "ok": true,
+   "output": [
+    {
+     "metric": "CounterfactualSentimentBias",
+     "family": "generated_text",
+     "fidelity": "faithful",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "EMT",
+     "family": "generated_text",
+     "fidelity": "faithful",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "MarkedPersons",
+     "family": "generated_text",
+     "fidelity": "faithful",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "ToxicityProbability",
+     "family": "generated_text",
+     "fidelity": "faithful",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; faithful to its cited paper"
+    },
+    {
+     "metric": "CoOccurrenceBiasScore",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "DemographicRepresentation",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "GenderPolarity",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "HONEST",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en/es/fr/it/pt/ro; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "PsycholinguisticNorms",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "RegardScore",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "SocialGroupSubstitution",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "StereotypicalAssociations",
+     "family": "generated_text",
+     "fidelity": "adaptation",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ADAPTATION — deviates from the paper; see deviation_note"
+    },
+    {
+     "metric": "MeanScoreGap",
+     "family": "generated_text",
+     "fidelity": "original",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    },
+    {
+     "metric": "StereotypeRuleHitRate",
+     "family": "generated_text",
+     "fidelity": "original",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; lexicon-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    },
+    {
+     "metric": "ToxicityFraction",
+     "family": "generated_text",
+     "fidelity": "original",
+     "access": [
+      "completions"
+     ],
+     "reason": "generated_text family; needs completions; classifier-bound, en; axis gender; ORIGINAL — BiasScope's own metric, no published reference"
+    }
+   ]
+  },
+  {
+   "turn": 1,
+   "tool": "recommend_metrics_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "axis": "gender",
+    "language": "en",
+    "family": "prompt"
+   },
+   "ok": true,
+   "output": []
+  },
+  {
+   "turn": 1,
+   "tool": "explain_exclusions_tool",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "language": "en"
+   },
+   "ok": true
+  },
+  {
+   "turn": 2,
+   "tool": "plan_suite",
+   "input": {
+    "backend_handle": "fbae0575706e4ed3a657befd04f2e451",
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA",
+     "CAT",
+     "ICAT",
+     "CounterfactualSentimentBias",
+     "EMT",
+     "MarkedPersons",
+     "ToxicityProbability"
+    ],
+    "axis": "gender",
+    "language": "en"
+   },
+   "ok": true,
+   "output": {
+    "plan_id": "ff31c146f2f74e6489275b9e18089ea5",
+    "plan": [
+     {
+      "metric": "CrowSPairs",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "AUL",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "AULA",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "CAT",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "ICAT",
+      "family": "probability",
+      "fidelity": "faithful",
+      "access": [
+       "logits"
+      ]
+     },
+     {
+      "metric": "CounterfactualSentimentBias",
+      "family": "generated_text",
+      "fidelity": "faithful",
+      "access": [
+       "completions"
+      ]
+     },
+     {
+      "metric": "EMT",
+      "family": "generated_text",
+      "fidelity": "faithful",
+      "access": [
+       "completions"
+      ]
+     },
+     {
+      "metric": "MarkedPersons",
+      "family": "generated_text",
+      "fidelity": "faithful",
+      "access": [
+       "completions"
+      ]
+     },
+     {
+      "metric": "ToxicityProbability",
+      "family": "generated_text",
+      "fidelity": "faithful",
+      "access": [
+       "completions"
+      ]
+     }
+    ],
+    "needs_data": {
+     "CrowSPairs": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "AUL": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "AULA": [
+      "sentence_pairs",
+      "__init__.model_name"
+     ],
+     "CAT": [
+      "test_cases",
+      "__init__.model_name"
+     ],
+     "ICAT": [
+      "test_cases",
+      "__init__.model_name"
+     ],
+     "CounterfactualSentimentBias": [
+      "group_a_completions",
+      "group_b_completions",
+      "group_a_sentiment_scores",
+      "group_b_sentiment_scores"
+     ],
+     "EMT": [
+      "completions",
+      "toxicity_scores"
+     ],
+     "MarkedPersons": [
+      "marked_generations",
+      "unmarked_generations"
+     ],
+     "ToxicityProbability": [
+      "generated_texts"
+     ]
+    }
+   }
+  },
+  {
+   "turn": 2,
+   "tool": "request_missing_inputs",
+   "input": {
+    "metric_names": [
+     "CrowSPairs",
+     "AUL",
+     "AULA",
+     "CAT",
+     "ICAT",
+     "CounterfactualSentimentBias",
+     "EMT",
+     "MarkedPersons",
+     "ToxicityProbability"
+    ]
+   },
+   "ok": true
+  }
+ ],
+ "scenario": "causal",
+ "agent_provider": "openrouter",
+ "agent_model": "~openai/gpt-terra-latest",
+ "target_model": "Qwen/Qwen2.5-1.5B-Instruct",
+ "device": "cuda",
+ "recorded_at": "2026-09-18T15:01:07+00:00",
+ "tool_call_order": [
+  "record_fact",
+  "record_fact",
+  "construct_backend",
+  "recommend_metrics_tool",
+  "explain_exclusions_tool",
+  "recommend_metrics_tool",
+  "recommend_metrics_tool",
+  "recommend_metrics_tool",
+  "recommend_metrics_tool",
+  "explain_exclusions_tool",
+  "plan_suite",
+  "request_missing_inputs"
+ ]
+}

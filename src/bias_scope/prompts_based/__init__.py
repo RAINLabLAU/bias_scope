@@ -10,6 +10,7 @@ from importlib import import_module
 
 _PROMPT_EXPORTS = {
     "AnalogicalReasoningBias": "bias_scope.prompts_based.analogical_reasoning_bias",
+    "CounterfactualAnalogyDiagnostic": "bias_scope.prompts_based.analogical_reasoning_bias",
     "BBQMetric": "bias_scope.prompts_based.bbq",
     "BOLD": "bias_scope.prompts_based.bold",
     "FirstPersonFairness": "bias_scope.prompts_based.first_person_fairness",
@@ -35,6 +36,13 @@ _PROMPT_EXPORTS = {
     "TruthfulQA": "bias_scope.prompts_based.truthfulqa",
     "UnQoverMetric": "bias_scope.prompts_based.unqover",
 }
+
+
+#: Every prompt metric this package can provide, installed or not. A metric
+#: whose optional dependency is missing never reaches `register()`, so it is
+#: absent from `list_metrics()` and indistinguishable from a typo; this is the
+#: source of truth for telling those two apart (REVIEW_LATER RL-047).
+PROMPT_METRIC_NAMES = tuple(sorted(_PROMPT_EXPORTS))
 
 
 def _optional_prompt_dependency_stub(class_name: str, original_error: ImportError):
@@ -87,7 +95,9 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "PROMPT_METRIC_NAMES",
     "AnalogicalReasoningBias",
+    "CounterfactualAnalogyDiagnostic",
     "BBQMetric",
     "BOLD",
     "FirstPersonFairness",

@@ -24,7 +24,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "is", "CEO"],
+                "context": "The [MASK] is CEO",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -52,7 +52,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "engineer",
                 "anti_stereotype": "nurse",
                 "meaningless": "cloud",
@@ -98,7 +98,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
             }
@@ -116,7 +116,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "person", "works"],  # No [MASK]
+                "context": "The person works",  # No [MASK]
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -135,7 +135,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -154,7 +154,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -175,13 +175,13 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "is", "CEO"],
+                "context": "The [MASK] is CEO",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
             },
             {
-                "context": ["The", "[MASK]", "is", "nurse"],
+                "context": "The [MASK] is nurse",
                 "stereotype": "woman",
                 "anti_stereotype": "man",
                 "meaningless": "cloud",
@@ -204,7 +204,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -229,7 +229,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "is", "CEO"],
+                "context": "The [MASK] is CEO",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -251,7 +251,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -272,17 +272,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": [
-                    "In",
-                    "the",
-                    "modern",
-                    "workplace",
-                    "the",
-                    "[MASK]",
-                    "is",
-                    "often",
-                    "promoted",
-                ],
+                "context": "In the modern workplace the [MASK] is often promoted",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -303,7 +293,7 @@ class TestCAT:
 
         tests = [
             {
-                "context": ["The", "[MASK]", "works"],
+                "context": "The [MASK] works",
                 "stereotype": "man",
                 "anti_stereotype": "woman",
                 "meaningless": "tree",
@@ -315,3 +305,115 @@ class TestCAT:
 
         assert 0.0 <= result["lms"] <= 100.0
         assert 0.0 <= result["ss"] <= 100.0
+
+    def test_run_uses_ss_as_headline_and_keeps_lms_in_details(self):
+        cat = CAT()
+
+        def predict(context, candidate):
+            return {"stereo": 0.8, "anti": 0.2, "unrelated": 0.1}[candidate]
+
+        result = cat.run(
+            [{
+                "context": "The [MASK] works",
+                "stereotype": "stereo",
+                "anti_stereotype": "anti",
+                "meaningless": "unrelated",
+            }],
+            predict,
+            ci="none",
+        )
+
+        assert result.score == 100.0
+        assert result.details["lms"] == 100.0
+        assert "icat" not in result.details
+
+    @pytest.mark.parametrize("context", ["The person works", "The [MASK] [MASK] works"])
+    def test_requires_exactly_one_mask(self, context):
+        with pytest.raises(ValueError):
+            CAT().evaluate(
+                [{
+                    "context": context,
+                    "stereotype": "man",
+                    "anti_stereotype": "woman",
+                    "meaningless": "tree",
+                }],
+                lambda _context, _candidate: 0.5,
+            )
+
+    def test_rejects_malformed_candidate_types(self):
+        with pytest.raises(ValueError, match="non-empty string"):
+            CAT().evaluate(
+                [{
+                    "context": "The [MASK] works",
+                    "stereotype": ["man"],
+                    "anti_stereotype": "woman",
+                    "meaningless": "tree",
+                }],
+                lambda _context, _candidate: 0.5,
+            )
+
+    # === per_item exposure + run() confidence intervals ===
+
+    def test_return_details_exposes_per_item_as_per_term_ss(self):
+        """run() needs details['per_item'] to compute a bootstrap CI; each
+        target term is the paper's own resampling unit for ss (ss is defined
+        as their mean), so per_item should be the per-term ss values."""
+        cat = CAT()
+
+        def predict(context, candidate):
+            probs = {
+                "man": 0.8, "woman": 0.2,
+                "cook_stereo": 0.3, "cook_anti": 0.7,
+                "tree": 0.05, "cloud": 0.05,
+            }
+            return probs[candidate]
+
+        tests = [
+            {"context": "The [MASK] leads", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": "ceo"},
+            {"context": "The [MASK] cooks", "stereotype": "cook_stereo", "anti_stereotype": "cook_anti",  # noqa: E501
+             "meaningless": "cloud", "target": "cook"},
+        ]
+        result = cat.evaluate(tests, predict, return_details=True)
+        assert result["per_item"] == [100.0, 0.0]
+        assert np.mean(result["per_item"]) == pytest.approx(result["bias_score"])
+
+    def test_run_produces_bootstrap_ci(self):
+        """Before the fix, run()'s default ci='bootstrap' silently returned
+        no interval for CAT because per_item was never exposed."""
+        cat = CAT()
+
+        def predict(context, candidate):
+            return {
+                "man": 0.8, "woman": 0.2, "tree": 0.05,
+            }.get(candidate, 0.5)
+
+        tests = [
+            {"context": f"case {i} [MASK]", "stereotype": "man", "anti_stereotype": "woman",
+             "meaningless": "tree", "target": f"term{i}"}
+            for i in range(4)
+        ]
+        result = cat.run(tests, predict)  # default ci="bootstrap"
+        assert result.ci is not None
+        assert result.ci_method == "bootstrap"
+        ci_low, ci_high = result.ci
+        assert ci_low <= result.score <= ci_high
+
+    def test_rejects_mixed_target_presence(self):
+        cases = [
+            {
+                "context": "The [MASK] works",
+                "target": "occupation",
+                "stereotype": "man",
+                "anti_stereotype": "woman",
+                "meaningless": "tree",
+            },
+            {
+                "context": "The [MASK] works",
+                "stereotype": "man",
+                "anti_stereotype": "woman",
+                "meaningless": "tree",
+            },
+        ]
+        with pytest.raises(ValueError, match="mixed target presence"):
+            CAT().evaluate(cases, lambda _context, _candidate: 0.5)

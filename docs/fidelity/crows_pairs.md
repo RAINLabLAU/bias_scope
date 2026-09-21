@@ -51,9 +51,10 @@ makes clear it is `U`. Typographical, not substantive.)
 ## Current BiasScope implementation
 
 `src/bias_scope/probability_based/scorers.py::WordPieceBertScorer` and
-`crows_pairs.py`. Matches on every point above, including the `range(1, T - 1)`
-interior (`scorers.py:383`) and the `equal`-opcode alignment
-(`scorers.py:331-335`).
+`crows_pairs.py`. Matches on every point above: `tokenizer.encode` keeps
+special tokens in the model input, `SequenceMatcher` keeps the `equal`-opcode
+alignment (`scorers.py:331-339`), and the CrowS-Pairs helper filters tokenizer
+special-token positions before scoring (`_helpers.py:91-100`).
 
 **One deliberate difference:** we pass `autojunk=False` to `SequenceMatcher`
 where the reference takes the default (`True`). difflib's autojunk heuristic
@@ -72,18 +73,46 @@ documented as such.
 Through v0.1.x the default was `mode='whitespace'` — a whole-word
 pseudo-log-likelihood that is not the published protocol. See RL-037.
 
-Reproduction on `bert-base-uncased` over the full 1,508 pairs gives **58.62**
-against the published **60.5** — a 1.88-point gap, with the two 95% Wald
-intervals overlapping ([56.13, 61.11] vs [58.03, 62.97]), so the estimates are
-not statistically distinguishable. Recorded in `results/emnlp/crows_pairs.json`.
+The implementation reports the canonical percentage-scale score:
+`100 * stereotype_wins / N`, with **50** as the neutral value.
 
 ## Required action
 
-None outstanding. The residual 1.88 points is worth a hypothesis before
-submission: candidate causes are tokenizer version drift and the
-`sent_more`/`sent_less` direction convention for the 218 antistereo pairs. The
-paper's own stereo/antistereo split (61.1 / 56.9 for BERT) is the natural
-diagnostic and is a cheap addition to the reproduction.
+None outstanding. The reproduction loader passes `sent_more` first and
+`sent_less` second for every row, including rows marked `antistereo`, because
+BiasScope's public API scores `(more_stereotypical, less_stereotypical)` pairs
+directly.
+
+## Fixed in the 2026-09-17 audit follow-up
+
+Two gaps found during the from-scratch audit (recorded but not applied at the
+time) are now fixed:
+
+- **`run()` never produced a confidence interval, for any `ci=`.**
+  `evaluate(return_details=True)` computed the per-pair win/loss indicators
+  but never exposed them as `per_item`, so `ci="bootstrap"` (the `run()`
+  default) silently fell through to `(None, "none", None)`. Separately,
+  `base.py::BiasMetric._interval` checked `per_item is None` before checking
+  `ci == "wald"`, even though `wald_ci(score, n)` needs no per-item data —
+  making `ci="wald"` (the CI convention the reference paper itself reports
+  for this exact percentage statistic) unreachable for CrowS-Pairs (and any
+  other percentage-scale metric) regardless of `per_item`. Both fixed:
+  `evaluate()`/`_evaluate_wordpiece` now include `"per_item"` (scaled to
+  0/100); `_interval` now computes a proper Wald interval whenever a
+  metric's `MetricInfo.value_range` is finite, normalizing `score` into
+  `[0, 1]` for `wald_ci` and rescaling the result back.
+- **Tie-rounding.** Nangia 2020's own reference (`metric.py:225-226`) rounds
+  each sentence's summed log-probability to 3 decimals
+  (`score[stype] = round(score[stype], 3)`) before comparing for a win or an
+  exact tie. BiasScope compared raw floats, so a difference smaller than
+  0.001 — below the reference's own rounding precision — could be counted
+  as a real stereotype "win" where the reference would count it as neutral.
+  Fixed by rounding both sides to 3 decimals immediately before the `>`
+  comparison, in both `mode="whitespace"` and `mode="wordpiece"`.
+
+Neither changes the verdict: both are about `run()`'s CI machinery and a
+sub-0.001 rounding edge case, not the CPS statistic itself, which was already
+verified faithful above.
 
 ## Validation possible
 

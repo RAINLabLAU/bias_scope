@@ -15,12 +15,12 @@ class UnQoverMetric(PromptBasedMetric):
     variants that control for two confounds: positional dependence and
     attribute or negation insensitivity.
 
-    Each UnQover example compares two subjects across four paper-style prompt
-    variants: subject order is flipped and positive versus negative question
-    wording is paired. This implementation follows the official comparative
-    analysis logic for subject preference, positional error, and attribute
-    error. Unlike BBQ, the metric expects answer score information and is most
-    faithful when token logprobs are available from the model API.
+    This is a chat-model adaptation: it compares two subjects across four
+    matched variants, but scores A/B *option tokens* and normalizes them over
+    A/B. Those meta-choice probabilities are not the paper's unnormalized
+    subject-answer span or masked-token probabilities, so its values are not
+    directly comparable to UNQOVER paper results. Private reproduction helpers
+    separately analyze official prediction dumps with paper-compatible scores.
 
     Use UnQover when you want a signed comparative preference score between
     two groups for a specific attribute while canceling prompt-order and
@@ -29,7 +29,7 @@ class UnQoverMetric(PromptBasedMetric):
 
     Reference
     ---------
-    Li, T., Khashabi, D., Khot, T., Sabharwal, A., & Hajishirzi, H. (2020).
+    Li, T., Khashabi, D., Khot, T., Sabharwal, A., & Srikumar, V. (2020).
     UNQOVERing Stereotyping Biases via Underspecified Questions. Findings of
     EMNLP 2020.
 
@@ -97,11 +97,10 @@ class UnQoverMetric(PromptBasedMetric):
         """
         Evaluate comparative bias over UnQover four-variant bundles.
 
-        For each example, the metric runs the four paper-style variants,
-        extracts A/B probabilities, and computes the official subject1-win,
-        positional-error, and attribute-error quantities. The method then
-        aggregates signed subject scores, subject-attribute scores, and
-        intensity summaries across the evaluated examples.
+        For each example, the metric runs four adaptation variants and derives
+        scores from normalized A/B option-token probabilities. The returned
+        ``net_bias_score`` and ``per_bias_type`` are BiasScope diagnostics, not
+        paper headline UNQOVER outputs.
 
         Args:
             examples (List[Dict[str, Any]]): Pre-built UnQover bundles.
@@ -166,9 +165,7 @@ class UnQoverMetric(PromptBasedMetric):
         filtered_examples = list(examples)
         if bias_types is not None:
             filtered_examples = [
-                example
-                for example in filtered_examples
-                if example.get("bias_type") in bias_types
+                example for example in filtered_examples if example.get("bias_type") in bias_types
             ]
 
         if not filtered_examples:
@@ -252,8 +249,7 @@ class UnQoverMetric(PromptBasedMetric):
                 self._append_score(bias_type_scores, bias_type, subject1_win)
 
         per_subject = {
-            subject: sum(scores) / len(scores)
-            for subject, scores in subject_scores.items()
+            subject: sum(scores) / len(scores) for subject, scores in subject_scores.items()
         }
         per_subject_attribute = {
             subject: {
@@ -263,16 +259,16 @@ class UnQoverMetric(PromptBasedMetric):
             for subject, attribute_scores in subject_attribute_scores.items()
         }
         per_bias_type = {
-            bias_type: sum(scores) / len(scores)
-            for bias_type, scores in bias_type_scores.items()
+            bias_type: sum(scores) / len(scores) for bias_type, scores in bias_type_scores.items()
         }
 
         return {
+            # The key `run()` and `BiasSuite` look for. Without it this
+            # metric is reachable only through `evaluate()`.
+            "bias_score": sum(subject1_wins) / len(subject1_wins),
             "net_bias_score": sum(subject1_wins) / len(subject1_wins),
             "bias_intensity": self._compute_bias_intensity(subject_attribute_scores),
-            "count_bias_intensity": self._compute_count_bias_intensity(
-                subject_attribute_scores
-            ),
+            "count_bias_intensity": self._compute_count_bias_intensity(subject_attribute_scores),
             "positional_error": sum(positional_errors) / len(positional_errors),
             "attribute_error": sum(attribute_errors) / len(attribute_errors),
             "per_subject": per_subject,
@@ -280,9 +276,7 @@ class UnQoverMetric(PromptBasedMetric):
             "per_bias_type": per_bias_type,
         }
 
-    def _build_prompt(
-        self, context: str, question: str, subject_a: str, subject_b: str
-    ) -> str:
+    def _build_prompt(self, context: str, question: str, subject_a: str, subject_b: str) -> str:
         """
         Build one A/B prompt (PRIVATE).
 
@@ -333,10 +327,7 @@ class UnQoverMetric(PromptBasedMetric):
             normalized = str(token).strip().upper()
             if normalized in {"A", "B"}:
                 logprob_value = float(logprob)
-                if (
-                    normalized not in ab_logprobs
-                    or logprob_value > ab_logprobs[normalized]
-                ):
+                if normalized not in ab_logprobs or logprob_value > ab_logprobs[normalized]:
                     ab_logprobs[normalized] = logprob_value
 
         content = getattr(logprobs, "content", None)
@@ -357,8 +348,10 @@ class UnQoverMetric(PromptBasedMetric):
         if top_logprobs is None and isinstance(logprobs, dict):
             top_logprobs = logprobs.get("top_logprobs")
         if top_logprobs:
-            if isinstance(top_logprobs, list) and top_logprobs and isinstance(
-                top_logprobs[0], list
+            if (
+                isinstance(top_logprobs, list)
+                and top_logprobs
+                and isinstance(top_logprobs[0], list)
             ):
                 top_logprobs = top_logprobs[0]
             self._record_top_logprobs(top_logprobs, _record)
@@ -405,9 +398,7 @@ class UnQoverMetric(PromptBasedMetric):
             return None
         return 0 if match.group(1) == "A" else 1
 
-    def _compute_positional_error(
-        self, bundle_probs: Dict[str, Tuple[float, float]]
-    ) -> float:
+    def _compute_positional_error(self, bundle_probs: Dict[str, Tuple[float, float]]) -> float:
         """
         Compute positional error for one bundle (PRIVATE).
 
@@ -430,9 +421,7 @@ class UnQoverMetric(PromptBasedMetric):
         ]
         return sum(values) / len(values)
 
-    def _compute_attribute_error(
-        self, bundle_probs: Dict[str, Tuple[float, float]]
-    ) -> float:
+    def _compute_attribute_error(self, bundle_probs: Dict[str, Tuple[float, float]]) -> float:
         """
         Compute attribute error for one bundle (PRIVATE).
 
@@ -455,9 +444,7 @@ class UnQoverMetric(PromptBasedMetric):
         ]
         return sum(values) / len(values)
 
-    def _compute_subject1_win_score(
-        self, bundle_probs: Dict[str, Tuple[float, float]]
-    ) -> float:
+    def _compute_subject1_win_score(self, bundle_probs: Dict[str, Tuple[float, float]]) -> float:
         """
         Compute the official subject1-win score (PRIVATE).
 
@@ -531,10 +518,7 @@ class UnQoverMetric(PromptBasedMetric):
         """
         subject_maxima = []
         for attribute_scores in subject_attribute_scores.values():
-            maxima = [
-                abs(sum(scores) / len(scores))
-                for scores in attribute_scores.values()
-            ]
+            maxima = [abs(sum(scores) / len(scores)) for scores in attribute_scores.values()]
             subject_maxima.append(max(maxima) if maxima else 0.0)
         return sum(subject_maxima) / len(subject_maxima)
 
@@ -578,9 +562,7 @@ class UnQoverMetric(PromptBasedMetric):
                 f"Got {type(num_samples).__name__}"
             )
         if num_samples < 1:
-            raise ValueError(
-                f"num_samples must be positive when provided. Got {num_samples}"
-            )
+            raise ValueError(f"num_samples must be positive when provided. Got {num_samples}")
 
     def _validate_bias_types(self, bias_types: Optional[List[str]]) -> None:
         """
@@ -595,13 +577,9 @@ class UnQoverMetric(PromptBasedMetric):
         if bias_types is None:
             return
         if not isinstance(bias_types, list) or not bias_types:
-            raise ValueError(
-                "bias_types must be a non-empty list of strings when provided"
-            )
+            raise ValueError("bias_types must be a non-empty list of strings when provided")
         if not all(isinstance(bias_type, str) for bias_type in bias_types):
-            raise ValueError(
-                "bias_types must be a non-empty list of strings when provided"
-            )
+            raise ValueError("bias_types must be a non-empty list of strings when provided")
 
     def _validate_example(self, example: Dict[str, Any]) -> None:
         """
@@ -627,13 +605,9 @@ class UnQoverMetric(PromptBasedMetric):
                 raise ValueError(f"example is missing required variant: {variant_name}")
             variant = variants[variant_name]
             if "context" not in variant or "question" not in variant:
-                raise ValueError(
-                    f"variant {variant_name} must contain both context and question"
-                )
+                raise ValueError(f"variant {variant_name} must contain both context and question")
 
-    def _append_score(
-        self, scores: Dict[str, List[float]], key: str, value: float
-    ) -> None:
+    def _append_score(self, scores: Dict[str, List[float]], key: str, value: float) -> None:
         """
         Append one score to a grouped list (PRIVATE).
 

@@ -322,6 +322,8 @@ class SocialGroupSubstitution(GeneratedTextMetric):
             "aggregation": aggregation,
             "scores": all_scores,
             "individual_unfairness": individual_unfairness,
+            # The headline: the overall individual-unfairness figure.
+            "bias_score": if_overall,
             "individual_unfairness_overall": if_overall,
             "group_means": group_means,
             "group_disparity": group_disparity,

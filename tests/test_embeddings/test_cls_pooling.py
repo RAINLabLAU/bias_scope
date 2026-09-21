@@ -161,3 +161,161 @@ class TestSeatCeatPoolingPropagation:
         w = WEAT(pooling="cls")
         assert w.pooling == "cls"
         assert WEAT().pooling == "mean"
+
+
+class TestEmbedClsBf16:
+    """A bf16 model's hidden states are BFloat16, which numpy cannot represent.
+
+    Found by a live agent run (REVIEW_LATER RL-056): SEAT on a bf16 causal LM
+    died with `TypeError: Got unsupported ScalarType BFloat16` from
+    `.cpu().numpy()`. PLAN.md Section 1 mandates BF16 for causal LMs, so every
+    embedding metric was unreachable on exactly the dtype the plan requires.
+    """
+
+    def test_bf16_hidden_states_are_cast_before_numpy(self):
+        import torch
+
+        tok, mdl = _fake_encoder(hidden_size=4)
+
+        def call_bf16(**kwargs):
+            n = kwargs["input_ids"].shape[0]
+            hidden = torch.zeros((n, 4, 4), dtype=torch.bfloat16)
+            hidden[:, 0, :] = torch.arange(n).to(torch.bfloat16).unsqueeze(-1).repeat(1, 4)
+            out = MagicMock()
+            out.last_hidden_state = hidden
+            return out
+
+        mdl.side_effect = call_bf16
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        with patch("transformers.AutoTokenizer") as auto_tok, patch(
+            "transformers.AutoModel"
+        ) as auto_mdl:
+            auto_tok.from_pretrained.return_value = tok
+            auto_mdl.from_pretrained.return_value = mdl
+            out = embed(["a", "b"], model_name="fake", pooling="cls")
+        assert out.dtype == np.float64
+        assert np.allclose(out[0], 0.0)
+        assert np.allclose(out[1], 1.0)
+
+
+class TestATokenizerWithoutAPadToken:
+    """RL-067: GPT-2's tokenizer has no pad token, so batching two texts of
+    different length through `pooling='cls'` raised "Asking to pad but the
+    tokenizer does not have a padding token" - and WEAT and SEAT, both
+    recommended for every causal LM, were skipped on gpt2 in a live run.
+    `HuggingFaceBackend.generate` already makes the same choice this test
+    asks for: pad with the end-of-sequence token.
+    """
+
+    def test_gpt2_style_tokenizer_can_batch_texts_of_different_length(self):
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        out = embed(["a", "b c d e"], model_name="sshleifer/tiny-gpt2", pooling="cls")
+        assert out.shape[0] == 2
+        assert np.all(np.isfinite(out))
+
+    def test_mean_pooling_has_the_same_fix(self):
+        # WEAT's default is pooling='mean' through sentence-transformers, which
+        # wraps the same tokenizer; the gpt2 rerun scored SEAT (cls) and still
+        # skipped WEAT (mean) with the identical error.
+        from bias_scope.embeddings_based.encoder import _load_sentence_transformer
+
+        _load_sentence_transformer.cache_clear()
+        out = embed(["a", "b c d e"], model_name="sshleifer/tiny-gpt2", pooling="mean")
+        assert out.shape[0] == 2
+        assert np.all(np.isfinite(out))
+
+
+class TestTheClsLoaderReusesTheBackendsModel:
+    """RL-075: Qwen2.5-3B-Instruct ran out of GPU memory inside run_suite.
+    The backend had the model loaded (bf16, ~6 GB) and WEAT/SEAT/CEAT each
+    loaded their own copy through `_load_cls_encoder` / sentence-transformers,
+    so a 3B model sat on the GPU three times. A backend that has loaded a
+    model registers it, and the CLS-pooling loader reuses it instead of
+    loading again.
+    """
+
+    def test_a_loaded_backend_model_is_what_the_cls_loader_returns(self):
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        tokenizer, model = backend._load()
+        shared_tok, shared_model = _load_cls_encoder("sshleifer/tiny-gpt2")
+        assert shared_tok is tokenizer
+        # A causal LM's base model is the transformer without the LM head; it
+        # is the module whose `last_hidden_state` the pooling reads.
+        assert shared_model is model.base_model
+
+    def test_embedding_through_the_shared_model_works(self):
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based.encoder import _load_cls_encoder
+
+        _load_cls_encoder.cache_clear()
+        HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")._load()
+        out = embed(["a", "b c d"], model_name="sshleifer/tiny-gpt2", pooling="cls")
+        assert out.shape[0] == 2 and np.all(np.isfinite(out))
+
+
+class TestMeanPoolingReusesACausalBackendsModel:
+    """RL-076: WEAT's default `pooling='mean'` went through sentence-transformers,
+    a third copy of the model on the GPU, and on google/gemma-3-1b-it that
+    loader tried to build an image processor and failed before any metric
+    scored. For a repo with no sentence-transformers config, that library
+    builds Transformer + Pooling(mean): a masked mean of the last hidden
+    state, bit-identical to computing it on the backend's own copy (max abs
+    difference 0.0 on gpt2 and tiny-gpt2, 2026-09-20). A causal backend that
+    has loaded its model registers it for mean pooling too.
+    """
+
+    def test_mean_pooling_on_a_loaded_causal_backend_matches_sentence_transformers(self):
+        from sentence_transformers import SentenceTransformer
+
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based import encoder
+
+        texts = ["office", "the family went home", "a career in management"]
+        reference_model = SentenceTransformer("sshleifer/tiny-gpt2", device="cpu")
+        reference_model.tokenizer.pad_token = reference_model.tokenizer.eos_token
+        reference = reference_model.encode(texts, convert_to_numpy=True)
+
+        encoder._load_cls_encoder.cache_clear()
+        # fp32 here so the comparison is about the pooling arithmetic. The
+        # backend's production dtype for causal LMs is bf16 (PLAN.md Sec. 1);
+        # sharing means the embedding metrics now run in the dtype the protocol
+        # block records, instead of a separately loaded copy in the
+        # checkpoint's dtype.
+        HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal", dtype="fp32")._load()
+        with patch.object(encoder, "_load_sentence_transformer",
+                          side_effect=AssertionError("must not load a second copy")):
+            out = embed(texts, model_name="sshleifer/tiny-gpt2", pooling="mean")
+        assert out.shape == reference.shape
+        assert np.allclose(out, reference, atol=1e-5)
+
+    def test_an_encoder_backend_keeps_the_sentence_transformers_path(self):
+        # Sentence-transformers checkpoints (all-MiniLM, all-mpnet) carry their
+        # own pooling config; only a causal LM's registration covers mean pooling.
+        from bias_scope.embeddings_based import encoder
+
+        encoder.share_encoder("some/encoder", lambda: (None, None), mean_pooling=False)
+        assert "some/encoder" not in encoder._SHARED_MEAN_POOL
+        encoder.share_encoder("some/causal", lambda: (None, None), mean_pooling=True)
+        assert "some/causal" in encoder._SHARED_MEAN_POOL
+
+    def test_registration_happens_at_construction_and_loads_lazily(self):
+        # RL-078: with every generation served from the cache the backend never
+        # loaded, so a registration made inside _load never happened and WEAT
+        # fell back to the sentence-transformers loader.
+        from bias_scope.backends import HuggingFaceBackend
+        from bias_scope.embeddings_based import encoder
+
+        encoder._load_cls_encoder.cache_clear()
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal", dtype="fp32")
+        assert backend._model is None                      # nothing loaded yet
+        _, shared = encoder._load_cls_encoder("sshleifer/tiny-gpt2")
+        assert backend._model is not None                  # loaded on demand
+        assert shared is backend._model.base_model

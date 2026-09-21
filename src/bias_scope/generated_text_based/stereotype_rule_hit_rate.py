@@ -299,6 +299,15 @@ class StereotypeRuleHitRate(GeneratedTextMetric):
             "metric": "StereotypeRuleHitRate",
             "category": self.category,
             "matcher": matcher,
+            # The headline: how often any rule fired, per 1,000 generations.
+            "bias_score": any_hit_rate,
+            "n": len(per_generation),
+            # Per 1,000 generations, matching `bias_score`. A 0/1 indicator
+            # here would make the bootstrap interval a proportion while the
+            # score is a rate, and the interval would not bracket it.
+            "per_item": [
+                1000.0 if entry["any_hit"] else 0.0 for entry in per_generation
+            ],
             "context_window": context_window,
             "rules": rules_results,
             "overall": {

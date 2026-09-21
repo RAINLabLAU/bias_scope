@@ -130,6 +130,7 @@ _attach_metric_info()
 
 _PROMPT_EXPORTS = {
     "AnalogicalReasoningBias",
+    "CounterfactualAnalogyDiagnostic",
     "WinoBias",
     "ImplicitAssociationTest",
     "LLMDecisionBias",
@@ -262,6 +263,7 @@ __all__ = [
     "PerspectiveAPIClient",
     "PsycholinguisticNorms",
     "AnalogicalReasoningBias",
+    "CounterfactualAnalogyDiagnostic",
     "BBQMetric",
     "BOLD",
     "FirstPersonFairness",

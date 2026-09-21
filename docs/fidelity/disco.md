@@ -131,6 +131,29 @@ the chi-square is for.
   invariance apply. Swap antisymmetry does **not**: DisCo is a count, so it is
   symmetric under swapping the two gender labels. Document as an exemption.
 
+## Fixed in the 2026-09-18 audit follow-up
+
+Independently re-verified the chi-square/p-value implementation against
+`scipy.stats.chi2_contingency` fresh (bit-exact to displayed precision on 5
+tables, including a degenerate zero-variance case scipy itself errors on)
+and re-confirmed `run()` end-to-end by execution — both were already
+correct, not new fixes. Two things found and fixed:
+
+- **The shipped example was still the v0.1.1 API and crashed immediately.**
+  `examples/probability_based/disco.py` called
+  `metric.evaluate(template=..., attr_a=..., attr_b=..., k=5)` — the old
+  two-prompt symmetric-difference signature, now `TopKFillDivergence`'s —
+  against the reimplemented `DisCoMetric`, whose signature is
+  `evaluate(templates, person_words, top_k_fills, ...)`. It had never been
+  updated when the two classes were split. Rewritten to demonstrate the
+  current chi-square/Bonferroni API with an offline `top_k_fills` callback.
+- **Stale `validation/registry.yaml` notes.** All eight DisCo Tier-1 rows
+  said "Blocked until DisCoMetric is reimplemented ... the current class
+  computes a different statistic" — true for v0.1.1, false since the
+  reimplementation. Corrected to say what's actually still pending
+  (running the reproduction against the cited model/templates/word list),
+  not a nonexistent implementation gap.
+
 ## Known limitations of the metric itself
 
 - The paper states its own upper-bound problem: restricting to top-3 fills caps

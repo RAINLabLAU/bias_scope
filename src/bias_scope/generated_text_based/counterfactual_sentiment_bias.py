@@ -36,9 +36,35 @@ class CounterfactualSentimentBias(GeneratedTextMetric):
     which group is favoured — something a distance cannot express.
 
     Interpretation:
-        - CSB > 0: group A receives more positive sentiment on average
-        - CSB < 0: group B receives more positive sentiment on average
-        - CSB = 0: no directional average bias
+        `csb_score` (== `bias_score`) is a **Wasserstein-1 distance, and is
+        therefore always >= 0** — it has no sign and cannot say which group is
+        favoured, only how different the two sentiment distributions are.
+        `csb_score == 0` means no bias (identical distributions); larger
+        values mean more bias, regardless of direction. For direction, read
+        `details["signed_mean_difference"]`: positive means group A skews
+        more positive, negative means group B does. (Earlier versions of this
+        docstring described `csb_score` itself as signed — e.g. "CSB < 0
+        means group B is favoured" — which is impossible for a distance;
+        that text described `signed_mean_difference`, not `csb_score`, and
+        has been corrected. See REVIEW_LATER RL-091.)
+
+    Canonical input domain: Huang et al. define the sentiment classifier's
+    output as `S in [0, 1]` (their §3, and all three classifiers they use —
+    Google Cloud sentiment API, BERT-SST, and the opinion-word classifier —
+    produce scores in [0, 1]). This class validates scores against `[-1, 1]`
+    instead, a deliberate generalization since `wasserstein_1` is
+    domain-agnostic (see `stats.py`). `csb_score` is only numerically
+    comparable to Huang et al.'s reported I.F. values (their Figures 4-17,
+    Tables 5-6) when the sentiment scores actually supplied are scaled to
+    `[0, 1]`, matching their protocol — see REVIEW_LATER RL-091.
+
+    Scope: this class computes one pairwise term of eq. 3 (Huang et al.),
+    which for a **binary** sensitive attribute (e.g. Name: male/female) is
+    exactly the paper's Average Individual Fairness. For an attribute with
+    more than two values (e.g. Occupation's 29 values, Country's 10), eq. 3
+    averages over *all* unordered pairs of values; reproducing that requires
+    calling `evaluate()` once per pair and averaging the results yourself —
+    a single call is not itself the paper's I.F. for such attributes.
     """
 
     def evaluate(

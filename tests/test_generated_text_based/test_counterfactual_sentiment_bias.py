@@ -128,3 +128,46 @@ def test_counterfactual_sentiment_bias_details():
 def test_counterfactual_sentiment_bias_category_property():
     metric = CounterfactualSentimentBias()
     assert metric.category == "generated_text"
+
+
+def test_csb_score_is_nonnegative_even_when_group_b_is_clearly_favoured():
+    """RL-091: csb_score is a Wasserstein-1 distance, so it is always >= 0
+    and cannot indicate direction - it does NOT go negative when group B is
+    favoured, unlike the old (retired) 'CSB < 0 means B is favoured' claim.
+    Direction lives in signed_mean_difference instead."""
+    metric = CounterfactualSentimentBias()
+
+    group_a_completions = [["a1", "a2", "a3"]]
+    group_b_completions = [["b1", "b2", "b3"]]
+    group_a_scores = [[-0.9, -0.8, -0.7]]  # A strongly negative
+    group_b_scores = [[0.7, 0.8, 0.9]]  # B strongly positive: B is favoured
+
+    result = metric.evaluate(
+        group_a_completions,
+        group_b_completions,
+        group_a_scores,
+        group_b_scores,
+        return_details=True,
+    )
+
+    assert result["csb_score"] >= 0.0
+    assert result["csb_score"] == pytest.approx(1.6)
+    # Direction is only visible in signed_mean_difference, which IS negative
+    # here (correctly indicating B is favoured).
+    assert result["signed_mean_difference"] < 0.0
+
+
+def test_csb_score_is_symmetric_under_group_swap():
+    """A distance is symmetric: swapping groups A and B must not change
+    csb_score, unlike signed_mean_difference which flips sign."""
+    metric = CounterfactualSentimentBias()
+
+    completions_1 = [["x1", "x2"]]
+    completions_2 = [["y1", "y2"]]
+    scores_1 = [[0.9, 0.1]]
+    scores_2 = [[0.2, 0.6]]
+
+    forward = metric.evaluate(completions_1, completions_2, scores_1, scores_2)
+    backward = metric.evaluate(completions_2, completions_1, scores_2, scores_1)
+
+    assert forward == pytest.approx(backward)

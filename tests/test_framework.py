@@ -2,6 +2,8 @@
 
 Includes the acceptance checks 5.4 lists, each as a named test:
 
+
+
 - the selected metric set equals exactly the metrics whose access ⊆ backend
   access and whose languages ∋ language
 - a second `suite.run()` on the same model makes zero generation calls
@@ -16,6 +18,7 @@ Includes the acceptance checks 5.4 lists, each as a named test:
 from html.parser import HTMLParser
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from bias_scope.backends import (
@@ -194,9 +197,9 @@ class TestRecommend:
             assert "fr" in rec.info.languages
 
     def test_truthfulqa_is_excluded_as_not_social_bias(self):
-        names = {r.metric for r in recommend_metrics(("chat",))}
+        names = {r.metric for r in recommend_metrics(("logits",))}
         assert "TruthfulQA" not in names
-        opted_in = {r.metric for r in recommend_metrics(("chat",), include_non_bias=True)}
+        opted_in = {r.metric for r in recommend_metrics(("logits",), include_non_bias=True)}
         assert "TruthfulQA" in opted_in
 
     def test_empty_access_raises(self):
@@ -228,6 +231,31 @@ class TestSuite:
         suite = BiasSuite(StubBackend(), metrics=["NotAMetric"])
         with pytest.raises(ValueError, match="unknown metric"):
             suite.plan()
+
+    def test_a_metric_whose_extra_is_missing_is_not_called_unknown(self, monkeypatch):
+        """`list_metrics()` only contains metrics that imported successfully, so
+        a metric whose optional dependency is absent looks identical to a typo.
+        Saying "unknown metric" sends the user hunting for a misspelling and,
+        via bias_scope_agent, makes the agent tell them the metric does not
+        exist. REVIEW_LATER RL-047.
+        """
+        from bias_scope import suite as suite_module
+
+        installed = suite_module.list_metrics()
+        monkeypatch.setattr(
+            suite_module,
+            "list_metrics",
+            lambda *a, **k: {n: i for n, i in installed.items() if n != "BBQMetric"},
+        )
+        suite = BiasSuite(StubBackend(access=("chat",)), metrics=["BBQMetric"])
+
+        with pytest.raises(ValueError) as excinfo:
+            suite.plan()
+
+        message = str(excinfo.value)
+        assert "unknown metric" not in message
+        assert "BBQMetric" in message
+        assert "bias-scope[" in message
 
     def test_metrics_without_inputs_are_skipped_not_zeroed(self):
         """A missing number is information; a fabricated one is a defect."""
@@ -465,3 +493,265 @@ class TestReportFormats:
         target = tmp_path / "nested" / "report.html"
         to_html(self._report(), target)
         assert target.exists() and target.read_text().startswith("<!doctype html>")
+
+
+class TestCausalBackendDoesNotAdvertiseMaskedLmLogits:
+    """RL-057: a causal HF backend declared `logits`, so all 11 probability
+    metrics were recommended for it and every one of them then failed.
+
+    Every consumer of `logits` in this library is a masked-LM scorer:
+    scorers.py builds `AutoModelForMaskedLM` (BertPLLScorer,
+    WordPieceBertScorer), cbs.py and topk_fill_divergence.py load it directly,
+    and LPBS/DisCoMetric require a caller-supplied masked-token predictor.
+    A causal LM has next-token logits and no masked-token prediction, so
+    `AutoModelForMaskedLM.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")` raises
+    "Unrecognized configuration class". Advertising `logits` for a causal
+    backend was therefore a promise nothing could keep - confirmed live on
+    CrowSPairs, AUL, AULA, LMB and PairwiseLikelihoodPreference.
+    """
+
+    def test_causal_backend_offers_embeddings_and_completions_only(self):
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        assert backend.access == ("embeddings", "completions")
+
+    def test_encoder_backend_still_offers_logits(self):
+        backend = HuggingFaceBackend("prajjwal1/bert-tiny", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+
+    def test_no_probability_metric_is_recommended_for_a_causal_backend(self):
+        backend = HuggingFaceBackend("sshleifer/tiny-gpt2", kind="causal")
+        recommended = recommend_metrics(access=backend.access, axis="gender", language="en")
+        families = {rec.info.family for rec in recommended}
+        assert "probability" not in families, sorted(families)
+
+
+class TestEncoderWithoutAMaskedLmHeadDoesNotAdvertiseLogits:
+    """RL-058: a checkpoint with no LM head scored with a random one.
+
+    `sentence-transformers/all-MiniLM-L6-v2` has architectures ['BertModel'] -
+    no masked-LM head at all. Loading it through `AutoModelForMaskedLM` does
+    not fail: transformers newly initializes the missing `cls.predictions.*`
+    weights and warns. Every masked-LM metric then returned a number computed
+    from randomly initialized weights, and CrowSPairs on that model produced a
+    plausible-looking 0.4000. Nothing downstream can tell such a score from a
+    real one, which makes it the worst kind of wrong.
+    """
+
+    def test_logits_is_withheld_when_the_checkpoint_has_no_lm_head(self, monkeypatch):
+        monkeypatch.setattr(
+            "bias_scope.backends._has_masked_lm_head", lambda model_id: False
+        )
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+    def test_logits_is_offered_when_the_checkpoint_has_one(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: True)
+        assert HuggingFaceBackend("bert-base-uncased", kind="encoder").access == (
+            "embeddings",
+            "logits",
+        )
+
+    def test_an_unreadable_config_keeps_the_previous_behaviour(self, monkeypatch):
+        # Offline, or a local path with no config: stay optimistic rather than
+        # silently disabling half the library, and record that it is unverified.
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: None)
+        backend = HuggingFaceBackend("whatever", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is False
+
+    def test_no_masked_lm_metric_is_recommended_without_a_head(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._has_masked_lm_head", lambda model_id: False)
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        recommended = recommend_metrics(access=backend.access, axis="gender", language="en")
+        assert "probability" not in {rec.info.family for rec in recommended}
+
+
+class TestAConfigThatClaimsAHeadTheCheckpointDoesNotShip:
+    """RL-066: RL-058 again, past the config check.
+
+    `sentence-transformers/all-mpnet-base-v2` lists `MPNetForMaskedLM` in its
+    config, so the architecture-name check said "has a head" - but the
+    checkpoint ships no `lm_head.*` weights at all (six MISSING keys at load).
+    transformers initialised them at random and the agent recorded five
+    `[faithful]` probability scores from that head: CrowSPairs 48.85, AULA
+    exactly 50.00. The config is a claim; the weights are the fact.
+    """
+
+    def test_missing_head_weights_withhold_logits(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: False)
+        backend = HuggingFaceBackend("sentence-transformers/all-mpnet-base-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+        assert backend.lm_head_verified is False
+
+    def test_present_head_weights_verify_the_head(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: True)
+        backend = HuggingFaceBackend("bert-base-cased", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is True
+
+    def test_a_config_without_a_head_is_settled_before_any_weights_are_read(self, monkeypatch):
+        def never(model_id):
+            raise AssertionError("weights must not be read when the config already says no")
+
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: False)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", never)
+        backend = HuggingFaceBackend("sentence-transformers/all-MiniLM-L6-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+    def test_unreadable_weights_leave_the_head_unverified_but_offered(self, monkeypatch):
+        monkeypatch.setattr("bias_scope.backends._config_claims_masked_lm", lambda m: True)
+        monkeypatch.setattr("bias_scope.backends._checkpoint_has_head_weights", lambda m: None)
+        backend = HuggingFaceBackend("whatever", kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is False
+
+    def test_the_tiny_encoder_really_has_its_head(self):
+        # No monkeypatching: the real check on the real test checkpoint, so the
+        # fast suite proves the weight check does not reject a genuine MLM.
+        from tests.conftest import TINY_ENCODER_ID
+
+        backend = HuggingFaceBackend(TINY_ENCODER_ID, kind="encoder")
+        assert backend.access == ("embeddings", "logits")
+        assert backend.lm_head_verified is True
+
+    @pytest.mark.slow
+    def test_all_mpnet_base_v2_really_has_no_head(self):
+        backend = HuggingFaceBackend("sentence-transformers/all-mpnet-base-v2", kind="encoder")
+        assert backend.access == ("embeddings",)
+
+
+class TestRunDoesNotMutateTheCallersInputs:
+    """RL-054: `BiasSuite.run` popped "__init__" out of the dict it was given.
+
+    Two consequences. Calling `run(inputs=x)` twice with the same `x` silently
+    dropped every metric's constructor arguments on the second call, so the
+    second run either failed or - worse - constructed the metric differently.
+    And a caller that recorded `inputs` for a transcript found the record
+    altered after the fact, which cost a wrong conclusion once in this project
+    (the log appeared to show an agent omitting an argument it had supplied).
+    """
+
+    def test_the_inputs_dict_is_unchanged_after_a_run(self):
+        import numpy as np
+
+        backend = StubBackend(access=("embeddings",), model_id="stub/model")
+        inputs = {
+            "WEAT": {
+                "__init__": {},
+                "target_embeddings": (
+                    np.array([[1.0, 0.0], [0.9, 0.1]]),
+                    np.array([[0.0, 1.0], [0.1, 0.9]]),
+                ),
+                "attribute_embeddings": (
+                    np.array([[1.0, 0.0], [0.95, 0.05]]),
+                    np.array([[0.0, 1.0], [0.05, 0.95]]),
+                ),
+            }
+        }
+        before = {name: sorted(block) for name, block in inputs.items()}
+        BiasSuite(backend, metrics=["WEAT"]).run(inputs=inputs)
+        assert {name: sorted(block) for name, block in inputs.items()} == before
+
+    def test_the_same_inputs_can_be_run_twice(self):
+        import numpy as np
+
+        backend = StubBackend(access=("embeddings",), model_id="stub/model")
+        inputs = {
+            "WEAT": {
+                "__init__": {},
+                "target_embeddings": (
+                    np.array([[1.0, 0.0], [0.9, 0.1]]),
+                    np.array([[0.0, 1.0], [0.1, 0.9]]),
+                ),
+                "attribute_embeddings": (
+                    np.array([[1.0, 0.0], [0.95, 0.05]]),
+                    np.array([[0.0, 1.0], [0.05, 0.95]]),
+                ),
+            }
+        }
+        suite = BiasSuite(backend, metrics=["WEAT"])
+        first = suite.run(inputs=inputs)
+        second = suite.run(inputs=inputs)
+        assert first.scores() == second.scores()
+        assert second.skipped == {}
+
+
+class TestAProviderCanRecordAProtocolDeviation:
+    """A dataset provider that substitutes a resource (a local toxicity
+    classifier for the Perspective API, a Wikipedia corpus for CEAT's Reddit
+    sample) changes the protocol without changing the metric class, whose
+    `fidelity` badge is static. The substitution must reach the result's
+    protocol block, or the report badges an adaptation as faithful.
+
+    `inputs[<metric>]["__protocol__"]` is merged into the protocol kwargs the
+    suite already passes to `run()`, next to `"__init__"`.
+    """
+
+    _WEAT = {
+        "target_embeddings": (
+            np.array([[1.0, 0.0], [0.9, 0.1], [0.8, 0.2]]),
+            np.array([[0.0, 1.0], [0.1, 0.9], [0.2, 0.8]]),
+        ),
+        "attribute_embeddings": (
+            np.array([[1.0, 0.0], [0.95, 0.05], [0.9, 0.1]]),
+            np.array([[0.0, 1.0], [0.05, 0.95], [0.1, 0.9]]),
+        ),
+    }
+
+    def test_resources_under___protocol___reach_the_result(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        resources = [{"name": "corpus", "source": "x", "deviation": "substitute corpus"}]
+        inputs = {"WEAT": {**self._WEAT, "__protocol__": {"resources": resources}}}
+        report = suite.run(inputs=inputs)
+        assert report.results[0].protocol["resources"] == resources
+
+    def test_the_key_is_not_passed_to_evaluate(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        report = suite.run(inputs={"WEAT": {**self._WEAT, "__protocol__": {}}})
+        assert not report.skipped, report.skipped
+
+    def test_without_the_key_the_protocol_is_unchanged(self):
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT"])
+        report = suite.run(inputs={"WEAT": dict(self._WEAT)})
+        assert report.results[0].protocol["resources"] == []
+
+
+class TestOneMetricsLoaderFailureDoesNotLoseTheRun:
+    """RL-078: on google/gemma-3-1b-it one metric's model loader raised an
+    OSError. `BiasSuite.run` caught only four exception types, so the error
+    escaped, `run_suite` failed as a whole, and eight metrics that would have
+    scored were lost with it. Any exception from one metric is that metric's
+    skip reason; the others still run.
+    """
+
+    def test_an_oserror_in_one_metric_is_a_skip_not_a_crash(self, monkeypatch):
+        from bias_scope.embeddings_based import seat as seat_module
+
+        weat_inputs = TestAProviderCanRecordAProtocolDeviation._WEAT
+        backend = StubBackend(access=("embeddings",))
+        suite = BiasSuite(backend, axis="gender", language="en", metrics=["WEAT", "SEAT"])
+
+        def boom(self, *args, **kwargs):
+            raise OSError("Can't load image processor for 'x'")
+
+        # SEAT delegates to WEAT internally, so the failing one is SEAT here.
+        monkeypatch.setattr(seat_module.SEAT, "evaluate", boom)
+        report = suite.run(inputs={"WEAT": dict(weat_inputs), "SEAT": dict(weat_inputs)})
+        assert "SEAT" in report.skipped and "image processor" in report.skipped["SEAT"]
+        assert [r.metric for r in report.results] == ["WEAT"]
+
+    def test_on_error_raise_still_raises(self, monkeypatch):
+        from bias_scope.embeddings_based import weat as weat_module
+
+        weat_inputs = TestAProviderCanRecordAProtocolDeviation._WEAT
+        suite = BiasSuite(StubBackend(access=("embeddings",)), axis="gender", language="en",
+                          metrics=["WEAT"])
+        monkeypatch.setattr(weat_module.WEAT, "evaluate",
+                            lambda self, *a, **k: (_ for _ in ()).throw(OSError("boom")))
+        with pytest.raises(OSError):
+            suite.run(inputs={"WEAT": dict(weat_inputs)}, on_error="raise")

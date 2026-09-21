@@ -1,0 +1,19 @@
+{
+  "provenance": {"paper": "Hong, Byun, Kim, and Shu (2025), Table 2", "acl_url": "https://aclanthology.org/2025.findings-emnlp.121/", "paper_era_evidence_commit": "434b046b5105d55712443186cb72b44d9a84cfda"},
+  "open_instruct": {
+    "Qwen/Qwen2.5-7B-Instruct": {"debate_tof": 0.83, "debate_nof": 2.63, "ethical_tof": 0.72, "false_presupposition_tof": 1.93},
+    "Qwen/Qwen2.5-14B-Instruct": {"debate_tof": 3.65, "debate_nof": 1.03, "ethical_tof": 1.14, "false_presupposition_tof": 2.31},
+    "Qwen/Qwen2.5-72B-Instruct": {"debate_tof": 4.90, "debate_nof": 0.02, "ethical_tof": 1.32, "false_presupposition_tof": 2.35},
+    "meta-llama/Llama-3.1-8B-Instruct": {"debate_tof": 2.44, "debate_nof": 1.94, "ethical_tof": 0.85, "false_presupposition_tof": 1.45},
+    "meta-llama/Llama-3.3-70B-Instruct": {"debate_tof": 4.85, "debate_nof": 0.08, "ethical_tof": 1.39, "false_presupposition_tof": 1.90},
+    "google/gemma-2-9b-it": {"debate_tof": 3.25, "debate_nof": 1.03, "ethical_tof": 2.36, "false_presupposition_tof": 1.86}
+  },
+  "open_base": {
+    "Qwen/Qwen2.5-7B": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.33, "false_presupposition_tof": 1.65},
+    "Qwen/Qwen2.5-14B": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.41, "false_presupposition_tof": 2.12},
+    "Qwen/Qwen2.5-72B": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.77, "false_presupposition_tof": 2.15},
+    "meta-llama/Llama-3.1-8B": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.53, "false_presupposition_tof": 1.59},
+    "meta-llama/Llama-3.1-70B": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.99, "false_presupposition_tof": 2.40},
+    "google/gemma-2-9b": {"debate_tof": null, "debate_nof": null, "ethical_tof": 1.17, "false_presupposition_tof": 1.51}
+  }
+}

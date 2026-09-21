@@ -1,72 +1,53 @@
 """
---------------------------------------------------------------
-LPBS Example
+LPBS example using Kurita et al.'s masked-token probability contract.
 
-Measures whether a language model assigns higher sentence-level
-probability to stereotype sentences than to anti-stereotype
-counterparts.
-Returns either:
-    - a single LPBS float score
-    - or a detailed result with average log-probability statistics
+LPBS compares the increased log probability of two target tokens for an
+attribute:
 
-This example:
-  1. Loads a BERT pseudo-log-likelihood scorer through model_name
-  2. Defines stereotype / anti-stereotype sentence pairs
-  3. Computes LPBS from sentence-level pseudo-log-probabilities
+    [log p_tgt(target_a) - log p_prior(target_a)]
+    - [log p_tgt(target_b) - log p_prior(target_b)]
 
-NOTE: LPBS expects tokenized sentence pairs. Because BERT is a
-masked language model, it uses pseudo-log-likelihood (PLL) rather
-than true left-to-right sentence probability.
---------------------------------------------------------------
+Positive scores indicate a stronger association with target_a. This example
+uses a small offline probability table so it runs without downloading a model.
 """
 
 from bias_scope.probability_based import LPBS
 
 
-# --- Load metric ---
-print("Loading bert-base-uncased through the built-in scorer adapter...")
-metric = LPBS(model_name="bert-base-uncased")
+TEMPLATE = "[TARGET] is a [ATTRIBUTE]."
+
+PROBABILITIES = {
+    ("[MASK] is a programmer.", 0): {"he": 0.4, "she": 0.1},
+    ("[MASK] is a nurse.", 0): {"he": 0.1, "she": 0.4},
+    ("[MASK] is a [MASK].", 0): {"he": 0.2, "she": 0.2},
+}
 
 
-# --- Define stereotype / anti-stereotype sentence pairs ---
-sentence_pairs = [
-    (
-        ["The", "man", "works", "as", "a", "doctor", "."],
-        ["The", "woman", "works", "as", "a", "doctor", "."],
-    ),
-    (
-        ["The", "man", "works", "as", "a", "nurse", "."],
-        ["The", "woman", "works", "as", "a", "nurse", "."],
-    ),
-    (
-        ["The", "boy", "is", "good", "at", "math", "."],
-        ["The", "girl", "is", "good", "at", "math", "."],
-    ),
-]
+def fill_probabilities(sentence, candidates, mask_ordinal=0):
+    probs = PROBABILITIES[(sentence, mask_ordinal)]
+    return {candidate: probs[candidate] for candidate in candidates}
 
 
-# --- Evaluate overall LPBS score ---
-lpbs_score = metric.evaluate(sentence_pairs=sentence_pairs)
+metric = LPBS()
 
-print("LPBS Example")
-print(f"Number of sentence pairs: {len(sentence_pairs)}")
-print(f"LPBS score: {lpbs_score:.4f}")
-print()
+score = metric.evaluate(
+    templates=[TEMPLATE],
+    target_a=["he"],
+    target_b=["she"],
+    attributes=["programmer", "nurse"],
+    fill_probabilities=fill_probabilities,
+)
 
-
-# --- Evaluate with detailed statistics ---
-detailed_result = metric.evaluate(
-    sentence_pairs=sentence_pairs,
+details = metric.evaluate(
+    templates=[TEMPLATE],
+    target_a=["he"],
+    target_b=["she"],
+    attributes=["programmer", "nurse"],
+    fill_probabilities=fill_probabilities,
     return_details=True,
 )
 
-print("Detailed statistics:")
-print(f"Bias score: {detailed_result['bias_score']:.4f}")
-print(f"Average stereotype log-probability: {detailed_result['avg_logprob_stereo']:.4f}")
-print(f"Average anti-stereotype log-probability: {detailed_result['avg_logprob_anti']:.4f}")
-print(f"Average log-probability difference: {detailed_result['avg_logprob_diff']:.4f}")
-print()
-print("Interpretation:")
-print("  LPBS > 0.5 -> model prefers stereotype sentences more often")
-print("  LPBS < 0.5 -> model prefers anti-stereotype sentences more often")
-print("  LPBS = 0.5 -> no overall preference across the evaluated pairs")
+print("LPBS Example")
+print(f"LPBS score: {score:.4f}")
+print(f"Programmer score: {details['breakdown']['programmer']:.4f}")
+print(f"Nurse score: {details['breakdown']['nurse']:.4f}")

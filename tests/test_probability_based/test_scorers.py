@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 import torch
 
@@ -19,6 +20,10 @@ def _mock_tokenizer(mask_id: int = 999, vocab_size: int = 1000):
     tok = MagicMock()
     tok.mask_token = "[MASK]"
     tok.mask_token_id = mask_id
+    tok.all_special_ids = [mask_id]
+    tok.get_special_tokens_mask.side_effect = (
+        lambda input_ids, already_has_special_tokens=True: [0] * len(input_ids)
+    )
 
     def encode(text, add_special_tokens=True):
         # single-char tokens: id = ord(c). No special tokens.
@@ -116,6 +121,42 @@ class TestBertPLLScorerMultiPiece:
             prob = scorer.masked_token_probability(["hello", "[MASK]", "world"], "ab")
         assert 0.0 <= prob <= 1.0
 
+    def test_multi_piece_candidate_uses_arithmetic_mean_of_subtoken_probs(self):
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        tokenizer = _mock_tokenizer(mask_id=999)
+        model = _mock_mlm()
+        calls = {"count": 0}
+
+        def forward(**kwargs):
+            input_ids = kwargs["input_ids"]
+            n = input_ids.shape[1]
+            logits = torch.full((1, n, 1000), -1000.0)
+            mask_pos = (input_ids[0] == 999).nonzero(as_tuple=False).flatten().tolist()
+            step = calls["count"]
+            calls["count"] += 1
+            target_id = ord("a") if step == 0 else ord("b")
+            target_prob = 0.75 if step == 0 else 0.25
+            logits[0, mask_pos[0], 0] = 0.0
+            logits[0, mask_pos[0], target_id] = np.log(target_prob / (1 - target_prob))
+            out = MagicMock()
+            out.logits = logits
+            out.attentions = (torch.full((1, 1, n, n), 1.0 / n),)
+            return out
+
+        model.forward = forward
+        model.side_effect = forward
+        with patch("transformers.AutoTokenizer") as auto_tok, patch(
+            "transformers.AutoModelForMaskedLM"
+        ) as auto_mlm:
+            auto_tok.from_pretrained.return_value = tokenizer
+            auto_mlm.from_pretrained.return_value = model
+            scorer = BertPLLScorer(model_name="fake", device="cpu")
+            prob = scorer.masked_token_probability(["The", "[MASK]", "works"], "ab")
+
+        assert prob == pytest.approx(0.5, abs=1e-6)
+        assert prob != pytest.approx(0.75 * 0.25, abs=1e-6)
+
     def test_single_piece_path_unchanged(self):
         from bias_scope.probability_based.scorers import BertPLLScorer
 
@@ -207,3 +248,33 @@ class TestWordPieceBertScorerProtocol:
         aul, aula = scorer.aul_aula([1, 2, 3, 4, 5])
         assert isinstance(aul, float)
         assert isinstance(aula, float)
+
+
+class TestStringContextWithPunctuationGluedToTheMask:
+    """CAT (as audited 2026-09) hands the scorer a raw string with one [MASK].
+    StereoSet writes most blanks next to punctuation ("...is BLANK."), so a
+    plain `split()` yields the token "[MASK]." and the scorer counted zero
+    masks - every real-model CAT/ICAT run failed at the merge (2026-09-20).
+    The mask must be separated from whatever is glued to it.
+    """
+
+    def _scorer(self):
+        from tests.conftest import TINY_ENCODER_ID
+
+        from bias_scope.probability_based.scorers import BertPLLScorer
+
+        return BertPLLScorer(model_name=TINY_ENCODER_ID)
+
+    def test_a_mask_glued_to_a_full_stop_is_still_one_mask(self):
+        prob = self._scorer().masked_token_probability("The doctor said [MASK].", "yes")
+        assert 0.0 < prob <= 1.0
+
+    def test_a_mask_inside_a_word_boundary_string_is_found(self):
+        prob = self._scorer().masked_token_probability("She is a [MASK], truly.", "nurse")
+        assert 0.0 < prob <= 1.0
+
+    def test_two_masks_are_still_rejected(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="exactly one mask"):
+            self._scorer().masked_token_probability("[MASK] and [MASK].", "x")

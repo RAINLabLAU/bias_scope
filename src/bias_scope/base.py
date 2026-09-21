@@ -30,6 +30,18 @@ class BiasMetric(ABC):
     ...         return 0.5
     """
 
+    #: The key in `evaluate()`'s result holding the bias score, for metrics
+    #: whose result carries several numbers and whose headline cannot be
+    #: inferred from the dict's shape. Empty means "infer it" (RL-061).
+    headline_key: ClassVar[str] = ""
+
+    #: The key holding the number of items scored, for metrics that report
+    #: several counts and so cannot be read by name alone - HONEST reports
+    #: templates, candidates and hurtful candidates, and only the paper says
+    #: which one `n` means. Empty means "use the recognised names" (RL-063).
+    count_key: ClassVar[str] = ""
+
+
     def __repr__(self) -> str:
         """Return a scikit-learn-style representation of the metric config."""
         try:
@@ -146,9 +158,9 @@ class BiasMetric(ABC):
         seed_everything(seed)
 
         raw = self._call_evaluate(*args, **kwargs)
-        score, details = self._split_result(raw)
+        score, details = self._split_result(raw, self.headline_key)
         per_item = self._extract_per_item(details)
-        n = self._count_items(details, per_item)
+        n = self._count_items(details, per_item, self.count_key)
 
         interval, method, p_value = self._interval(score, per_item, n, ci, seed)
         # A metric that computes its own significance test reports it under a
@@ -184,7 +196,7 @@ class BiasMetric(ABC):
         return self.evaluate(*args, **kwargs)
 
     @staticmethod
-    def _split_result(raw: Any) -> Tuple[float, Dict[str, Any]]:
+    def _split_result(raw: Any, headline_key: str = "") -> Tuple[float, Dict[str, Any]]:
         """Pull the headline score and the details dict out of what came back."""
         if isinstance(raw, (int, float)) and not isinstance(raw, bool):
             return float(raw), {}
@@ -194,17 +206,57 @@ class BiasMetric(ABC):
                 "or a dict"
             )
 
+        # A metric whose result carries several numbers names its own headline
+        # (see `headline_key`). CAT returns lms and ss; only the paper says
+        # which is the bias score, so the metric states it rather than letting
+        # this function infer it from the dict's shape (RL-061).
+        if headline_key:
+            value = raw.get(headline_key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value), raw
+            raise BiasScopeError(
+                f"declared headline_key {headline_key!r} is not a number in "
+                f"evaluate()'s result; found keys {sorted(raw)}"
+            )
+
+        # A metric may decline to score, and say why: HELM drops instances with
+        # no group mention rather than calling them unbiased, and our HELM
+        # metrics follow that with `bias_score: None` plus `undefined_reason`.
+        # Surfacing the metric's own sentence beats "cannot find a headline
+        # score", which reads like a defect in the metric (RL-064).
+        if "bias_score" in raw and raw["bias_score"] is None:
+            reason = raw.get("undefined_reason") or ""
+            raise BiasScopeError(
+                f"the metric declined to produce a score: {reason}"
+                if reason
+                else "the metric declined to produce a score and gave no reason"
+            )
+
         # Metrics use different names for their headline number. Try the
         # documented ones in order rather than guessing from the dict.
         for key in ("bias_score", "score", "value", "effect_size"):
             if key in raw and isinstance(raw[key], (int, float)):
                 return float(raw[key]), raw
 
+        # Several metrics name the number after themselves instead
+        # ("crows_pairs_score", "aul_score", "aula_score", "ceat_score").
+        # Accept exactly one such key: two would be a guess, and a guessed
+        # score is the fabrication PLAN.md Section 1 forbids (RL-041).
+        suffixed = [
+            key
+            for key, value in raw.items()
+            if key.endswith("_score")
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ]
+        if len(suffixed) == 1:
+            return float(raw[suffixed[0]]), raw
+
         numeric = [k for k, v in raw.items() if isinstance(v, (int, float))]
         raise BiasScopeError(
             f"cannot find a headline score in evaluate()'s result; expected one "
-            f"of 'bias_score', 'score', 'value', 'effect_size', found numeric "
-            f"keys {numeric}"
+            f"of 'bias_score', 'score', 'value', 'effect_size', or exactly one "
+            f"'<name>_score' key, found numeric keys {numeric}"
         )
 
     @staticmethod
@@ -219,15 +271,39 @@ class BiasMetric(ABC):
             return None
 
     @staticmethod
-    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+    def _count_items(
+        details: Dict[str, Any], per_item: Optional[List[float]], count_key: str = ""
+    ) -> int:
         """`n` is the number of items actually scored."""
         if per_item is not None:
             return len(per_item)
+        # A metric that reports several counts names the one `n` means.
+        if count_key:
+            value = details.get(count_key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                if value > 0 and float(value).is_integer():
+                    return int(value)
+            raise BiasScopeError(
+                f"declared count_key {count_key!r} is not a positive whole number "
+                f"in evaluate()'s result; found keys {sorted(details)}"
+            )
+        # "n_samples" is CEAT's: Guo & Caliskan draw N samples, each giving one
+        # effect size and one variance, then pool them with `df = N - 1`
+        # (third_party/code/CEAT/code/ceat.py:205-243). The degrees of freedom
+        # say plainly that N is the number of observations the random-effects
+        # model pools, so it is the count `n` carries (REVIEW_LATER RL-048).
+        # "n_examples" is CAT's and ICAT's: the number of StereoSet test cases
+        # actually scored, which is what `n` means (RL-061).
         for key in ("n", "num_items", "num_pairs", "num_rows_evaluated",
-                    "num_prompts", "num_generations"):
+                    "num_prompts", "num_generations", "n_samples", "n_examples"):
             value = details.get(key)
-            if isinstance(value, int) and value > 0:
-                return value
+            # A count computed through numpy or a division arrives as a whole
+            # float (CrowS-Pairs reports `num_pairs: 2.0`). That is a count;
+            # 2.5 is not. This guard is for "scored nothing", not for type.
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if value > 0 and float(value).is_integer():
+                return int(value)
         return 0
 
     @staticmethod
@@ -258,12 +334,37 @@ class BiasMetric(ABC):
         """
         from bias_scope.stats import bootstrap_ci, wald_ci
 
-        if ci == "none" or per_item is None or not per_item:
+        if ci == "none":
             return None, "none", None
+
         if ci == "wald":
-            return wald_ci(score, n), "wald", None
+            # wald_ci is a Wald interval for a PROPORTION: it needs `score`
+            # and `n`, not item-level data, so unlike bootstrap it does not
+            # require per_item. It only applies when the metric's score is a
+            # proportion over a finite range (PLAN.md 5.3's "Wald for
+            # proportions" case: CrowS-Pairs, AUL, AULA, and similar
+            # percentage-scale metrics). A metric without a finite bounded
+            # `value_range` (a signed effect size, an unbounded statistic)
+            # has no proportion for a Wald interval to describe.
+            if n <= 0:
+                return None, "none", None
+            low, high = self._resolve_info().value_range
+            if not (math.isfinite(low) and math.isfinite(high) and high > low):
+                return None, "none", None
+            p = (score - low) / (high - low)
+            p = min(1.0, max(0.0, p))  # guard float slop at the boundary
+            p_low, p_high = wald_ci(p, n)
+            return (
+                (low + p_low * (high - low), low + p_high * (high - low)),
+                "wald",
+                None,
+            )
+
         if ci == "bootstrap":
+            if per_item is None or not per_item:
+                return None, "none", None
             return bootstrap_ci(per_item, seed=seed), "bootstrap", None
+
         raise ValueError(f"ci must be 'bootstrap', 'wald', or 'none', got {ci!r}")
 
     def _resolve_info(self) -> "MetricInfo":
@@ -373,14 +474,17 @@ class EmbeddingMetric(BiasMetric):
         return None
 
     @staticmethod
-    def _count_items(details: Dict[str, Any], per_item: Optional[List[float]]) -> int:
+    def _count_items(
+        details: Dict[str, Any], per_item: Optional[List[float]], count_key: str = ""
+    ) -> int:
         """For an effect size, `n` is the number of target stimuli scored."""
         if per_item is not None:
             return len(per_item)
-        sizes = EmbeddingMetric._group_sizes(details)
-        if sizes is not None:
-            return sizes[0] + sizes[1]
-        return BiasMetric._count_items(details, per_item)
+        if not count_key:
+            sizes = EmbeddingMetric._group_sizes(details)
+            if sizes is not None:
+                return sizes[0] + sizes[1]
+        return BiasMetric._count_items(details, per_item, count_key)
 
     def _interval(
         self,
@@ -430,6 +534,12 @@ class EmbeddingMetric(BiasMetric):
         Raises:
             ValueError: If validation fails
         """
+        if embeddings.ndim != 2:
+            raise ValueError(
+                f"{name} must be a rank-2 embedding matrix with shape "
+                f"(n_embeddings, embedding_dim). Got shape {embeddings.shape}."
+            )
+
         if len(embeddings) == 0:
             raise ValueError(f"{name} cannot be empty")
 
@@ -438,6 +548,11 @@ class EmbeddingMetric(BiasMetric):
 
         if np.isinf(embeddings).any():
             raise ValueError(f"{name} contains Inf values")
+
+        if np.any(np.linalg.norm(embeddings, axis=1) == 0):
+            raise ValueError(
+                f"{name} contains a zero-norm embedding; cosine similarity is undefined."
+            )
 
 
 class ProbabilityMetric(BiasMetric):
