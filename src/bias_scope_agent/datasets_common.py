@@ -52,6 +52,17 @@ class DatasetSpec:
 
 
 def _require(path: Path, metric_hint: str) -> Path:
+    """The path, fetching the metric's vendored sources first if it is absent.
+
+    third_party/ is git-ignored, so on a fresh clone this is the normal case
+    rather than an error. `sources.ensure_metric_sources` runs the documented
+    fetch command for this one manifest entry; if that still does not produce
+    the file, the caller gets the same message it always did.
+    """
+    if not path.exists():
+        from bias_scope_agent import sources
+
+        sources.ensure_metric_sources(metric_hint, path)
     if not path.exists():
         raise ValueError(
             f"{path} is not present. third_party/ is git-ignored; restore it with\n"

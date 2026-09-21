@@ -4,7 +4,7 @@
 For each requested metric entry in sources/SOURCES.yaml:
   1. downloads `paper.url` to `paper.local_pdf` under sources/papers/
   2. extracts its text alongside as `<name>.txt` with pypdf, for reading
-  3. shallow-clones `code.url` at `code.sha` into `code.local_path`
+  3. blobless-clones `code.url` at `code.sha` into `code.local_path`
   4. stamps `retrieved_on` with today's date
 
 Downloading is not reading. This script only puts the sources on disk; the gate
@@ -74,7 +74,14 @@ def _clone(url: str, sha: str, dest: Path) -> None:
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"    code: cloning {url}")
-    subprocess.run(["git", "clone", "--quiet", url, str(dest)], check=True)
+    # `--filter=blob:none` keeps the full commit graph, so the pinned `sha`
+    # below still resolves, but file contents arrive only for the checked-out
+    # tree. A plain clone of a data-carrying repo pulls every blob of every
+    # revision: `unintended-ml-bias-analysis` ran for two hours and was still
+    # going (REVIEW_LATER.md RL-100). The docstring already said "shallow".
+    subprocess.run(
+        ["git", "clone", "--quiet", "--filter=blob:none", url, str(dest)], check=True
+    )
     if sha and not str(sha).startswith("<"):
         subprocess.run(["git", "-C", str(dest), "checkout", "--quiet", sha], check=True)
         print(f"    code: checked out {sha}")

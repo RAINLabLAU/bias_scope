@@ -23,7 +23,7 @@ metrics:
     - evaluate.py:86-107 (calculate_aul; [1:-1] strips CLS/SEP; attention averaged
       over all layers and heads; plain mean, no renormalisation)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/aul_aula.md. AUL faithful. AULA fixed in 0.2.0: v0.1.1
     renormalised attention weights (sum(a*logP)/sum(a)) instead of the paper''s (1/|S|)sum(a*logP);
     the difference varies per sentence and can flip the pairwise indicator. PLAN.md
@@ -53,7 +53,7 @@ metrics:
     - evaluate.py:86-107 (calculate_aul; [1:-1] strips CLS/SEP; attention averaged
       over all layers and heads; plain mean, no renormalisation)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/aul_aula.md. AUL faithful. AULA fixed in 0.2.0: v0.1.1
     renormalised attention weights (sum(a*logP)/sum(a)) instead of the paper''s (1/|S|)sum(a*logP);
     the difference varies per sentence and can flip the pairwise indicator. PLAN.md
@@ -71,9 +71,9 @@ metrics:
     local_pdf: sources/papers/analogicalreasoningbias.pdf
     version_read: v1
   sections_read:
-  - 'Fig. 2 and Supplement A/C: prompt, six groups, K=100, davinci defaults;
-    derivative grouping and demonym-exclusion claims inspected. The full parser,
-    derivative table, and post-exclusion denominator are not published.'
+  - 'Fig. 2 and Supplement A/C: prompt, six groups, K=100, davinci defaults; derivative
+    grouping and demonym-exclusion claims inspected. The full parser, derivative table,
+    and post-exclusion denominator are not published.'
   code_status: none_found
   search_log:
   - paper footnotes and code-availability statement
@@ -84,7 +84,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: Abid-style distributional prompt probe; see API note for protocol limits.
   fidelity_note: docs/api/prompts/analogical_reasoning_bias.md
 - metric: CounterfactualAnalogyDiagnostic
@@ -105,8 +105,8 @@ metrics:
   - N/A - BiasScope extension, not a published metric; it originates in this repository.
   resources: []
   retrieved_on: '2026-09-16'
-  notes: 'ORIGINAL. This is a BiasScope template-and-label diagnostic, separate from
-    Abid et al.''s open-ended distributional analogy experiment.'
+  notes: ORIGINAL. This is a BiasScope template-and-label diagnostic, separate from
+    Abid et al.'s open-ended distributional analogy experiment.
   fidelity_note: docs/api/prompts/analogical_reasoning_bias.md
 - metric: BBQMetric
   family: prompt
@@ -133,11 +133,12 @@ metrics:
     - analysis_scripts/BBQ_results_metadata.R (authoritative target_loc construction)
     - analysis_scripts/BBQ_calculate_bias_score.R (released-result scoring)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: Public BBQMetric is a chat adaptation; private _bbq_reproduction helpers score
-    caller-supplied official JSONL/results with metadata target_loc. Artifacts remain
-    external and are runtime-hashed without asserting caller identity. target_loc is
-    already polarity-corrected by the pinned metadata script and must not be flipped again.
+  retrieved_on: '2026-09-21'
+  notes: Public BBQMetric is a chat adaptation; private _bbq_reproduction helpers
+    score caller-supplied official JSONL/results with metadata target_loc. Artifacts
+    remain external and are runtime-hashed without asserting caller identity. target_loc
+    is already polarity-corrected by the pinned metadata script and must not be flipped
+    again.
   fidelity_note: docs/fidelity/bbq.md
 - metric: BOLD
   family: prompt
@@ -163,12 +164,12 @@ metrics:
     files_read:
     - repo dataset and analysis layout (amazon-science/bold)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: 'ADAPTATION. Official prompt artifacts remain external at the pinned commit;
-    no vendored checkout is present. Private BOLD helpers validate prompt artifacts and
-    paper formulas, but the paper-era toxicity checkpoint, regard artifact, induced
+  retrieved_on: '2026-09-21'
+  notes: ADAPTATION. Official prompt artifacts remain external at the pinned commit;
+    no vendored checkout is present. Private BOLD helpers validate prompt artifacts
+    and paper formulas, but the paper-era toxicity checkpoint, regard artifact, induced
     lexicon, and complete historical generation provenance are not currently recoverable.
-    No Perspective API or regardv3 substitute is treated as paper reproduction.'
+    No Perspective API or regardv3 substitute is treated as paper reproduction.
   fidelity_note: docs/fidelity/bold.md
 - metric: CAT
   family: probability
@@ -190,13 +191,16 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
+  retrieved_on: '2026-09-21'
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout
+    is present. Public dev.json, predictions/, and predictions.txt support evaluator
+    parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: CBS
   family: probability
@@ -222,7 +226,7 @@ metrics:
     files_read:
     - jaimeenahn/ethnic_bias and umanlp/RedditBias repo layouts (both MIT)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/cbs_lmb.md. CBS faithful (but only 20% test coverage -
     RL-017). LMB adaptation: 3-sigma outlier rule added as the default in 0.2.0; headline
     statistic is still mean_diff rather than the paper''s t-value (RL-026).'
@@ -250,11 +254,12 @@ metrics:
     license: none-stated
     local_path: third_party/code/CEAT
     files_read:
-    - 'code/ceat.py in full (associate, effect_size, ceat_meta) - cloned and read
-      2026-09; supersedes the earlier repo-layout-only read'
+    - code/ceat.py in full (associate, effect_size, ceat_meta) - cloned and read 2026-09;
+      supersedes the earlier repo-layout-only read
   resources:
   - name: bold_wikipedia_sentences
-    source: third_party/code/bold/wikipedia/*_wiki.json (in the pinned BOLD clone; CC-BY-SA-4.0)
+    source: third_party/code/bold/wikipedia/*_wiki.json (in the pinned BOLD clone;
+      CC-BY-SA-4.0)
     sha256: a6f3bb5139dc4e4615e199dfd56a971a5829b09cb78c790d6cad554e4b9111dc
     file: gender_wiki.json (the other four are hashed in each run's provenance)
     note: SUBSTITUTE context corpus for the agent's `ceat_contexts` provider - 23,679
@@ -263,20 +268,19 @@ metrics:
     source: third_party/code/sent-bias/tests/weat<n>.jsonl (Caliskan et al. 2017 sets)
     sha256: 21681d3f4d7fdf97cf4cd2c0f9160940cfbd797ec62c7621b5600dc9e6e5b248
     file: weat6.jsonl
-  retrieved_on: '2026-09-15'
-  notes: 'FAITHFUL for evaluate(). Differential-tested against code/ceat.py this
-    session: per-sample ES and V_i=std**2 agree to 1e-16; the DerSimonian-Laird
-    pooling (W, Q, c, tau^2, CES, SE) agrees to 1e-16. n_samples default is 10_000,
-    matching the paper - RL-021 (which said the default was 100) is stale and
-    closed. Two documented, deliberate departures from the reference SCRIPT (not
-    the paper): (1) sampling without replacement once a stimulus has n_samples
-    contexts, per the paper''s prose, where the script always samples with
-    replacement; (2) a two-sided p-value, per the paper''s Appendix formula and
-    Table 1''s own numbers, where the script computes a one-sided signed p that
-    contradicts its own paper. Both tagged verify. run() was fixed this session:
-    it did not thread seed into random_seed (non-reproducible CES) and attached a
-    Hedges-Olkin CI from |X|,|Y| instead of CEAT''s own SE(CES) (13x too wide in
-    one test case).'
+  retrieved_on: '2026-09-21'
+  notes: 'FAITHFUL for evaluate(). Differential-tested against code/ceat.py this session:
+    per-sample ES and V_i=std**2 agree to 1e-16; the DerSimonian-Laird pooling (W,
+    Q, c, tau^2, CES, SE) agrees to 1e-16. n_samples default is 10_000, matching the
+    paper - RL-021 (which said the default was 100) is stale and closed. Two documented,
+    deliberate departures from the reference SCRIPT (not the paper): (1) sampling
+    without replacement once a stimulus has n_samples contexts, per the paper''s prose,
+    where the script always samples with replacement; (2) a two-sided p-value, per
+    the paper''s Appendix formula and Table 1''s own numbers, where the script computes
+    a one-sided signed p that contradicts its own paper. Both tagged verify. run()
+    was fixed this session: it did not thread seed into random_seed (non-reproducible
+    CES) and attached a Hedges-Olkin CI from |X|,|Y| instead of CEAT''s own SE(CES)
+    (13x too wide in one test case).'
   fidelity_note: docs/fidelity/ceat.md
 - metric: CoOccurrenceBiasScore
   family: generated_text
@@ -300,7 +304,7 @@ metrics:
     files_read:
     - BordiaS/language-model-bias repo layout (no license file; see third_party/LICENSES.md)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'ADAPTATION. Omits the paper''s sum_i c(w_i,g) normalisation, a constant
     additive offset: rankings and word-to-word comparisons are unaffected, but absolute
     values are shifted so an equally-co-occurring word does not score 0. See RL-023.'
@@ -332,7 +336,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/huang_metrics.md. CounterfactualSentimentBias was a MISMATCH
     (signed mean of paired differences, where opposing biases cancel); fixed in 0.2.0
     to the paper''s Wasserstein-1, validated against scipy to 1e-9. SocialGroupSubstitution
@@ -367,7 +371,7 @@ metrics:
     - metric.py:98-150 (mask_unigram, range(1, N-1))
     - metric.py:57-74 (get_log_prob_unigram)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'FAITHFUL in mode=''wordpiece'' (default). One deliberate difference: autojunk=False
     in SequenceMatcher, immaterial at CrowS-Pairs sentence lengths. Reproduces 58.62
     vs published 60.5 with overlapping CIs.'
@@ -396,16 +400,17 @@ metrics:
     - src/helm/benchmark/metrics/bias_word_lists.py (GENDER_TO_WORD_LISTS, RACE_TO_NAME_LISTS)
   resources:
   - name: helm_bias_word_lists
-    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in the pinned clone)
+    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in
+      the pinned clone)
     sha256: 7b293ac1ed89e125bc65a67141458b07b61aa67f76b8ce5309e921141e6f83e5
-    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as targets,
-      loaded by the agent's `bold_helm_bias` provider from this file alone.
+    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as
+      targets, loaded by the agent's `bold_helm_bias` provider from this file alone.
   - name: bold_profession_prompts
     source: third_party/code/bold/prompts/profession_prompt.json (in the pinned clone)
     sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
     note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
       continue these with the model under evaluation.
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'MISMATCH confirmed (docs/fidelity/demographic_representation.md): HELM is
     TVD-from-uniform with per-group word-list-size normalisation; ours reports entropy/Gini.'
   fidelity_note: docs/fidelity/demographic_representation.md
@@ -434,7 +439,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'MISMATCH confirmed (docs/fidelity/disco.md). No reference code exists. Correction
     question in PLAN.md 4.2 resolved: the paper applies a Bonferroni correction to
     p=0.05. Table 2 gives four Tier-1 targets.'
@@ -463,7 +468,7 @@ metrics:
     files_read:
     - dataset card and schema (not cloned)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/discrim_eval.md
   notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). Marginal logit differences rather
     than the paper's mixed-effects coefficients; see the deviation note.
@@ -493,21 +498,23 @@ metrics:
     - allenai/real-toxicity-prompts repo layout (Apache-2.0)
   resources:
   - name: real_toxicity_prompts
-    source: https://huggingface.co/datasets/allenai/real-toxicity-prompts (the authors' release)
+    source: https://huggingface.co/datasets/allenai/real-toxicity-prompts (the authors'
+      release)
     revision: f21629712ffd6a3d13a54fd2807ccd521c55ef74
     sha256: 4b6808878edc985fcc6bcb6a2a7239a0fb05420cb495f1f6ca1450da5e35c163
     file: prompts.jsonl
     license: apache-2.0
     note: 99,442 prompts; the agent's `rtp_toxicity` provider takes them in file order.
   - name: toxicity_classifier_substitute
-    source: https://huggingface.co/unitary/toxic-bert (NOT the Perspective API the paper uses)
+    source: https://huggingface.co/unitary/toxic-bert (NOT the Perspective API the
+      paper uses)
     revision: 4d6c22e74ba2fdd26bc4f7238f50766b045a0d94
     sha256: 2c272885d24138df70bff1b3cd944a999bd6b41dad33209730aa8ba074f6ad09
     file: model.safetensors
     license: apache-2.0
     note: recorded as a protocol deviation in every EMT result the agent produces
       (REVIEW_LATER RL-072); no Perspective key is available.
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
   fidelity_note: docs/fidelity/toxicity_family.md
 - metric: FGB
@@ -534,7 +541,7 @@ metrics:
     - holistic_bias/src/bias_measurements.py:45-140 (perplexity analysis; FGB is NOT
       implemented in this repo)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: MISMATCH confirmed (docs/fidelity/fgb.md). Repo does not implement FGB and
     ships no 217-class style classifier - blocked, RL-013. PLAN.md 4.2's FGB formula
     described SCGB; corrected.
@@ -568,7 +575,7 @@ metrics:
     sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
     note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
       continue these with the model under evaluation.
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: ADAPTATION. See docs/fidelity/bold_metrics.md (one note, two metrics, one
     paper).
   fidelity_note: docs/fidelity/bold_metrics.md
@@ -605,7 +612,7 @@ metrics:
     local_path: third_party/code/lexica/hurtlex/hurtlex_EN.tsv
     note: 8,228 rows; the agent's `honest` provider keeps the 3,360 conservative-level
       rows (2,227 distinct lemmas), as the authors' honest.py:25 does.
-  retrieved_on: '2026-09-20'
+  retrieved_on: '2026-09-21'
   notes: 'ADAPTATION. Formula is faithful; two deviations move the number: causal-LM
     generation instead of top-K mask fills, and HurtLex version drift (Nozza 1,072
     terms vs 1,722 today). Both documented and bracketed in results/emnlp/.'
@@ -630,13 +637,16 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
+  retrieved_on: '2026-09-21'
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout
+    is present. Public dev.json, predictions/, and predictions.txt support evaluator
+    parity; paper Table 4 uses hidden test data. See docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: IdentitySwapConsistency
   family: prompt
@@ -662,7 +672,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'ORIGINAL. Renamed from CounterfactualFairness in v0.2.0: that was the exact
     title of Kusner et al. 2017, which defines a causal criterion on a predictor,
     not this embedding-similarity score. See docs/fidelity/originals.md.'
@@ -692,7 +702,7 @@ metrics:
     files_read:
     - jaimeenahn/ethnic_bias and umanlp/RedditBias repo layouts (both MIT)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/cbs_lmb.md. CBS faithful (but only 20% test coverage -
     RL-017). LMB adaptation: 3-sigma outlier rule added as the default in 0.2.0; headline
     statistic is still mean_diff rather than the paper''s t-value (RL-026).'
@@ -725,12 +735,12 @@ metrics:
     - lib/bert_utils.py:72-90 (get_index)
     - notebooks/construct_bias_score.py:106-140 (driver)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: Current LPBS is faithful to Kurita et al.'s paper-level formula. The
-    sentence-pair preference statistic that shipped under this name through v0.1.1
-    was a mismatch and now lives under PairwiseLikelihoodPreference. Paper and
-    reference code additionally disagree on which mask position the prior is read
-    at, and get_index's last branch omits the [CLS] offset - see RL-012.
+  retrieved_on: '2026-09-21'
+  notes: Current LPBS is faithful to Kurita et al.'s paper-level formula. The sentence-pair
+    preference statistic that shipped under this name through v0.1.1 was a mismatch
+    and now lives under PairwiseLikelihoodPreference. Paper and reference code additionally
+    disagree on which mask position the prior is read at, and get_index's last branch
+    omits the [CLS] offset - see RL-012.
   fidelity_note: docs/fidelity/lpbs.md
 - metric: MarkedPersons
   family: generated_text
@@ -757,7 +767,7 @@ metrics:
     files_read:
     - myracheng/markedpersonas repo layout (no license file; see third_party/LICENSES.md)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'FAITHFUL, with the strongest reproduction evidence in the library: results/emnlp/marked_persons/
     matches Cheng''s published z-scores at 0.0007% relative error with a Pearson correlation
     of 1.0000. PLAN.md 4.2''s question answered: there is no single reported scalar,
@@ -787,7 +797,7 @@ metrics:
     - conversationai/unintended-ml-bias-analysis repo layout (AUC/AEG notebooks; not
       run)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'ORIGINAL. Renamed from ScoreParity in v0.2.0: Borkan et al.''s five metrics
     are all threshold-agnostic and label-based (AUC trio + two AEGs); a mean-score
     gap is none of them. The AUC trio remains unimplemented - a Phase 4 addition,
@@ -815,7 +825,7 @@ metrics:
     files_read:
     - WinoBias/wino/ layout (anonymize.py, word_swapper.py, data/)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'ORIGINAL. Renamed from DemographicRepresentationBias in v0.2.0: it counts
     pronouns, while the cited WinoBias is a coreference F1 gap (docs/fidelity/demographic_representation_bias.md).
     The Zhao et al. entry is retained as inspiration; a faithful WinoBias is a Phase
@@ -843,7 +853,9 @@ metrics:
     - helpers.py (official processing helpers)
   resources: []
   retrieved_on: '2026-08-23'
-  notes: Adaptation consuming released precomputed distributions. The paper formula uses equal coarse-topic weighting; the paper-era notebook has a separately reconstructible question-weighted overall selection.
+  notes: Adaptation consuming released precomputed distributions. The paper formula
+    uses equal coarse-topic weighting; the paper-era notebook has a separately reconstructible
+    question-weighted overall selection.
   fidelity_note: docs/api/prompts/opinion_consistency_across_personas.md
 - metric: PGB
   family: generated_text
@@ -869,7 +881,7 @@ metrics:
     - holistic_bias/src/bias_measurements.py:45-140 (PGB is NOT implemented in this
       repo)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: MISMATCH confirmed (docs/fidelity/pgb.md). PLAN.md 4.2 wrongly said PGB is
     uncited; it is defined in Sec. A.7. Blocked on the style classifier, RL-013.
   fidelity_note: docs/fidelity/pgb.md
@@ -925,7 +937,7 @@ metrics:
     - prompts.py:90,117 (the 1-5 rating guidelines)
     - eval_set.csv header (paired prompt_a/prompt_b schema)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/political_even_handedness.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). All three dimensions reported; the
     grader is part of the protocol and the released method notes results vary by grader.
@@ -953,7 +965,7 @@ metrics:
     files_read:
     - amazon-science/bold repo layout (CC-BY-SA-4.0)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: ADAPTATION. See docs/fidelity/bold_metrics.md (one note, two metrics, one
     paper).
   fidelity_note: docs/fidelity/bold_metrics.md
@@ -982,7 +994,7 @@ metrics:
     files_read:
     - allenai/real-toxicity-prompts repo layout (Apache-2.0)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
   fidelity_note: docs/fidelity/toxicity_family.md
 - metric: RegardScore
@@ -1010,7 +1022,7 @@ metrics:
     - 'ewsheng/nlg-bias repo layout: scripts/ensemble.py (regard1 = 3-BERT majority
       vote); no license file'
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'Was a MISMATCH: v0.1.1 defaulted to a SENTIMENT classifier and described
     itself as measuring sentiment, which is exactly the conflation Sheng et al. wrote
     the paper to refute (Table 2 gives opposite-sign counterexamples). Fixed in 0.2.0
@@ -1043,7 +1055,7 @@ metrics:
     - sentbias/encoders/bert.py:15-27 (encode; enc[:, 0, :] position-0 pooling, no
       [CLS] added)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'FAITHFUL. Statistic is WEAT''s. Default pooling changed to ''cls'' in 0.2.0
     to match the reference''s position-0 protocol. Tier-2 caveat: the reference''s
     position 0 is the first content wordpiece, not [CLS], because it never adds special
@@ -1053,21 +1065,21 @@ metrics:
   family: embedding
   status: read
   paper:
-    title: 'Improving Gender-Related Fairness in Sentence Encoders: A
-      Semantics-Based Approach'
+    title: 'Improving Gender-Related Fairness in Sentence Encoders: A Semantics-Based
+      Approach'
     venue: Data Science and Engineering 8
     year: 2023
     url: https://doi.org/10.1007/s41019-023-00211-0
-    local_pdf: 'biasscope papers/Sentencebiasscore.pdf'
+    local_pdf: biasscope papers/Sentencebiasscore.pdf
     version_read: Springer open-access article (CC-BY-4.0)
   sections_read:
-  - 'Sec. 3 Gender Bias Estimation, in full (3.1 Bias Score, 3.2 Gender
-    Direction, 3.3 Gender Words, 3.4 Word Importance, 3.5 Bias Score Examples)'
-  - 'Sec. 6 Extension to Transformer-Based Models'
+  - Sec. 3 Gender Bias Estimation, in full (3.1 Bias Score, 3.2 Gender Direction,
+    3.3 Gender Words, 3.4 Word Importance, 3.5 Bias Score Examples)
+  - Sec. 6 Extension to Transformer-Based Models
   code_status: none_found
   search_log:
-  - paper's own "Availability of data and materials" section (names only
-    SNLI and SentEval, not a bias-score repository)
+  - paper's own "Availability of data and materials" section (names only SNLI and
+    SentEval, not a bias-score repository)
   - paper footnotes and code-availability statement
   - ACL Anthology 'Code' link
   - Papers with Code
@@ -1076,22 +1088,11 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-09-15'
-  notes: 'ADAPTATION (was faithful, corrected 2026-09-15). Eq. 1-3 (the scoring
-    equations) verified against the paper''s own Table 2 worked example to
-    float precision. derive_gender_direction() and derive_word_importance()
-    now implement Sec. 3.2 and 3.4 (added this session; previously absent, and
-    run() crashed unconditionally on every input -- both fixed). Sec. 3.3''s
-    6562-word gender lexicon is not published and is not vendored; callers
-    must supply their own (REVIEW_LATER RL-087, blocked). Corrected a wrong
-    citation (author initials and title) in the class docstring and docs/api
-    page. Earlier note (RL-029) said this paper was paywalled with no
-    preprint; it is open access (CC-BY-4.0) and was sitting in
-    "biasscope papers/" the whole time -- RL-029 closed.'
+  retrieved_on: '2026-09-21'
   notes: Faithful low-level implementation of the SentenceBiasScore equations. BiasScope
     requires caller-provided token/word representations, gender direction, semantic
-    importance, and explicit gender-word exclusion mask; it does not derive those upstream
-    artifacts.
+    importance, and explicit gender-word exclusion mask; it does not derive those
+    upstream artifacts.
   fidelity_note: docs/fidelity/sentence_bias_score.md
 - metric: SocialGroupSubstitution
   family: generated_text
@@ -1120,7 +1121,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'See docs/fidelity/huang_metrics.md. CounterfactualSentimentBias was a MISMATCH
     (signed mean of paired differences, where opposing biases cancel); fixed in 0.2.0
     to the paper''s Wasserstein-1, validated against scipy to 1e-9. SocialGroupSubstitution
@@ -1147,13 +1148,18 @@ metrics:
     url: https://github.com/moinnadeem/StereoSet
     sha: ead7d086a64a192a1eca88e0dd2fd163de375218
     license: CC-BY-SA-4.0 (see third_party/LICENSES.md)
+    local_path: third_party/code/StereoSet
     files_read:
     - code/evaluation.py:80-105 (count; per-target-term, two lms comparisons)
     - code/evaluation.py:107-127 (score; lms denominator total*2, mean over terms,
       macro_icat)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: Official paper-era code is external at the pinned commit; no vendored checkout is present. Public dev.json, predictions/, and predictions.txt support evaluator parity; paper Table 4 uses hidden test data. Exact RoBERTa/XLNet/GPT-2 intersentence reconstruction additionally needs unavailable paper-era custom NSP weights. See docs/fidelity/stereoset_family.md.
+  retrieved_on: '2026-09-21'
+  notes: Official paper-era code is external at the pinned commit; no vendored checkout
+    is present. Public dev.json, predictions/, and predictions.txt support evaluator
+    parity; paper Table 4 uses hidden test data. Exact RoBERTa/XLNet/GPT-2 intersentence
+    reconstruction additionally needs unavailable paper-era custom NSP weights. See
+    docs/fidelity/stereoset_family.md.
   fidelity_note: docs/fidelity/stereoset_family.md
 - metric: StereotypeRuleHitRate
   family: generated_text
@@ -1200,16 +1206,17 @@ metrics:
     - src/helm/benchmark/metrics/bias_metrics.py:187-224 (group_counts_to_bias, TVD)
   resources:
   - name: helm_bias_word_lists
-    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in the pinned clone)
+    source: third_party/code/helm/src/helm/benchmark/metrics/bias_word_lists.py (in
+      the pinned clone)
     sha256: 7b293ac1ed89e125bc65a67141458b07b61aa67f76b8ce5309e921141e6f83e5
-    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as targets,
-      loaded by the agent's `bold_helm_bias` provider from this file alone.
+    note: GENDER_TO_WORD_LISTS / RACE_TO_NAME_LISTS as groups and ADJECTIVE_LIST as
+      targets, loaded by the agent's `bold_helm_bias` provider from this file alone.
   - name: bold_profession_prompts
     source: third_party/code/bold/prompts/profession_prompt.json (in the pinned clone)
     sha256: 5508012069f20419559417e64d8bb2b8d864ebf8afedd21e5ca564393c291794
     note: 10,195 prompts over 18 occupation groups; the agent's generation-based providers
       continue these with the model under evaluation.
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'MISMATCH confirmed (docs/fidelity/stereotypical_associations.md): HELM is
     mean-over-target-words of TVD; co-occurrence is a whole-text product of counts,
     not a window. Ours is rule/window hit-rate matching.'
@@ -1239,7 +1246,7 @@ metrics:
   - first author's GitHub profile
   - Hugging Face datasets and spaces
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'ADAPTATION. Formulas match eqs. 1-2. The deviation is the judge: the paper''s
     labels come from GPT-4o, and the label IS the measurement, so judge model and
     prompt are part of the metric. Refactor onto the Judge abstraction (PLAN.md 7.1,
@@ -1292,7 +1299,7 @@ metrics:
     files_read:
     - allenai/real-toxicity-prompts repo layout (Apache-2.0)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
   fidelity_note: docs/fidelity/toxicity_family.md
 - metric: ToxicityProbability
@@ -1320,7 +1327,7 @@ metrics:
     files_read:
     - allenai/real-toxicity-prompts repo layout (Apache-2.0)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: See docs/fidelity/toxicity_family.md (one note, four classes, one paper).
   fidelity_note: docs/fidelity/toxicity_family.md
 - metric: TruthfulQA
@@ -1347,11 +1354,11 @@ metrics:
     files_read:
     - sylinrl/TruthfulQA repo layout (Apache-2.0)
   resources: []
-  retrieved_on: '2026-08-23'
-  notes: 'Paper-faithful v0 reproduction uses the preserved 817-row data/v0 artifact,
+  retrieved_on: '2026-09-21'
+  notes: Paper-faithful v0 reproduction uses the preserved 817-row data/v0 artifact,
     original MC1/MC2 full-answer likelihood protocol, and private local-model helpers.
     The 2025 790-row binary-MC update is excluded. Historical GPT-judge/GPT-info model
-    artifacts are unavailable; ReferenceOverlapTruthfulness is a separate custom diagnostic.'
+    artifacts are unavailable; ReferenceOverlapTruthfulness is a separate custom diagnostic.
   fidelity_note: docs/fidelity/truthfulqa.md
 - metric: UnQoverMetric
   family: prompt
@@ -1374,18 +1381,19 @@ metrics:
     sha: 3e47969b78acc0de436f9d17c9ab1b2f6a108ff0
     license: Apache-2.0
     files_read:
-    - analysis.py:get_ans_p, pairup_ex, get_positional_inconsistency, get_attributive_inconsistency, get_subj1_win_score, get_model_bias, get_subj_bias
+    - analysis.py:get_ans_p, pairup_ex, get_positional_inconsistency, get_attributive_inconsistency,
+      get_subj1_win_score, get_model_bias, get_subj_bias
     - qa_hf/predict.py:forward and candidate-span output construction
     - lm/predict.py:predict and candidate-token output construction
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'PUBLIC ADAPTATION: the chat class renormalizes A/B option-token logprobs;
     it does not score the paper''s unnormalized QA answer spans or masked-token subjects.
-    Private reproduction helpers mirror pinned analysis.py over external output.json dumps.
-    The official data.zip distribution URL is https://ai2-public-datasets.s3.amazonaws.com/unqover/data.zip,
+    Private reproduction helpers mirror pinned analysis.py over external output.json
+    dumps. The official data.zip distribution URL is https://ai2-public-datasets.s3.amazonaws.com/unqover/data.zip,
     but the pinned repository provides no immutable checksum; runtime SHA-256 is recorded
-    when an artifact is supplied. Released QA checkpoints are tli8hf/unqover-*-squad and
-    tli8hf/unqover-*-newsqa. No upstream checkout or archive is vendored here.'
+    when an artifact is supplied. Released QA checkpoints are tli8hf/unqover-*-squad
+    and tli8hf/unqover-*-newsqa. No upstream checkout or archive is vendored here.'
   fidelity_note: docs/fidelity/unqover.md
 - metric: WEAT
   family: embedding
@@ -1414,11 +1422,12 @@ metrics:
     - sentbias/weat.py:178-192 (effect_size)
     - sentbias/weat.py:82-152 (p_val_permutation_test, exact vs sampled)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   notes: 'FAITHFUL for canonical static embeddings. The authors'' Harvard Dataverse
-    artifact is primary; May et al.''s sent-bias is a secondary reimplementation. RL-008
-    resolved: ddof=1, confirmed by sent-bias and by 0.22% vs 3.50% agreement with the
-    paper''s 840B number. Raw-text encoding and conservative ties are documented extensions.'
+    artifact is primary; May et al.''s sent-bias is a secondary reimplementation.
+    RL-008 resolved: ddof=1, confirmed by sent-bias and by 0.22% vs 3.50% agreement
+    with the paper''s 840B number. Raw-text encoding and conservative ties are documented
+    extensions.'
   fidelity_note: docs/fidelity/weat.md
 - metric: WinoBias
   family: prompt
@@ -1443,7 +1452,7 @@ metrics:
     - WinoBias/wino/data/*.txt.dev and .test (the bracketed-span format)
     - WinoBias/wino/ layout
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/winobias.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The pro/anti coreference accuracy
     gap. Distinct from OccupationPronounSkew, which used to cite this paper while
@@ -1477,7 +1486,7 @@ metrics:
   - 'Conclusion: the prompts and grader were not released. Figure 3 is the only published
     template and the paper marks it abbreviated, so the metric is an adaptation.'
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/first_person_fairness.md
   notes: ADAPTATION. Added in v0.2.0 (PLAN.md 7.2). The estimator H = E[h_F - h_R]
     is exact, including the swapped second pass and the identical-response rule; the
@@ -1515,7 +1524,7 @@ metrics:
     - src/dt/perspectives/fairness/fairness_evaluation.py (Adult 'Male'->1 and the
       inverted crime label convention)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/decodingtrust.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Direction inverted to the library's
     0-is-neutral convention; the leaderboard numbers are kept in details. The ambiguous-answer
@@ -1544,7 +1553,7 @@ metrics:
         blank on refusal)
     - analysis/analysis_decision.ipynb (popmean=0.5; the per-model rejection rate)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/implicit_association.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Judge-bound. The repo ships results,
     not a scorer, so the rule was derived from the released columns and checked against
@@ -1574,7 +1583,7 @@ metrics:
     - src/dt/perspectives/fairness/fairness_evaluation.py (the label and sensitive-attribute
       conventions)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/decodingtrust.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Tier 2 equivalent - exact to 1e-12
     against fairlearn 0.14.0 (the package score_calculation_script.py itself calls)
@@ -1604,7 +1613,7 @@ metrics:
     - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
       RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/trustllm.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). neutral_value is 1.0, not 0.0 -
     the metric is an accuracy.
@@ -1632,7 +1641,7 @@ metrics:
     - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
       RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/trustllm.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). The only one of the four where higher
     means more biased.
@@ -1660,7 +1669,7 @@ metrics:
     - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
       RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/trustllm.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Reports the smallest p-value across
     attributes; a p-value is not an effect size, so the contingency table is returned
@@ -1689,7 +1698,7 @@ metrics:
     - trustllm_pkg/trustllm/utils/metrics.py (count_stereotype_recognition, count_agreement,
       RtA, p_value, keywords_flag_stereotype, stereotype_recognition_number_flag)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/trustllm.md
   notes: FAITHFUL. Added in v0.2.0 (PLAN.md 7.2). Classifier-bound; the refusal classifier
     is caller-supplied so its version enters the protocol.
@@ -1727,7 +1736,7 @@ metrics:
       response)
     - data/result_decision.csv (label -> decision_bias; blank when the model refused)
   resources: []
-  retrieved_on: '2026-08-23'
+  retrieved_on: '2026-09-21'
   fidelity_note: docs/fidelity/implicit_association.md
   notes: FAITHFUL (both ImplicitAssociationTest and LLMDecisionBias). Added in v0.2.0
     (PLAN.md 7.2). Tier 2 equivalent - 18,885/18,885 released responses exact to 1e-9.

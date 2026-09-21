@@ -43,13 +43,31 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument("--autonomous", action="store_true",
                         help="ask only for a model id; set up, plan, confirm and run every "
                         "recommended metric the harness can feed, show the table, ask again")
+    parser.add_argument("--no-fetch", action="store_true",
+                        help="do not download missing datasets at startup; a metric whose "
+                        "vendored source is absent will fail naming the fetch command")
     parser.add_argument("--device", default=None,
                         help="device for --autonomous runs (default: cuda if available)")
     return parser.parse_args(argv)
 
 
+def _ensure_datasets() -> None:
+    """Put the authors' own releases on disk before the conversation starts.
+
+    third_party/ is git-ignored, so a fresh clone has none of them, and the
+    agent would otherwise plan a run and only then discover a missing file.
+    Every entry already present is skipped in a second.
+    """
+    from bias_scope_agent import sources
+
+    fetched = [m for m, ran in sources.ensure_dataset_sources().items() if ran]
+    print(f"datasets ready ({len(fetched)} fetched now, rest already on disk)")
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(list(sys.argv[1:] if argv is None else argv))
+    if not args.no_fetch:
+        _ensure_datasets()
     config = load_config()
     loop = AgentLoop(config, AgentSession())
     if not args.plain and _tui_available():

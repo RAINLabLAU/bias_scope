@@ -36,3 +36,32 @@ class TestCliMain:
         assert exit_code == 0
         fake_loop.run_turn.assert_called_once_with("hello")
         assert "hi there" in capsys.readouterr().out
+
+
+class TestDatasetPreflight:
+    """The datasets are put on disk before the conversation, not at first use."""
+
+    def test_main_ensures_the_datasets_before_the_first_turn(self):
+        order = []
+        with (
+            patch(
+                "bias_scope_agent.cli.AgentLoop",
+                side_effect=lambda *a, **k: order.append("loop"),
+            ),
+            patch(
+                "bias_scope_agent.sources.ensure_dataset_sources",
+                side_effect=lambda *a, **k: order.append("datasets") or {},
+            ),
+            patch("builtins.input", side_effect=EOFError),
+        ):
+            assert cli.main([]) == 0
+        assert order[0] == "datasets", f"datasets must be ensured first, got {order}"
+
+    def test_the_no_fetch_flag_skips_it(self):
+        with (
+            patch("bias_scope_agent.cli.AgentLoop"),
+            patch("bias_scope_agent.sources.ensure_dataset_sources") as ensure,
+            patch("builtins.input", side_effect=EOFError),
+        ):
+            assert cli.main(["--no-fetch"]) == 0
+        ensure.assert_not_called()

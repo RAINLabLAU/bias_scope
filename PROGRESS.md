@@ -3193,3 +3193,51 @@ wired correctly for this model and gets as far as the first generation call;
 nothing was measured on it. RL-100 records that, and the untested risk that
 this model's default `xhigh` reasoning eats the 20-token generation budget the
 RTP/WinoBias protocols ask for.
+
+## 2026-09-21 — the agent fetches its own datasets; two blockers found doing it
+
+Asked to run `scripts/sources/fetch_sources.py`, then asked whether the agent
+can retrieve every dataset its metrics need. It could not, and the run itself
+was stuck.
+
+**The run.** `--all` had been going for 2h04m, wedged on a single `git clone`
+of `unintended-ml-bias-analysis` at 37 MB and not growing, which blocked the
+15 entries queued behind it. The docstring says "shallow-clones"; the code ran
+a plain `git clone`, pulling every blob of every revision of a repo that
+carries data. Killed it, removed the incomplete directory (`_clone` treats any
+destination with a `.git` as finished, so a half-clone would have been skipped
+forever), and changed the clone to `--filter=blob:none` — the commit graph is
+kept, so the pinned `code.sha` still checks out. The repo that hung now clones
+in 34 seconds. RL-103. The rest of `--all` then completed: 23 clones, 43
+papers, no failures.
+
+**The answer to the question.** 14 dataset providers serve 22 of the 56
+metrics; the other 34 need user-supplied inputs or are in `KNOWN_UNRUNNABLE`.
+Of the 14, 13 read a vendored file and one reads the Hub. Every one of those
+13 files is now on disk — except that `stereoset` (CAT, ICAT) could never have
+been: its three manifest entries carry a `code.url` and a pinned `sha` but no
+`local_path`, and `fetch_sources.py` skips the clone without one. The entry's
+own note still said "no vendored checkout is present", true when written and
+false since Item 9 shipped the provider that needs one. Recorded the path,
+fetched at the already-pinned `ead7d086`, `data/dev.json` present. RL-104.
+
+**The change.** `src/bias_scope_agent/sources.py`. `datasets_common._require`
+now calls `ensure_metric_sources(hint, path)` before raising, which runs
+`fetch_sources.py --metric <entry>` for the one entry whose file is missing and
+lets the loader continue only if the file actually appeared — the old message,
+naming the command, is unchanged when it did not, because a failed download
+must not turn into a wrong number. `cli.py` runs `ensure_dataset_sources()` at
+startup so the data is there before the agent plans with it; `--no-fetch` and
+`BIASSCOPE_AGENT_AUTO_FETCH=0` opt out. Only paths under this repo's own
+`third_party/code` are ever fetched and each entry is attempted once per
+process, so no test and no installed wheel can reach the network. 13 new tests,
+including one that scans the loader modules so a new `_require` hint cannot
+drift out of the preflight list. RL-102.
+
+**Also:** `pypdf` was never installed in this virtualenv, so step 2 of every
+fetch ever run here had printed "txt: skipped" and moved on — none of the
+papers had the `.txt` that PLAN.md Section 4.0's reading gate is read from.
+Installed it and extracted all 43.
+
+`ruff check src tests` clean; `python -m pytest -q --cov=bias_scope` 2470
+passed, 40 skipped, 1 xfailed, coverage 84%.

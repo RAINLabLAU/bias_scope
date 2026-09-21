@@ -2557,3 +2557,71 @@ refuse) when another `fetch_sources.py` is running, since the read-modify-write
 of the manifest is not atomic. Also worth capturing git's stderr in the
 `code: FAILED` line - exit 128 alone does not say whether it was auth, LFS or
 the network.
+
+## RL-102 · decide · 2026-09-21 · the harness fetches a missing dataset itself instead of handing the run back
+**Encountered:** asked whether the agent can retrieve every dataset its metrics
+need. It could not: `third_party/` is git-ignored, so on a fresh clone every
+vendored file is absent, and `datasets_common._require` raised with the command
+a *human* should run (`fetch_sources.py --metric <name>`). The agent then
+stopped mid-conversation, after planning, on a file nobody had downloaded.
+**Chosen:** `src/bias_scope_agent/sources.py`. `_require` now calls
+`ensure_metric_sources(hint, path)` before giving up, which runs that same
+documented command for the one manifest entry whose file is missing; the
+loader continues only if the file actually appeared. The error message is
+unchanged when it did not - a failed download must not become a wrong number.
+`cli.py` runs `ensure_dataset_sources()` as a startup preflight so the data is
+on disk *before* the agent plans with it, with `--no-fetch` to opt out and
+`BIASSCOPE_AGENT_AUTO_FETCH=0` for the same at library level.
+Two guards keep this from reaching the network where it should not: only paths
+under this repo's own `third_party/code` are ever fetched (a test pointing a
+loader at `tmp_path` cannot trigger a download, and an installed wheel has no
+manifest), and each metric is attempted at most once per process.
+**Risk if wrong:** a network call now happens inside what used to be a pure
+file read, so a run on a machine without network waits for git to fail rather
+than erroring at once. RL-101's hazard also widens: two fetches racing on
+`SOURCES.yaml` clobber each other's `retrieved_on`, and the preflight makes a
+concurrent manual `--all` more likely. The manifest lock suggested there is now
+worth more than it was.
+**To revisit:** the lock; and `DATASET_SOURCE_METRICS` is a hand-kept list of
+the hints the loaders pass to `_require` - a test scans the loader modules and
+fails if one drifts out of it, but that test is a regex, not a type.
+
+## RL-103 · decide · 2026-09-21 · `fetch_sources.py` cloned full history and hung for two hours
+**Encountered:** `fetch_sources.py --all` stalled for 2h04m on `git clone` of
+`conversationai/unintended-ml-bias-analysis`, stuck at 37 MB and not growing,
+blocking all 15 entries after it. The docstring says "shallow-clones"; the code
+ran a plain `git clone` with no `--depth` and no `--filter`, so it was pulling
+every blob of every revision of a repository that carries data files.
+**Chosen:** `--filter=blob:none`. A blobless partial clone keeps the full
+commit graph, so the pinned `code.sha` still resolves and `git checkout <sha>`
+is unchanged - `--depth 1` would have broken exactly that. Verified on the repo
+that hung: 34 seconds, sha `1244018d` checked out. The stalled process was
+killed and its incomplete directory removed, because `_clone` skips any
+destination that already has a `.git`, so a half-clone would have been
+silently treated as done forever after.
+**Risk if wrong:** a blobless clone fetches file contents lazily, so a later
+`git log -p` or a checkout of a different commit inside a vendored repo needs
+the network again. Nothing in this repo reads a vendored checkout at any commit
+but the pinned one.
+**To revisit:** the 37 MB left behind by the kill is why `_clone` should write
+to a temporary directory and rename on success, rather than trusting `.git` to
+mean "complete".
+
+## RL-104 · finding · 2026-09-21 · the shipped StereoSet provider named a checkout the manifest never recorded
+**Encountered:** with every other dataset on disk, `stereoset` (CAT, ICAT) was
+still unfetchable. `datasets.py` reads `third_party/code/StereoSet/data/dev.json`,
+but the `CAT`/`ICAT`/`StereoSetMetric` entries in `SOURCES.yaml` carried a
+`code.url` and a pinned `sha` with **no `local_path`**, and `fetch_sources.py`
+skips the clone unless both are present ("code: skipped, no `code.url` +
+`code.local_path` recorded yet"). The entry's own note said so out loud - "no
+vendored checkout is present" - which was true when it was written and stopped
+being true when PLAN.md Item 9 added the provider that needs one.
+**Chosen:** recorded `local_path: third_party/code/StereoSet` on all three
+entries and fetched at the already-pinned sha `ead7d086`; `data/dev.json` is
+present and CAT/ICAT are feedable. No sha was chosen today - the manifest
+already had one, from when the code was read.
+**Risk if wrong:** none to the numbers; this records where an already-pinned
+commit is checked out, it does not change which commit.
+**To revisit:** nothing checks that a path a loader hardcodes is reachable from
+some manifest entry. RL-102's preflight would have surfaced this on any fresh
+clone, but only at run time - a manifest test could catch it at commit time.
