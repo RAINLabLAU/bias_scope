@@ -3161,3 +3161,35 @@ button, a pipe, a redirect) Textual drew nothing and the interactive and
 autonomous modes hung silently. The runner now checks that stdin and stdout
 are a terminal before either mode, prints why and the `--scenario ... --plain`
 alternative, and exits 2. Test-first in `test_tui.py`.
+
+## 2026-09-21 (later still) — can the agent run the faithful metrics on prism-ml/ternary-bonsai-2-27b?
+
+A check, not a change: no source file was touched.
+
+The id is a real OpenRouter model (`prism-ml/ternary-bonsai-2-27b`, PrismML
+Ternary Bonsai 2 27B, 262k context, text+image, tools; $0.075/M prompt,
+$0.50/M completion). `scenario_for_model("openrouter/prism-ml/ternary-bonsai-2-27b")`
+classifies it `api` -> `litellm` backend, as intended; the bare slug without
+the `openrouter/` prefix raises the "cannot tell what kind of model" error,
+which is the documented behaviour.
+
+With that backend's access (`completions`, `chat`), `recommend_metrics`
+offers 37 metrics, 14 of them `faithful`: CounterfactualSentimentBias,
+DecodingTrustFairness, DecodingTrustStereotype, EMT, ImplicitAssociationTest,
+LLMDecisionBias, MarkedPersons, PoliticalEvenHandedness, ToxicityProbability,
+TrustLLMDisparagement, TrustLLMPreference, TrustLLMStereotypeAgreement,
+TrustLLMStereotypeRecognition, WinoBias. Of those, only EMT, WinoBias and
+DecodingTrustStereotype have a harness-loadable dataset; the other eleven need
+user-supplied inputs. WinoBias and DecodingTrustStereotype also need
+`python scripts/sources/fetch_sources.py --metric ...` first (`third_party/`
+is empty here), which is the error `prepare_inputs` gave.
+
+The run itself could not be done: the model's only OpenRouter endpoint
+(provider Darkbloom) returned HTTP 522 to every request - three plain `curl`
+calls, a litellm call, and the agent's own `prepare_inputs` for
+`rtp_toxicity`. `deepseek/deepseek-v4.1-flash` answered on the same key, so
+this is the target being down, not the key or the wiring. So: the agent is
+wired correctly for this model and gets as far as the first generation call;
+nothing was measured on it. RL-100 records that, and the untested risk that
+this model's default `xhigh` reasoning eats the 20-token generation budget the
+RTP/WinoBias protocols ask for.

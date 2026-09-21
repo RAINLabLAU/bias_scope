@@ -2505,3 +2505,55 @@ without a cap (RL-097) and without a look at the plan; and a model whose Hub
 config lies (RL-066) is classified by that config.
 **To revisit:** a `--max-usd` guard before autonomous API runs; let the user
 pass the axis (fixed to gender by the scripted turns).
+
+## RL-100 · finding · 2026-09-21 · a reasoning target model and `max_new_tokens=20`
+**Encountered:** a check of whether `bias_scope_agent` can run the faithful
+metrics on `openrouter/prism-ml/ternary-bonsai-2-27b`. The model is a real
+OpenRouter catalogue entry (262k context, tools, text+image), but its only
+endpoint (provider Darkbloom) answered every request - plain `curl`, litellm,
+and the agent's own `prepare_inputs` - with HTTP 522 ("Provider returned
+error"), so nothing could be run end to end. The same key on
+`deepseek/deepseek-v4.1-flash` answered normally, so the key is fine and the
+target is simply down.
+**Chosen:** report the wiring as verified up to the first generation call and
+the run itself as blocked upstream; nothing in the library was changed, and
+`third_party/` was not fetched to make WinoBias/DecodingTrust preparable.
+**Risk if wrong:** none for the library; the reader may take "wired correctly"
+for "reproduced", which this entry and PROGRESS say it is not.
+**To revisit:** the OpenRouter catalogue says this model has reasoning enabled
+by default at effort `xhigh`. Every generation-based protocol here asks for a
+short budget (`_RTP_DECODING` 20 new tokens, WinoBias 20, DecodingTrust 60),
+and `LiteLLMBackend._chat_params` maps that straight to `max_tokens` with no
+way to turn reasoning off - on providers that bill reasoning against
+`max_tokens` the reply's `content` can come back empty and the metric would
+score empty continuations. Untested: the endpoint was down. When it is back,
+run EMT with `limit=2` and look at the raw generations before trusting any
+number; if they are empty, either pass `reasoning={"enabled": False}` through
+the decoding dict or refuse reasoning-by-default targets for the short-budget
+protocols.
+
+## RL-101 · finding · 2026-09-21 · `fetch_sources.py` is not safe to run twice at once, and stamps `retrieved_on` on a partial fetch
+**Encountered:** fetching the two vendored datasets the faithful chat-API set
+needs (WinoBias, DecodingTrustStereotype) so the agent could get past "the
+dataset is not present". Both fetches were started concurrently. Each process
+loads `sources/SOURCES.yaml` at start and rewrites the whole file at the end,
+so the second one clobbered the first one's `retrieved_on`: WinoBias cloned
+successfully but its stamp stayed `2026-08-23`, while
+DecodingTrustStereotype's moved to `2026-09-21` although its clone failed
+(`git clone` exit 128) and `third_party/code/DecodingTrust` does not exist.
+`_fetch_one` sets `changed = True` on the *paper* download, so a failed code
+clone still stamps the entry as retrieved. The rewrite also reflowed ~160
+lines of unrelated YAML.
+**Chosen:** `git checkout -- sources/SOURCES.yaml`. The manifest is the
+evidence file; a stamp that says the authors' code is on disk when it is not
+is worse than a missing stamp, and the reflow is noise in a file that is read
+as evidence. The corefBias clone stays on disk (95 MB, `third_party/` is
+git-ignored) and WinoBias data now prepares; DecodingTrust was not retried.
+**Risk if wrong:** WinoBias's sources were in fact re-fetched today and the
+manifest does not say so - a cosmetic under-claim, not an over-claim.
+**To revisit:** stamp `retrieved_on` per artefact (paper vs code) rather than
+per entry, or only when every configured artefact arrived; and take a lock (or
+refuse) when another `fetch_sources.py` is running, since the read-modify-write
+of the manifest is not atomic. Also worth capturing git's stderr in the
+`code: FAILED` line - exit 128 alone does not say whether it was auth, LFS or
+the network.
