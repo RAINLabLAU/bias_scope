@@ -3126,3 +3126,31 @@ themselves and are not cached, and an API's temperature-0 answers are not
 bit-stable, so BBQ moved from 0.041 (n=102) to 0.026 (n=95) and
 RealToxicityPrompts from 0.076 to 0.037 between the second and third runs
 on identical inputs. The cached generation-based metrics reproduced exactly.
+
+## 2026-09-21 (later) — results table, rerun question, interactive default, autonomous mode
+
+Three requests for the terminal UI, done together, test-first with Textual's
+pilot (`tests/test_bias_scope_agent/test_tui.py`, 25 tests with the scenario
+ones). After every report the UI turns the rows into a `DataTable` (metric,
+family, score, n, fidelity, deviation; a skipped metric shows its reason) and
+asks whether to test another model - `yes` builds a fresh loop and session,
+`no` leaves. `scripts/agent/live_conversation.py` is interactive by default:
+with no flags it opens the UI and records what is typed; `--scenario` turns the
+fixed three-turn script back on.
+
+`--autonomous` (on `bias-scope-agent` and on the runner) asks only for a model
+id. `bias_scope_agent/scenarios.py` (SCENARIOS and `scenario_turns` moved
+here from the runner) gained `scenario_for_model`, which classifies the id
+through `inspect_model` (an `openrouter/` prefix is an API target; the Hub
+config decides masked LM, decoder or sentence encoder; anything else is
+reported and the id asked again), and `turns_for_model`, which produces the
+scripted three turns for it. The plan is therefore confirmed on the user's
+behalf; the structural gate is untouched and the confirmation is a real
+recorded turn (RL-099). Each finished run is kept as (model, transcript) and
+the runner writes one JSON per model with the usual coverage and
+reported-numbers checks; `main()`'s transcript tail became `_finish` and
+`_write` so the three modes share it.
+
+The four-turn smoke test of the interactive path from last night (nothing
+ran in it) failed the coverage test and was moved to `invalidated/` with a
+note. README, REPRODUCE.md, CHANGELOG and PLAN Item 13 updated.

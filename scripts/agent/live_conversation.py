@@ -28,7 +28,9 @@ Usage:
     set -a; . ./.env; set +a
     export BIASSCOPE_AGENT_PROVIDER=openrouter
     export BIASSCOPE_AGENT_MODEL='deepseek/deepseek-v4.1-flash'
-    python scripts/agent/live_conversation.py --scenario encoder
+    python scripts/agent/live_conversation.py                      # interactive (default)
+    python scripts/agent/live_conversation.py --autonomous         # asks only for model ids
+    python scripts/agent/live_conversation.py --scenario encoder   # the fixed three turns
 """
 
 from __future__ import annotations
@@ -45,6 +47,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from bias_scope_agent.config import AgentConfig, load_config
 from bias_scope_agent.datasets import DATASETS
 from bias_scope_agent.loop import AgentLoop
+from bias_scope_agent.scenarios import (  # noqa: F401 - re-exported for tests
+    SCENARIOS,
+    scenario_turns,
+    turns_for_model,
+)
 from bias_scope_agent.session import AgentSession
 
 _DEFAULT_OUT = Path("results/verification/agent_live")
@@ -53,38 +60,6 @@ _DEFAULT_OUT = Path("results/verification/agent_live")
 _RECORD_OUTPUT_OF = frozenset(
     {"summarize_report", "plan_suite", "recommend_metrics_tool", "prepare_inputs", "list_datasets"}
 )
-
-SCENARIOS: Dict[str, Dict[str, str]] = {
-    "encoder": {
-        "model_id": "bert-base-uncased",
-        "backend_kind": "encoder",
-        "dtype": "fp32",
-        "described_as": "a BERT masked language model",
-    },
-    "causal": {
-        "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
-        "backend_kind": "causal",
-        "dtype": "bf16",
-        "described_as": "an instruction-tuned decoder-only (causal) LM",
-    },
-    "embedding": {
-        "model_id": "sentence-transformers/all-MiniLM-L6-v2",
-        "backend_kind": "encoder",
-        "dtype": "fp32",
-        "described_as": "a sentence-embedding model",
-    },
-    # A target served by an API through litellm. The `openrouter/` prefix
-    # makes litellm read OPENROUTER_API_KEY itself; no key enters the
-    # conversation. Only completions/chat access, so the generation-based
-    # providers are what can be fed.
-    "api": {
-        "model_id": "openrouter/meta-llama/llama-3.1-8b-instruct",
-        "backend_kind": "litellm",
-        "dtype": "api",
-        "described_as": "a chat model served through OpenRouter",
-    },
-}
-
 
 class RecordingLoop(AgentLoop):
     """AgentLoop that keeps a log of every tool dispatch.
@@ -130,39 +105,6 @@ def _jsonable(value: Any) -> Any:
         return repr(value)
 
 
-def scenario_turns(scenario: str, device: str) -> List[str]:
-    """Three turns: what can run, plan it, run it and summarize."""
-    spec = SCENARIOS[scenario]
-    if spec["backend_kind"] == "litellm":
-        first = (
-            f"I want to measure gender bias in the model {spec['model_id']}. It is "
-            f"{spec['described_as']}, so set it up as a litellm backend with exactly "
-            f"that model_id. The OPENROUTER_API_KEY is already in my environment - do "
-            f"not ask me for it. Which bias metrics can actually run on it, and which "
-            f"cannot, and why?"
-        )
-    else:
-        first = (
-            f"I want to measure gender bias in the Hugging Face model "
-            f"{spec['model_id']}. It is {spec['described_as']}, so set it up as a "
-            f"huggingface backend of kind {spec['backend_kind']} with dtype "
-            f"{spec['dtype']} on device {device} (I have a CUDA GPU). Which bias "
-            f"metrics can actually run on it, and which cannot, and why?"
-        )
-    return [
-        first,
-        "Now plan an evaluation, axis gender, language en. Use the datasets "
-        "this harness can load itself - check list_datasets and use "
-        "prepare_inputs with each dataset's default size (do not pass a limit). "
-        "Do not ask me to paste any evaluation data. Include every recommended "
-        "metric you can actually feed that way. Show me the plan and the data "
-        "provenance, and do not run anything yet.",
-        "Yes, that plan is exactly what I want. Run it, then give me a summary "
-        "of the bias results: every metric with its score, what the score "
-        "means, and its fidelity label.",
-    ]
-
-
 def exchanges_from_entries(entries: List[Tuple[str, str]]) -> List[Dict[str, Any]]:
     """The TUI's (role, text) transcript as the runner's exchange records."""
     exchanges: List[Dict[str, Any]] = []
@@ -179,9 +121,39 @@ def record_interactive(config: AgentConfig) -> Dict[str, Any]:
     scripted run, and the transcript is written when you leave."""
     from bias_scope_agent.tui import run_interactive
 
-    loop = RecordingLoop(config, AgentSession())
-    entries = run_interactive(loop)
-    return {"exchanges": exchanges_from_entries(entries), "dispatched": loop.dispatched}
+    loops = [RecordingLoop(config, AgentSession())]
+
+    def another() -> RecordingLoop:  # "run another bias test": a fresh session, all recorded
+        loops.append(RecordingLoop(config, AgentSession()))
+        return loops[-1]
+
+    entries = run_interactive(loops[0], make_loop=another)
+    dispatched = [entry for loop in loops for entry in loop.dispatched]
+    return {"exchanges": exchanges_from_entries(entries), "dispatched": dispatched}
+
+
+def records_from_runs(runs: List[Tuple[str, Any]], loops: List[Any]) -> List[Dict[str, Any]]:
+    """One record per finished autonomous run, paired with the loop that made it."""
+    return [
+        {"exchanges": exchanges_from_entries(entries), "dispatched": loop.dispatched,
+         "target_model": model}
+        for (model, entries), loop in zip(runs, loops)
+    ]
+
+
+def record_autonomous(config: AgentConfig, device: str) -> List[Dict[str, Any]]:
+    """The UI asks only for model ids; each one is set up, planned, confirmed
+    on your behalf and run. One record per model, written when you leave."""
+    from bias_scope_agent.tui import run_autonomous
+
+    loops = [RecordingLoop(config, AgentSession())]
+
+    def another() -> RecordingLoop:
+        loops.append(RecordingLoop(config, AgentSession()))
+        return loops[-1]
+
+    runs = run_autonomous(loops[0], another, lambda model: turns_for_model(model, device))
+    return records_from_runs(runs, loops)
 
 
 def run_conversation(config: AgentConfig, turns: List[str], tui: bool = False) -> Dict[str, Any]:
@@ -386,59 +358,65 @@ def recommendation_coverage(record: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def main() -> int:
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenario", choices=sorted(SCENARIOS), default="encoder")
+    parser.add_argument("--scenario", choices=sorted(SCENARIOS), default=None,
+                        help="play this scripted scenario instead of the interactive UI")
     parser.add_argument("--model-id", default=None, help="override the scenario's target model")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--out-dir", type=Path, default=_DEFAULT_OUT)
     parser.add_argument("--plain", action="store_true",
-                        help="print raw text instead of the Textual UI (automatic in a pipe)")
+                        help="print raw text instead of the Textual UI (scripted runs only)")
     parser.add_argument("--interactive", action="store_true",
-                        help="you type the turns in the UI; the transcript is recorded on exit")
-    args = parser.parse_args()
+                        help="the default: you type the turns in the UI; "
+                        "the transcript is recorded on exit")
+    parser.add_argument("--autonomous", action="store_true",
+                        help="the UI asks only for model ids; each is set up, planned, "
+                        "confirmed on your behalf and run; one transcript per model")
+    return parser.parse_args(argv)
 
-    config = load_config()
-    spec = dict(SCENARIOS[args.scenario])
-    if args.model_id:
-        spec["model_id"] = args.model_id
-        SCENARIOS[args.scenario]["model_id"] = args.model_id
 
-    target = ("whatever you set up in the UI" if args.interactive else
-              f"{spec['model_id']} ({spec['backend_kind']}, {spec['dtype']}) on {args.device}")
-    print(f"agent LLM: {config.provider} / {config.model}\ntarget:    {target}")
-    if args.interactive:
-        record = record_interactive(config)
-        built = next((e["input"] for e in record["dispatched"]
-                      if e["tool"] == "construct_backend"), {})
-        spec = {"model_id": built.get("model_id", "unknown"),
-                "backend_kind": built.get("backend_kind", "?"), "dtype": built.get("dtype", "?")}
-        args.scenario = "interactive"
-    else:
-        record = run_conversation(
-            config, scenario_turns(args.scenario, args.device), tui=_tui_wanted(args.plain)
-        )
+def mode_of(args: argparse.Namespace) -> str:
+    if args.autonomous:
+        return "autonomous"
+    if args.scenario and not args.interactive:
+        return "scripted"
+    return "interactive"
+
+
+def _spec_from_dispatch(record: Dict[str, Any]) -> Dict[str, str]:
+    built = next((e["input"] for e in record["dispatched"]
+                  if e["tool"] == "construct_backend"), {})
+    return {"model_id": built.get("model_id", record.get("target_model", "unknown")),
+            "backend_kind": built.get("backend_kind", "?"), "dtype": built.get("dtype", "?")}
+
+
+def _finish(record: Dict[str, Any], config: AgentConfig, spec: Dict[str, str],
+            scenario: str, device: str) -> Dict[str, Any]:
     record |= {
-        "scenario": args.scenario,
+        "scenario": scenario,
         "agent_provider": config.provider,
         "agent_model": config.model,
         "target_model": spec["model_id"],
         "backend_kind": spec["backend_kind"],
         "dtype": spec["dtype"],
-        "device": args.device,
+        "device": device,
         "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tool_call_order": [entry["tool"] for entry in record["dispatched"]],
         "scores_from_tool_output": scored_metrics(record),
         "reported_numbers": check_reported_numbers(record),
         "recommendation_coverage": recommendation_coverage(record),
     }
+    return record
 
-    args.out_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{config.model.replace('/', '_')}__{spec['model_id'].replace('/', '_')}"
+
+def _write(record: Dict[str, Any], out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = (f"{record['agent_model'].replace('/', '_')}__"
+            f"{record['target_model'].replace('/', '_')}")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = args.out_dir / f"{args.scenario}__{stem}__{stamp}.json"
+    path = out_dir / f"{record['scenario']}__{stem}__{stamp}.json"
     path.write_text(json.dumps(record, indent=1, ensure_ascii=False), encoding="utf-8")
-
     print(f"\nwrote {path}")
     print("tools:", " -> ".join(record["tool_call_order"]) or "(none)")
     print("scores (from the library, not the prose):", record["scores_from_tool_output"])
@@ -450,6 +428,37 @@ def main() -> int:
         f"feedable but not scored: {coverage['feedable_not_scored'] or 'none'}; "
         f"complete: {coverage['complete']}"
     )
+    return path
+
+
+def main() -> int:
+    args = parse_args()
+    mode = mode_of(args)
+    config = load_config()
+    print(f"agent LLM: {config.provider} / {config.model}")
+    if mode == "autonomous":
+        records = record_autonomous(config, args.device)
+        for record in records:
+            _write(_finish(record, config, _spec_from_dispatch(record), mode, args.device),
+                   args.out_dir)
+        if not records:
+            print("no run finished; nothing written")
+        return 0
+    if mode == "interactive":
+        record = record_interactive(config)
+        _write(_finish(record, config, _spec_from_dispatch(record), mode, args.device),
+               args.out_dir)
+        return 0
+    spec = dict(SCENARIOS[args.scenario])
+    if args.model_id:
+        spec["model_id"] = args.model_id
+        SCENARIOS[args.scenario]["model_id"] = args.model_id
+    print(f"target:    {spec['model_id']} ({spec['backend_kind']}, {spec['dtype']}) "
+          f"on {args.device}")
+    record = run_conversation(
+        config, scenario_turns(args.scenario, args.device), tui=_tui_wanted(args.plain)
+    )
+    _write(_finish(record, config, spec, args.scenario, args.device), args.out_dir)
     return 0
 
 

@@ -222,25 +222,40 @@ Two things to keep in mind when reading a number:
   All three are in the provenance and the protocol block, so a rerun on the
   same model reproduces the same generations from the cache.
 
-## 7. Interactive use
+## 7. Interactive and autonomous use
 
 The same agent, with you typing instead of the script:
 
 ```bash
-bias-scope-agent            # terminal UI: You > / BiasScope>, Markdown rendered, tool calls shown live
-bias-scope-agent --plain    # the line-by-line REPL
+bias-scope-agent               # terminal UI: You > / BiasScope>, Markdown rendered, tool calls shown live
+bias-scope-agent --autonomous  # asks only for a model id; runs everything; asks for the next
+bias-scope-agent --plain       # the line-by-line REPL
 ```
 
-The scripted runner (`live_conversation.py`) never reads your keyboard by
-default: its three turns are fixed, and the `You >` lines it shows are its
-own. To type the turns yourself *and* still get a recorded transcript:
+After every report the UI shows the results as a table and asks whether to
+test another model. `yes` starts a fresh session (the previous model is
+released), `no` leaves.
+
+`--autonomous` asks one question, the model id, and nothing else. It sends the
+agent the same three turns as the scripted runner (set up, plan, run), so the
+plan is confirmed on your behalf without being shown to you first; when the
+table is in, it asks for the next model id (`no` leaves). The kind of model is
+worked out from the id: an `openrouter/...` id is an API target, otherwise the
+Hub config decides between masked LM, decoder and sentence encoder. An id it
+cannot classify is reported and asked again.
+
+The runner (`live_conversation.py`) does the same and records a transcript:
 
 ```bash
-python scripts/agent/live_conversation.py --interactive
+python scripts/agent/live_conversation.py                # interactive: default
+python scripts/agent/live_conversation.py --autonomous   # one transcript per model you name
 ```
 
-Type `exit` (or press Esc, Ctrl-Q or Ctrl-C) when done; the transcript is written to this directory
-with `scenario: interactive`, and the same table and log tools read it.
+Leave with `exit`, `no` at a question, or Esc, Ctrl-Q, Ctrl-C. The transcript is written to this
+directory with `scenario: interactive` (one file) or `scenario: autonomous`
+(one file per model), and the same table and log tools read them. The
+scripted `--scenario` runs of Section 4 are the ones behind `RESULTS.md`; a
+`--scenario` flag turns the fixed script back on.
 
 Ask it about a model, ask for a plan, confirm, and it runs the same tools in
 the same order. The scripted runner exists so that runs are recorded and

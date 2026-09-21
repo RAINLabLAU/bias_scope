@@ -2479,3 +2479,29 @@ given (wrong); the DecodingTrust benign scenario alone is the mildest of the
 paper's three.
 **To revisit:** the TrustLLM providers once the dataset is fetched at a pinned
 revision; a NaN guard in CoOccurrenceBiasScore that declines with a reason.
+
+## RL-099 · decide · 2026-09-21 · the UI's autonomous mode confirms the plan on the user's behalf; interactive is the runner's default
+**Encountered:** three requests the same day: after a report the UI should
+show the results as a table and offer another model; the runner should be
+interactive by default rather than play a fixed script; and a "fully
+autonomous" option should ask only for the model id, run everything, show the
+table and ask for the next id, without asking the user to accept the plan.
+The last one meets PLAN.md's confirm-before-run gate head-on.
+**Chosen:** the gate is untouched. `run_suite` is still refused unless
+`confirm_plan` was called after the plan was shown; in autonomous mode the
+*user* is the runner: `scenarios.turns_for_model` sends the same three turns
+the scripted scenarios send (set up; plan, do not run; "yes, that plan is
+exactly what I want, run it"), so the confirmation is real and recorded, it
+just was not typed. The mode is opt-in (`--autonomous` on `bias-scope-agent`
+and on `live_conversation.py`), the README says the plan is confirmed on the
+user's behalf, and the kind of model is decided from the id by
+`inspect_model` (an `openrouter/` prefix is an API target; the Hub config
+decides masked LM / decoder / sentence encoder; anything else is reported and
+the id asked again). `--scenario` still plays the fixed script; with no flags
+the runner records whatever is typed. The pre-existing four-turn smoke test of
+the interactive path was moved to `invalidated/` (nothing ran in it).
+**Risk if wrong:** an autonomous run against an expensive API target spends
+without a cap (RL-097) and without a look at the plan; and a model whose Hub
+config lies (RL-066) is classified by that config.
+**To revisit:** a `--max-usd` guard before autonomous API runs; let the user
+pass the axis (fixed to gender by the scripted turns).

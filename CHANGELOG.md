@@ -9,6 +9,16 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 ## [Unreleased]
 
 ### Added
+- **Results table, rerun question and an autonomous mode in the terminal UI.**
+  After every report the UI (`bias-scope-agent`, and the runner's UI) shows
+  the rows as a table (metric, family, score, n, fidelity, deviation) and asks
+  whether to test another model; `yes` starts a fresh session. `--autonomous`
+  asks only for a model id, works out the kind of model, sends the agent the
+  scripted three turns (the plan is confirmed on the user's behalf, `REVIEW_LATER`
+  RL-099), shows the table and asks for the next id.
+  `scripts/agent/live_conversation.py` is interactive by default; `--scenario`
+  plays the fixed script and `--autonomous` writes one transcript per model.
+  Esc, Ctrl-Q and Ctrl-C leave the UI; `textual` is a core dependency.
 - **Prompt-family providers for API-served targets** (`datasets_prompt.py`):
   `prompt_benchmarks` (BBQMetric, StereoSetMetric, IdentitySwapConsistency,
   OccupationPronounSkew - self-loading, given the model name and a bounded

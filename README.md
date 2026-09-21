@@ -422,15 +422,27 @@ including constructor arguments, written as `__init__.<param>`.
 ### Talking to it
 
 ```bash
-bias-scope-agent            # a terminal UI: You > / BiasScope>, replies rendered, tool calls shown live
-bias-scope-agent --plain    # the line-by-line REPL, raw text
+bias-scope-agent               # a terminal UI: You > / BiasScope>, replies rendered, tool calls shown live
+bias-scope-agent --autonomous  # asks only for a model id, evaluates it end to end, asks for the next
+bias-scope-agent --plain       # the line-by-line REPL, raw text
 ```
 
 The UI is a Textual app (`textual` is a core dependency). Type a turn at
 `You >`; while the agent works, the tools it calls scroll past as dim lines,
 then the reply appears under `BiasScope>` with its tables and emphasis
-rendered. `exit`, Esc, Ctrl-Q or Ctrl-C leaves. In a pipe or without `textual`, the plain
-REPL is used automatically.
+rendered. When a report is in, its rows appear as a table (metric, family,
+score, n, fidelity, deviation) and the UI asks whether to test another model;
+`yes` starts a fresh session, `no` leaves. `exit`, Esc, Ctrl-Q or Ctrl-C
+leaves at any time. In a pipe or without `textual`, the plain REPL is used
+automatically.
+
+`--autonomous` is the same UI with only one question: the model id. It works
+out the kind of model (masked LM, decoder, sentence encoder, or an
+`openrouter/...` API model), sends the agent the same three turns the
+scripted runner uses, confirms the plan on your behalf, shows the table and
+asks for the next model. Nothing else is asked, so use it only for a model
+you would have confirmed anyway; `--device` picks the GPU (default: CUDA if
+available).
 
 ### What the agent will not do
 
@@ -456,22 +468,25 @@ fails if a listed one starts.
 
 ### Scripted runs
 
-For reproducible, non-interactive runs with a full tool-dispatch log:
+For runs with a full tool-dispatch log, recorded as JSON:
 
 ```bash
+python scripts/agent/live_conversation.py                 # interactive: you type, it records
+python scripts/agent/live_conversation.py --autonomous    # asks only for model ids; one transcript each
 python scripts/agent/live_conversation.py \
-    --scenario {encoder,causal,embedding} \
+    --scenario {encoder,causal,embedding,api} \
     --model-id MODEL_ID \
     --device cuda \
-    --out-dir results/verification/agent_live
+    --out-dir results/verification/agent_live              # scripted: fixed three turns
 
 python scripts/agent/summarize_runs.py --check
 ```
 
-On a terminal the first opens the Textual UI and plays its three turns in it
-(add `--plain` for raw text; a pipe gets raw text automatically; add
-`--interactive` to type the turns yourself and still record them). It reads
-the same `BIASSCOPE_AGENT_*` variables and records every turn,
+Without flags it opens the UI and records whatever you type, until you leave.
+`--autonomous` asks only for model ids and evaluates each one without further
+questions. `--scenario` plays the fixed three-turn script on a terminal in the
+same UI (add `--plain` for raw text; a pipe gets raw text automatically). All
+three read the same `BIASSCOPE_AGENT_*` variables and record every turn,
 every tool call with its arguments, `summarize_report`'s own return value, and a
 check listing any figure in the agent's final message that appears in no tool
 result. The second tabulates recorded runs from the library's output rather than

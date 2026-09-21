@@ -213,3 +213,201 @@ class TestKeyboardShortcutsToLeave:
 
         keys = _run(scenario())
         assert "escape" in keys and "ctrl+q" in keys
+
+
+class _FakeInfo:
+    def __init__(self, family, fidelity):
+        self.family, self.fidelity = family, fidelity
+
+
+class _FakeResult:
+    def __init__(self, metric, score, n, family="embedding", fidelity="faithful", deviation=""):
+        self.metric, self.score, self.n, self.info = metric, score, n, _FakeInfo(family, fidelity)
+        self.protocol = {"resources": [{"name": "x", "deviation": deviation}] if deviation else []}
+
+
+class _FakeReport:
+    model_id = "gpt2"
+    results = [_FakeResult("WEAT", 0.4006, 16), _FakeResult("EMT", 0.053, 25, "generated_text",
+                                                             "faithful", "local classifier")]
+    skipped = {"SEAT": "declined: zero variance"}
+
+
+class ReportingLoop(FakeLoop):
+    """A loop whose turn ends with summarize_report, like a real evaluation."""
+
+    def __init__(self):
+        super().__init__()
+        self.session = type("S", (), {})()
+        self.session.reports = type("R", (), {"get": staticmethod(lambda handle: _FakeReport())})()
+
+    def run_turn(self, user_text):
+        self.turns.append(user_text)
+        if self.on_tool:
+            self.on_tool("run_suite", {})
+            self.on_tool("summarize_report", {"report_handle": "h1"})
+        return "Done, see the report."
+
+
+class TestResultsTableAndRerunPrompt:
+    """When a turn ends with summarize_report, the TUI shows the report as a
+    table (metric, family, score, n, fidelity, deviation; skipped metrics with
+    their reason) and then asks whether to run another bias test. Yes starts a
+    fresh loop and a clean transcript; no leaves."""
+
+    def _drive(self, app, *keys):
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.2)
+                await pilot.press(*"run it", "enter")
+                await pilot.pause(0.5)
+                await app.workers.wait_for_complete()
+                await pilot.pause(0.4)
+                state = {"rows": app.results_rows(),
+                         "question": app.query_one("#prompt").placeholder}
+                for key in keys:
+                    await pilot.press(*key, "enter") if len(key) > 1 else await pilot.press(key)
+                    await pilot.pause(0.4)
+                state["after"] = app.transcript()
+                state["placeholder_after"] = app.query_one("#prompt").placeholder
+                state["return"] = app.return_value
+                return state
+        return _run(scenario())
+
+    def test_the_report_is_rendered_as_a_table_with_skips(self):
+        state = self._drive(BiasScopeApp(ReportingLoop()))
+        rows = state["rows"]
+        assert ("WEAT", "embedding", "0.4006", "16", "faithful", "") in rows
+        assert ("EMT", "generated_text", "0.053", "25", "faithful", "local classifier") in rows
+        assert ("SEAT", "", "skipped", "", "", "declined: zero variance") in rows
+        assert "another" in state["question"].lower()
+
+    def test_yes_starts_a_fresh_loop_and_a_clean_transcript(self):
+        made = []
+
+        def make_loop():
+            made.append(ReportingLoop())
+            return made[-1]
+
+        app = BiasScopeApp(make_loop(), make_loop=make_loop)
+        state = self._drive(app, "yes")
+        assert len(made) == 2 and app.loop is made[1]
+        assert state["after"] == []                       # transcript cleared for the new run
+        assert "another" not in state["placeholder_after"].lower()
+
+    def test_no_leaves_with_the_transcript(self):
+        app = BiasScopeApp(ReportingLoop(), make_loop=ReportingLoop)
+        state = self._drive(app, "no")
+        assert state["return"] is not None
+        assert [r for r, _ in state["return"]][-1] == "BiasScope>"
+
+
+class TestAutonomousMode:
+    """Asks for a model and nothing else. Plays the three scripted turns for
+    that model (the plan is confirmed on the user's behalf), shows the
+    results table, then asks for the next model; 'no' leaves. Each run's
+    transcript is kept under `runs` for the caller to record."""
+
+    def _app(self, made):
+        def make_loop():
+            made.append(ReportingLoop())
+            return made[-1]
+
+        return BiasScopeApp(make_loop(), make_loop=make_loop, autonomous=True,
+                            turns_for=lambda model: [f"set up {model}", "plan it", "run it"])
+
+    def test_it_asks_for_a_model_then_runs_the_script_and_asks_again(self):
+        made = []
+        app = self._app(made)
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.3)
+                first_question = app.query_one("#prompt").placeholder
+                await pilot.press(*"gpt2", "enter")
+                for _ in range(60):
+                    await pilot.pause(0.1)
+                    if app.runs:
+                        break
+                await pilot.pause(0.3)
+                return first_question, app.query_one("#prompt").placeholder, app.results_rows()
+
+        first, again, rows = _run(scenario())
+        assert "model" in first.lower()
+        assert made[0].turns == ["set up gpt2", "plan it", "run it"]
+        assert app.runs[0][0] == "gpt2"
+        users = [text for role, text in app.runs[0][1] if role == "You >"]
+        assert users == ["set up gpt2", "plan it", "run it"]
+        assert rows and rows[0][0] == "WEAT"
+        assert "another" in again.lower() or "model" in again.lower()
+
+    def test_the_next_model_gets_a_fresh_loop_and_no_leaves(self):
+        made = []
+        app = self._app(made)
+
+        async def scenario():
+            async with app.run_test() as pilot:
+                await pilot.pause(0.3)
+                await pilot.press(*"gpt2", "enter")
+                for _ in range(60):
+                    await pilot.pause(0.1)
+                    if len(app.runs) == 1:
+                        break
+                await pilot.press(*"bert-base-uncased", "enter")
+                for _ in range(60):
+                    await pilot.pause(0.1)
+                    if len(app.runs) == 2:
+                        break
+                await pilot.press(*"no", "enter")
+                await pilot.pause(0.3)
+                return app.return_value
+
+        _run(scenario())
+        assert len(made) == 2 and made[1].turns[0] == "set up bert-base-uncased"
+        assert [m for m, _ in app.runs] == ["gpt2", "bert-base-uncased"]
+
+
+class TestTheRunnerDefaultsToInteractiveAndHasAnAutonomousMode:
+    """2026-09-21: 'let the interactive the default one' and 'one option
+    fully autonomous where it just asks the user for the model ... and when it
+    ends the tests it re-asks for a new model'. `--scenario` is now opt-in;
+    `--autonomous` records one transcript per model the user names."""
+
+    def test_no_flags_means_interactive_and_scenario_means_scripted(self):
+        from scripts.agent import live_conversation as lc
+
+        assert lc.mode_of(lc.parse_args([])) == "interactive"
+        assert lc.mode_of(lc.parse_args(["--scenario", "encoder"])) == "scripted"
+        assert lc.mode_of(lc.parse_args(["--autonomous"])) == "autonomous"
+
+    def test_each_autonomous_run_becomes_its_own_record(self):
+        from scripts.agent import live_conversation as lc
+
+        first, second = FakeLoop(), FakeLoop()
+        first.dispatched = [{"tool": "construct_backend",
+                             "input": {"model_id": "gpt2"}, "ok": True}]
+        second.dispatched = [{"tool": "construct_backend",
+                              "input": {"model_id": "bert-base-uncased"}, "ok": True}]
+        runs = [("gpt2", [("You >", "set up gpt2"), ("BiasScope>", "done")]),
+                ("bert-base-uncased", [("You >", "set up bert"), ("BiasScope>", "done too")])]
+        records = lc.records_from_runs(runs, [first, second])
+        assert [r["target_model"] for r in records] == ["gpt2", "bert-base-uncased"]
+        assert records[0]["exchanges"] == [{"turn": 1, "user": "set up gpt2", "agent": "done"}]
+        assert records[1]["dispatched"] is second.dispatched
+
+    def test_the_cli_autonomous_flag_reaches_the_app(self, monkeypatch):
+        from bias_scope_agent import cli, tui
+
+        seen = {}
+
+        def fake_run_autonomous(loop, make_loop, turns_for):
+            seen["turns_for"] = turns_for
+            seen["fresh"] = make_loop()
+            return []
+
+        monkeypatch.setattr(tui, "run_autonomous", fake_run_autonomous)
+        monkeypatch.setattr(cli, "_tui_available", lambda: True)
+        monkeypatch.setattr(cli, "load_config", lambda: object())
+        monkeypatch.setattr(cli, "AgentLoop", lambda config, session: FakeLoop())
+        assert cli.main(["--autonomous", "--device", "cpu"]) == 0
+        assert callable(seen["turns_for"]) and isinstance(seen["fresh"], FakeLoop)
