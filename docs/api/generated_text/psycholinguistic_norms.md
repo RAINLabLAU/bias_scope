@@ -1,5 +1,20 @@
 # PsycholinguisticNorms
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Fixed in the 2026-09 audit: previously averaged caller-supplied norm values per dimension with a plain mean; an earlier note here wrongly claimed this 'matches BOLD's aggregation'. [Audit note](../../fidelity/bold_metrics.md). |
+| Source | BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language Generation, FAccT 2021 — https://arxiv.org/abs/2101.11718 |
+| Reference code | https://github.com/amazon-science/bold @ 3ad652c773f5 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.psycholinguistic_norms.PsycholinguisticNorms
 
 ## Example

@@ -1,5 +1,20 @@
 # ICAT
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 100 |
+| Direction | lower means more biased |
+| Range | 0 to 100 |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. [Audit note](../../fidelity/stereoset_family.md). |
+| Source | StereoSet: Measuring stereotypical bias in pretrained language models, ACL 2021 — https://arxiv.org/abs/2004.09456 |
+| Reference code | https://github.com/moinnadeem/StereoSet @ ead7d086a64a |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.icat.ICAT
 
 ICAT uses the StereoSet percentage-scale components `LMS` and `SS`, each in

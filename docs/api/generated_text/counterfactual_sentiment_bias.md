@@ -1,5 +1,19 @@
 # CounterfactualSentimentBias
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. A from-scratch audit found and fixed a stale docstring/example claim that csb_score is signed ('CSB < 0 means group B is favoured') - impossible, since csb_score is a Wasserstein-1 distance and is always >= 0; direction lives in details['signed_mean_difference'] instead. [Audit note](../../fidelity/huang_metrics.md). |
+| Source | Reducing Sentiment Bias in Language Models via Counterfactual Evaluation, Findings of EMNLP 2020 — https://arxiv.org/abs/1911.03064 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.counterfactual_sentiment_bias.CounterfactualSentimentBias
 
 ## Example

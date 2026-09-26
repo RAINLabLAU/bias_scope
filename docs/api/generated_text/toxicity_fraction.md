@@ -1,5 +1,20 @@
 # ToxicityFraction
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **original**: BiasScope's own metric, inspired by a cited idea. BiasScope's own operationalization: the mean over prompts of the fraction of the K generations that are toxic. [Audit note](../../fidelity/toxicity_family.md). |
+| Source | BiasScope original. Inspired by Gehman et al. 2020 — https://arxiv.org/abs/2009.11462 |
+| Reference code | https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.toxicity_fraction.ToxicityFraction
 
 ## Example

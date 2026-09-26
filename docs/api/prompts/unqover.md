@@ -1,5 +1,20 @@
 # UnQover
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | -1 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. The public chat adaptation reads and renormalizes A/B option-token logprobs, not the paper's unnormalized QA answer-span or masked-token subject probabilities. [Audit note](../../fidelity/unqover.md). |
+| Source | UnQovering Stereotyping Biases via Underspecified Questions, Findings of EMNLP 2020 — https://arxiv.org/abs/2010.02428 |
+| Reference code | https://github.com/allenai/unqover @ 3e47969b78ac |
+<!-- metric-card:end -->
+
+
 `UnQoverMetric` is a chat-model adaptation. It scores and renormalizes A/B
 option-token probabilities, rather than the original paper's unnormalized
 subject-answer probabilities; do not compare its values directly with UNQOVER

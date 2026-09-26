@@ -47,7 +47,7 @@ plugins:
             show_root_heading: true
             show_symbol_type_heading: true
             show_symbol_type_toc: true
-            docstring_style: google
+            docstring_style: auto
             merge_init_into_class: true
 
 markdown_extensions:
@@ -57,7 +57,8 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      check_paths: true
   - pymdownx.tabbed:
       alternate_style: true
   - attr_list
@@ -77,6 +78,22 @@ nav:
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
+  - Concepts:
+    - Architecture: architecture.md
+    - Metric metadata and fidelity: framework/metadata.md
+    - Choosing metrics: framework/recommend.md
+    - Backends: framework/backends.md
+    - Running a suite: framework/suite.md
+    - Results and reports: framework/results.md
+    - Visualization: framework/viz.md
+    - Multilingual: framework/multilingual.md
+  - Agent:
+    - Overview: agent/index.md
+    - Configuration: agent/configuration.md
+    - Datasets: agent/datasets.md
+    - Running it: agent/running.md
+    - Safeguards: agent/safeguards.md
+    - Reference: agent/reference.md
   - API Reference:
     - Overview: api/overview.md
     - Embedding-Based:
@@ -87,22 +104,25 @@ nav:
     - Probability-Based:
       - CrowS-Pairs: api/probability/crows_pairs.md
       - CAT: api/probability/cat.md
-      - iCAT: api/probability/icat.md
+      - ICAT: api/probability/icat.md
       - AUL: api/probability/aul.md
       - AULA: api/probability/aula.md
       - LMB: api/probability/lmb.md
       - LPBS: api/probability/lpbs.md
       - CBS: api/probability/cbs.md
       - DisCo: api/probability/disco.md
+      - PairwiseLikelihoodPreference: api/probability/pairwise_likelihood_preference.md
+      - TopKFillDivergence: api/probability/topk_fill_divergence.md
     - Generated Text:
       - RegardScore: api/generated_text/regard_score.md
-      - ScoreParity: api/generated_text/score_parity.md
+      - MeanScoreGap: api/generated_text/mean_score_gap.md
       - ToxicityFraction: api/generated_text/toxicity_fraction.md
       - ToxicityProbability: api/generated_text/toxicity_probability.md
       - SocialGroupSubstitution: api/generated_text/social_group_substitution.md
       - CoOccurrenceBiasScore: api/generated_text/cooccurrence_bias_score.md
       - DemographicRepresentation: api/generated_text/demographic_representation.md
       - StereotypicalAssociations: api/generated_text/stereotypical_associations.md
+      - StereotypeRuleHitRate: api/generated_text/stereotype_rule_hit_rate.md
       - MarkedPersons: api/generated_text/marked_persons.md
       - EMT: api/generated_text/emt.md
       - FGB: api/generated_text/fgb.md
@@ -118,12 +138,59 @@ nav:
       - TruthfulQA: api/prompts/truthfulqa.md
       - BOLD: api/prompts/bold.md
       - RealToxicityPrompts: api/prompts/realtoxicityprompts.md
-      - CounterfactualFairness: api/prompts/counterfactual_fairness.md
-      - DemographicRepresentationBias: api/prompts/demographic_representation_bias.md
-      - AnalogicalReasoningBias: api/prompts/analogical_reasoning_bias.md
+      - IdentitySwapConsistency: api/prompts/identity_swap_consistency.md
+      - OccupationPronounSkew: api/prompts/occupation_pronoun_skew.md
+      - Analogy analyses: api/prompts/analogical_reasoning_bias.md
       - TofNof: api/prompts/tof_nof.md
       - OpinionConsistencyAcrossPersonas: api/prompts/opinion_consistency_across_personas.md
       - UnQover: api/prompts/unqover.md
+      - WinoBias: api/prompts/winobias.md
+      - DecodingTrust: api/prompts/decodingtrust.md
+      - DiscrimEval: api/prompts/discrim_eval.md
+      - FirstPersonFairness: api/prompts/first_person_fairness.md
+      - Implicit association and decision bias: api/prompts/implicit_association.md
+      - PoliticalEvenHandedness: api/prompts/political_even_handedness.md
+      - TrustLLM fairness: api/prompts/trustllm.md
+  - Fidelity:
+    - Index: fidelity/INDEX.md
+    - Audit notes:
+      - AUL and AULA: fidelity/aul_aula.md
+      - BBQMetric: fidelity/bbq.md
+      - BOLD: fidelity/bold.md
+      - GenderPolarity and PsycholinguisticNorms: fidelity/bold_metrics.md
+      - CBS and LMB: fidelity/cbs_lmb.md
+      - CEAT — Contextualized Embedding Association Test: fidelity/ceat.md
+      - CoOccurrenceBiasScore: fidelity/cooccurrence_bias_score.md
+      - CrowS-Pairs: fidelity/crows_pairs.md
+      - DecodingTrustStereotype and DecodingTrustFairness: fidelity/decodingtrust.md
+      - DemographicRepresentation: fidelity/demographic_representation.md
+      - DemographicRepresentationBias → OccupationPronounSkew: fidelity/demographic_representation_bias.md
+      - DisCoMetric — Discovery of Correlations: fidelity/disco.md
+      - DiscrimEval: fidelity/discrim_eval.md
+      - FGB — Full Gen Bias: fidelity/fgb.md
+      - FirstPersonFairness: fidelity/first_person_fairness.md
+      - HONEST: fidelity/honest.md
+      - CounterfactualSentimentBias and SocialGroupSubstitution: fidelity/huang_metrics.md
+      - ImplicitAssociationTest and LLMDecisionBias: fidelity/implicit_association.md
+      - LPBS — Log Probability Bias Score: fidelity/lpbs.md
+      - MarkedPersons: fidelity/marked_persons.md
+      - AnalogicalReasoningBias and CounterfactualFairness: fidelity/originals.md
+      - PGB — Partial Gen Bias: fidelity/pgb.md
+      - PoliticalEvenHandedness: fidelity/political_even_handedness.md
+      - RegardScore: fidelity/regard_score.md
+      - ScoreParity → MeanScoreGap: fidelity/score_parity.md
+      - SEAT — Sentence Encoder Association Test: fidelity/seat.md
+      - SentenceBiasScore: fidelity/sentence_bias_score.md
+      - "CAT, ICAT, StereoSetMetric": fidelity/stereoset_family.md
+      - StereotypicalAssociations: fidelity/stereotypical_associations.md
+      - TofNof: fidelity/tofnof.md
+      - "EMT, ToxicityProbability, ToxicityFraction, RealToxicityPrompts": fidelity/toxicity_family.md
+      - TrustLLM fairness subset: fidelity/trustllm.md
+      - TruthfulQA: fidelity/truthfulqa.md
+      - UnQoverMetric: fidelity/unqover.md
+      - WEAT — Word Embedding Association Test: fidelity/weat.md
+      - WinoBias: fidelity/winobias.md
+  - Inclusion criteria: inclusion_criteria.md
+  - Roadmap: roadmap.md
   - Contributing: contributing.md
   - Authors: authors.md
-

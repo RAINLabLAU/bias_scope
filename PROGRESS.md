@@ -3241,3 +3241,58 @@ Installed it and extracted all 43.
 
 `ruff check src tests` clean; `python -m pytest -q --cov=bias_scope` 2470
 passed, 40 skipped, 1 xfailed, coverage 84%.
+
+## 2026-09-26 - the Read the Docs site: it did not build, and it described v0.1
+
+Asked to update the Read the Docs documentation. The site is MkDocs (Material)
+built from `mkdocs.yml`, and it had not kept pace with 0.2.0 or the agent.
+
+**Baseline.** `mkdocs build --strict` failed on main: `docs/api/generated_text/
+score_parity.md` documents `ScoreParity`, renamed `MeanScoreGap` in 0.2.0, and a
+mkdocstrings "could not be found" is an ERROR that aborts even a non-strict
+build (the two prompt pages for `CounterfactualFairness` and
+`DemographicRepresentationBias` were the same). 39 pages existed but were in no
+nav. `gh run list` shows the GitHub Actions docs deploy failed on every push to
+main from 2026-08-23 (PR #29) to 2026-09-21; the last success was 2026-07-06, so
+the published site is that old. 22 of the 56 registered metrics had no autodoc block. `INDEX.md` said 55
+metrics and 28 faithful; the registry says 56 and 23. RL-105.
+
+**Test first.** `tests/test_docs.py` reads the docs as text and compares them
+with `METRIC_INFO`: every `:::` target resolves (checked statically), every page
+is in the nav, every metric has an API page and is in the overview, the fidelity
+index matches the registry and its links point at files, and the generated
+blocks are current. The last test runs the real strict build (`slow`). Six of
+the first eight failed for the reasons above, and two passed.
+
+**What changed.**
+- Three pages renamed with `git mv` (`mean_score_gap`, `identity_swap_consistency`,
+  `occupation_pronoun_skew`); they now include the current example files.
+- 10 new API pages for 15 metrics, each with a runnable offline example or a stated
+  usage snippet, and two framework examples (eleven new files under `examples/`, run
+  by `tests/test_examples/test_docs_examples.py`).
+- `scripts/docs/render_api_pages.py`: writes a metric card (access, neutral value,
+  direction, range, fidelity with its deviation note, source) into every API page,
+  and generates the overview tables, the home-page table and the multilingual
+  readiness table from the registry. RL-106.
+- New sections: Concepts (architecture, metadata and fidelity, choosing metrics,
+  backends, running a suite, results, visualization, multilingual) and Agent
+  (overview, configuration, datasets, running it, safeguards, reference).
+- Rewrote the home, quick start, installation and API overview pages; added the
+  six-step add-a-metric checklist to `contributing.md`; put the fidelity notes,
+  inclusion criteria and roadmap in the nav; removed a stale roadmap row and a
+  stale "one unaudited remains" claim (SentenceBiasScore was audited 2026-09-15).
+- `mkdocs.yml`: full nav, `docstring_style: auto`, snippet paths checked.
+
+**Defects found on the way.** `render_fidelity_index.py` wrote cp1252 on Windows
+and linked three API-page notes to files that do not exist (RL-107). Two source
+docstrings broke the docs build (RL-110). `inspect_model` still accepts an
+`api_key` (RL-108). The paper no longer matches main on the metric count, the
+fidelity counts, the tool count and the gate's matching rule (RL-109).
+
+**Not done.** `docs/judges.md` and the adapters page (those phases are not
+built). The README still uses the 0.1.x metric names and quick start (PLAN.md
+11.2). Nothing was verified from a fresh clone, and I did not look at the Read
+the Docs dashboard.
+
+`mkdocs build --strict`: no warnings, 11 s. `python -m ruff check src tests
+scripts/docs scripts/verification` clean.

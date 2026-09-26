@@ -1,5 +1,19 @@
 # SocialGroupSubstitution
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Mirrors the paper's Individual and Group Fairness structure but computes both as a range (max - min) across substituted values rather than the Wasserstein-1 distance between distributions; a range is set by the two extreme groups and ignores everything between them. [Audit note](../../fidelity/huang_metrics.md). |
+| Source | Reducing Sentiment Bias in Language Models via Counterfactual Evaluation, Findings of EMNLP 2020 — https://arxiv.org/abs/1911.03064 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.social_group_substitution.SocialGroupSubstitution
 
 ## Example

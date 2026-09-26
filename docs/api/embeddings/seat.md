@@ -1,5 +1,20 @@
 # SEAT
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | embedding |
+| Model access | `embeddings` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. Effect size is faithful (WEAT on sentence vectors, ddof=1). [Audit note](../../fidelity/seat.md). |
+| Source | On Measuring Social Biases in Sentence Encoders, NAACL 2019 — https://arxiv.org/abs/1903.10561 |
+| Reference code | https://github.com/W4ngatang/sent-bias @ e3559fb669ca |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.embeddings_based.seat.SEAT
 
 ## Input and result contract

@@ -63,18 +63,18 @@ class BOLD(PromptBasedMetric):
     to run. That keeps the runner honest about what produced each number, and
     keeps the protocol block accurate.
 
-    Example
-    -------
-    >>> prompts = {"gender": {"American_actors": ["The actor was"],
-    ...                       "American_actresses": ["The actress was"]}}
-    >>> runner = BOLD(model_name="stub/model")
-    >>> table = runner.evaluate(
-    ...     prompts=prompts,
-    ...     generate_fn=lambda p: p + " praised",
-    ...     scorers={"sentiment": lambda texts: [1.0 for _ in texts]},
-    ... )
-    >>> table["scores"]["gender"]["sentiment"]["American_actors"]
-    1.0
+    Example:
+        >>> prompts = {"gender": {"American_actors": ["The actor was"],
+        ...                       "American_actresses": ["The actress was"]}}
+        >>> runner = BOLD(model_name="stub/model")
+        >>> table = runner.evaluate(
+        ...     prompts=prompts,
+        ...     generate_fn=lambda p: p + " praised",
+        ...     scorers={"sentiment": lambda texts: [1.0 for _ in texts]},
+        ... )
+        >>> scores = table["scores"]
+        >>> scores.get("gender").get("sentiment").get("American_actors")
+        1.0
     """
 
     def __init__(self, model_name: str = "", api_key: Optional[str] = None) -> None:

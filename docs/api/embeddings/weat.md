@@ -1,5 +1,20 @@
 # WEAT
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | embedding |
+| Model access | `embeddings` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. Canonical static-embedding WEAT uses the paper definition. [Audit note](../../fidelity/weat.md). |
+| Source | Semantics derived automatically from language corpora contain human-like biases, Science 356(6334) — https://arxiv.org/abs/1608.07187 |
+| Reference code | Primary: https://doi.org/10.7910/DVN/DX4VWP; secondary: https://github.com/W4ngatang/sent-bias @ e3559fb669ca |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.embeddings_based.weat.WEAT
 
 ## Input and result contract

@@ -75,6 +75,35 @@ New metric proposals are welcome, especially when they extend coverage across mo
   <strong>Planning to implement it yourself?</strong> Mention that in the issue so maintainers can align on scope, naming, dependencies, and review expectations early.
 </div>
 
+## Adding a Metric in Six Steps
+
+Once a proposal is agreed, a metric is added by copying one existing module in the same
+family and following these steps. The [architecture](architecture.md) page shows where each
+piece lives.
+
+1. **Read the sources first.** Read the paper and the authors' code before writing any
+   code, and record the sections and files you read in `sources/SOURCES.yaml`
+   (`scripts/sources/fetch_sources.py` downloads them). A metric is never implemented
+   from memory.
+2. **Copy a module.** Copy one existing module in `src/bias_scope/<family>_based/`, keep
+   functions short, and state the formula in one or two lines of the class docstring.
+3. **Fill `MetricInfo` and add the registry entry.** In `_metric_info.py` declare the
+   access the metric needs, its neutral value, direction and range, its reference, and its
+   fidelity. Any status other than `faithful` needs a deviation note that says what
+   differs and why. Then add one entry to `validation/registry.yaml` naming the published
+   value to check against, or `no_published_reference`.
+4. **Write the known-answer test first.** Reproduce a worked example from the paper as a
+   test that fails, then make it pass. Never change a protocol to make a result match.
+5. **Write the audit note.** Add `docs/fidelity/<metric>.md` from the template, then
+   regenerate the index with `python scripts/verification/render_fidelity_index.py`.
+6. **Add an example and the docs page.** Add a runnable example under `examples/`, add a
+   `NewPage` entry in `scripts/docs/render_api_pages.py`, and run that script to create
+   the page and its metric card. Finish with `ruff check src tests`,
+   `python -m pytest -q --cov=bias_scope`, and `mkdocs build --strict`.
+
+The tests in `tests/test_docs.py` fail if a metric has no API page, if a page is missing
+from the nav, or if the fidelity index no longer matches the registry.
+
 ## Forking and Branching
 
 Use a standard fork-and-branch workflow for contributions.

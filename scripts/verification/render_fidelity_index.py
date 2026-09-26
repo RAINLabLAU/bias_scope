@@ -18,6 +18,7 @@ Exits non-zero if any metric's evidence is inconsistent.
 
 from __future__ import annotations
 
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -50,7 +51,7 @@ BLURBS = {
 
 
 def manifest_entries() -> Dict[str, dict]:
-    text = MANIFEST.read_text()
+    text = MANIFEST.read_text(encoding="utf-8")
     document = yaml.safe_load("metrics:" + text.partition("metrics:")[2])
     return {e["metric"]: e for e in document["metrics"]}
 
@@ -72,6 +73,18 @@ def check(name: str, info, entry) -> List[str]:
         elif not (REPO_ROOT / info.fidelity_note).exists():
             problems.append(f"{name}: fidelity_note {info.fidelity_note} is missing")
     return problems
+
+
+def note_link(note: str) -> str:
+    """A markdown link to a metric's note, relative to docs/fidelity/.
+
+    Most notes live in docs/fidelity/, but a metric may name its API page as
+    its note (the analogy and opinion-consistency metrics do). Linking by file
+    name alone made those three links point at files that do not exist.
+    """
+    relative = Path(os.path.relpath(REPO_ROOT / note, NOTES_DIR)).as_posix()
+    label = "API note" if relative.startswith("../api/") else Path(note).name
+    return f"[{label}]({relative})"
 
 
 def main() -> int:
@@ -125,15 +138,13 @@ def main() -> int:
     for name, info in sorted(
         METRIC_INFO.items(), key=lambda kv: (ORDER.index(kv[1].fidelity), kv[0])
     ):
-        note = (
-            f"[{Path(info.fidelity_note).name}]({Path(info.fidelity_note).name})"
-            if info.fidelity_note
-            else "—"
-        )
+        note = note_link(info.fidelity_note) if info.fidelity_note else "—"
         body += [f"| `{name}` | {info.family} | **{info.fidelity}** | {note} |"]
     body.append("")
 
-    OUTPUT.write_text("\n".join(body))
+    # UTF-8 with LF endings, explicitly: the platform default is cp1252 on
+    # Windows, which wrote the index in an encoding MkDocs cannot read.
+    OUTPUT.write_text("\n".join(body), encoding="utf-8", newline="\n")
     summary = ", ".join(f"{s} {counts.get(s, 0)}" for s in ORDER)
     print(f"wrote {OUTPUT.relative_to(REPO_ROOT)}: {summary}")
 

@@ -1,5 +1,20 @@
 # HONEST
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en, es, fr, it, pt, ro |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. The formula is the paper's, unchanged. [Audit note](../../fidelity/honest.md). |
+| Source | HONEST: Measuring Hurtful Sentence Completion in Language Models, NAACL 2021 — https://aclanthology.org/2021.naacl-main.191/ |
+| Reference code | https://github.com/MilaNLProc/honest @ 6efc7817cbeb |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.honest.HONEST
 
 ## Example

@@ -1,5 +1,19 @@
 # DisCo
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. [Audit note](../../fidelity/disco.md). |
+| Source | Measuring and Reducing Gendered Correlations in Pre-trained Models, arXiv preprint — https://arxiv.org/abs/2010.06032 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.disco.DisCoMetric
 
 ## Example

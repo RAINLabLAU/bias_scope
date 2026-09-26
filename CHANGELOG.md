@@ -9,6 +9,16 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 ## [Unreleased]
 
 ### Added
+- **Documentation site brought up to 0.2.0.** The API pages for the renamed metrics
+  (`MeanScoreGap`, `IdentitySwapConsistency`, `OccupationPronounSkew`) had pointed at
+  classes that no longer exist, so the site did not build; 39 pages were unreachable
+  from the nav. Every one of the 56 metrics now has a page with a generated card
+  (access, neutral value, direction, range, fidelity, source), 10 pages are new, and
+  there are new Concepts (architecture, metadata and fidelity, choosing metrics,
+  backends, suite, results, visualization, multilingual) and Agent sections.
+  `tests/test_docs.py` keeps the docs in step with the registry and runs the strict
+  build. `render_fidelity_index.py` now writes UTF-8 and links API-page notes
+  correctly (`REVIEW_LATER` RL-105 to RL-110).
 - **Results table, rerun question and an autonomous mode in the terminal UI.**
   After every report the UI (`bias-scope-agent`, and the runner's UI) shows
   the rows as a table (metric, family, score, n, fidelity, deviation) and asks

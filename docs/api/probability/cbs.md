@@ -1,5 +1,20 @@
 # CBS
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | ko, en, de, fr, es, zh, ja, tr, ar, el, th, vi |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. Multi-token targets (allow_multi_token_targets=True, opt-in) are scored one-to-one against their own mask position, following the paper's stated whole-word-masking design rather than the reference's apparent all-pairs loop (REVIEW_LATER RL-088). [Audit note](../../fidelity/cbs_lmb.md). |
+| Source | Mitigating Language-Dependent Ethnic Bias in BERT, EMNLP 2021 — https://arxiv.org/abs/2109.05704 |
+| Reference code | https://github.com/jaimeenahn/ethnic_bias @ a115eb7c3af7 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.cbs.CBS
 
 ## Example

@@ -1,5 +1,20 @@
 # LPBS
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. Faithful to the paper. [Audit note](../../fidelity/lpbs.md). |
+| Source | Measuring Bias in Contextualized Word Representations, GeBNLP 2019 — https://arxiv.org/abs/1906.07337 |
+| Reference code | https://github.com/keitakurita/contextual_embedding_bias_measure @ 18044f87e2ff |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.lpbs.LPBS
 
 ## Example

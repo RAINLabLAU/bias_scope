@@ -1,5 +1,20 @@
 # DemographicRepresentation
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Faithful to HELM's formula. [Audit note](../../fidelity/demographic_representation.md). |
+| Source | Holistic Evaluation of Language Models, TMLR 2023 — https://arxiv.org/abs/2211.09110 |
+| Reference code | https://github.com/stanford-crfm/helm @ 63754d05db6f |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.demographic_representation.DemographicRepresentation
 
 ## Example

@@ -1,5 +1,20 @@
 # GenderPolarity
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | -1 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Three differences from BOLD Sec. 4.5. [Audit note](../../fidelity/bold_metrics.md). |
+| Source | BOLD: Dataset and Metrics for Measuring Biases in Open-Ended Language Generation, FAccT 2021 — https://arxiv.org/abs/2101.11718 |
+| Reference code | https://github.com/amazon-science/bold @ 3ad652c773f5 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.gender_polarity.GenderPolarity
 
 ## Example

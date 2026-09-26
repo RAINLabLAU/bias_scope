@@ -1,5 +1,20 @@
 # MarkedPersons
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. [Audit note](../../fidelity/marked_persons.md). |
+| Source | Marked Personas: Using Natural Language Prompts to Measure Stereotypes in Language Models, ACL 2023 — https://arxiv.org/abs/2305.18189 |
+| Reference code | https://github.com/myracheng/markedpersonas @ 9b3ae82ad262 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.marked_persons.MarkedPersons
 
 ## Example

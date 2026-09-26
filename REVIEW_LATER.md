@@ -2625,3 +2625,41 @@ commit is checked out, it does not change which commit.
 **To revisit:** nothing checks that a path a loader hardcodes is reachable from
 some manifest entry. RL-102's preflight would have surfaced this on any fresh
 clone, but only at run time - a manifest test could catch it at commit time.
+
+## RL-105 · finding · 2026-09-26 · the Read the Docs site did not build, and the docs described v0.1
+**Encountered:** `mkdocs build --strict` failed on main: three API pages named classes renamed in 0.2.0 (`score_parity`, `counterfactual_fairness`, `demographic_representation_bias`), and mkdocstrings treats that as an ERROR, so even a non-strict build aborts. 39 pages (all fidelity notes, `inclusion_criteria`, `roadmap`) were not in the nav. 22 of the 56 registered metrics had no autodoc block. `docs/fidelity/INDEX.md` claimed 55 metrics and 28 faithful; the registry has 56 and 23.
+**Chosen:** pages renamed with `git mv`, 10 new pages, autodoc blocks added, nav rebuilt, index regenerated. `tests/test_docs.py` now fails on each of those drifts; its last test runs the real strict build (marked `slow`).
+**Where:** docs/, mkdocs.yml, tests/test_docs.py, scripts/docs/render_api_pages.py.
+**Risk if wrong:** none known. `gh run list` shows the GitHub Actions docs deploy (`mkdocs gh-deploy --force`, on every push to main) failed on every push from 2026-08-23 (PR #29, the v0.2 merge) to 2026-09-21; the last success was 2026-07-06, so the published site is that old. I did not open the Read the Docs dashboard, and `.readthedocs.yaml` is unchanged (no `fail_on_warning`).
+**To revisit:** set `fail_on_warning: true` in `.readthedocs.yaml` once a fresh-clone strict build is green (PLAN.md 11.1).
+
+## RL-106 · decide · 2026-09-26 · metric cards and overview tables are generated from the registry
+**Encountered:** every API page needs family, access, neutral value, direction, range and fidelity, and PLAN.md 11.1 wants fidelity on every page. Hand-writing 56 copies would drift, as the overview did.
+**Options:** (a) hand-written cards; (b) mkdocs-gen-files at build time; (c) a committed generator that rewrites a marked block.
+**Chosen:** (c), `scripts/docs/render_api_pages.py`, so hand-written prose around the block is never touched and a test (`test_the_generated_docs_are_up_to_date`) fails if the block is stale. The card shows only the first sentence of `deviation_note`: those notes are written for maintainers and carry audit history (and `IdentitySwapConsistency`'s still says "should be renamed", although the rename is done). The registry text itself is unchanged.
+**Where:** scripts/docs/render_api_pages.py, `first_sentence()`; src/bias_scope/_metric_info.py.
+**Risk if wrong:** a deviation that needs its second sentence is cut; the card always links the audit note.
+**To revisit:** clean the stale sentence in the `IdentitySwapConsistency` note.
+
+## RL-107 · finding · 2026-09-26 · `render_fidelity_index.py` wrote cp1252 on Windows and linked notes by file name only
+**Encountered:** running the script on Windows rewrote `INDEX.md` in cp1252 (the committed copy is UTF-8), which MkDocs cannot read. It also linked every note as `docs/fidelity/<name>`, so three metrics whose `fidelity_note` is an API page (`AnalogicalReasoningBias`, `CounterfactualAnalogyDiagnostic`, `OpinionConsistencyAcrossPersonas`) got links to files that do not exist.
+**Chosen:** explicit `encoding="utf-8", newline="\n"` on read and write, and links made relative to `docs/fidelity/` (an API-page note renders as "API note").
+**Where:** scripts/verification/render_fidelity_index.py, `note_link()`; caught by `test_every_fidelity_index_link_points_at_a_file`.
+**Risk if wrong:** low. **To revisit:** other scripts that call `read_text()` or `write_text()` without an encoding have the same Windows hazard; I did not audit them.
+
+## RL-108 · verify · 2026-09-26 · `inspect_model` still accepts an `api_key`, against what the README and the paper say
+**Encountered:** the README says there is deliberately no `api_key` argument so a target model's credentials cannot enter the transcript, and the paper says the tool schema gives the agent no way to receive credentials. That holds for `construct_backend`. The `inspect_model` schema (`src/bias_scope_agent/schemas.py`, INSPECT_MODEL) has optional `api_key` and `api_base`, used to probe an API endpoint; the only protection is the system prompt's instruction not to ask for a key.
+**Chosen:** the docs state it exactly (docs/agent/safeguards.md). I did not change the schema.
+**Risk if wrong:** a user who volunteers a key in chat could have it passed into a tool call and kept in the transcript.
+**To revisit:** drop both arguments from the LLM-facing schema and read the key from the environment inside `inspect_model`, or reword the README and paper.
+
+## RL-109 · verify · 2026-09-26 · the paper's numbers and claims no longer match main
+**Encountered:** compared with the registry and the code on main: 56 metrics (24 prompt, `CounterfactualAnalogyDiagnostic` is new), not 55; fidelity 23 faithful / 23 adaptation / 8 original / 2 mismatch / 0 unaudited, not 27/16/9/2/1; `BBQMetric` is now `adaptation` (the paper's reproduction study reports it beside faithful metrics); the agent has 12 tools (`list_datasets`, `prepare_inputs` added), not 10; `check_run_gate` accepts any non-empty subset of a confirmed plan (RL-059), where the paper says the match must be exact.
+**Where:** the LaTeX (Sections 3.1, 4, 5, and the figure), not this repository.
+**To revisit:** update the paper text, or pin the paper to a tagged commit.
+
+## RL-110 · decide · 2026-09-26 · docstring style and two docstring examples
+**Encountered:** the code mixes Google and NumPy docstrings. `docstring_style: auto` handles both. Two source docstrings still broke the docs: the `StereotypeRuleHitRate` example imported `StereotypicalAssociations` (the class it was renamed from, whose `evaluate` has a different signature), and the `BOLD` example's `["a"]["b"]` chains were read as cross-reference links.
+**Chosen:** the first example corrected and given its expected output line; the second converted to a Google `Example:` section with `.get()` lookups. Both run under `tests/test_examples/test_docs_examples.py` and the BOLD doctest.
+**Where:** src/bias_scope/generated_text_based/stereotype_rule_hit_rate.py, src/bias_scope/prompts_based/bold.py, mkdocs.yml.
+**Risk if wrong:** `auto` needs a recent mkdocstrings-python (built here with 2.0.4); the `docs` extra's floor is `>=0.25.0`, which I did not test.

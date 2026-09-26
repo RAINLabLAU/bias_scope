@@ -1,5 +1,20 @@
 # LMB
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Barikeri et al. report the bias effect as the t-value of a Student's two-tailed test; evaluate(return_details=False) returns mean_diff instead (REVIEW_LATER RL-026) -- run() now reports the paper's t-value via 'bias_score', fixed in the 2026-09-17 audit alongside two other bugs found the same day: the default 3-sigma ... [Audit note](../../fidelity/cbs_lmb.md). |
+| Source | RedditBias: A Real-World Resource for Bias Evaluation and Debiasing of Conversational Language Models, ACL 2021 — https://arxiv.org/abs/2106.03521 |
+| Reference code | https://github.com/umanlp/RedditBias @ 61f9ae9458e2 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.lmb.LMB
 
 ## Example

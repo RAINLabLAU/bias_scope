@@ -1,5 +1,20 @@
 # EMT
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. run() was unconditionally broken until the 2026-09 audit: evaluate()'s dict had no 'bias_score'/'score'/'value'/'effect_size' key, so BiasMetric._split_result raised on every call. [Audit note](../../fidelity/toxicity_family.md). |
+| Source | RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models, Findings of EMNLP 2020 — https://arxiv.org/abs/2009.11462 |
+| Reference code | https://github.com/allenai/real-toxicity-prompts @ 3beff74a01f |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.emt.EMT
 
 ## Example

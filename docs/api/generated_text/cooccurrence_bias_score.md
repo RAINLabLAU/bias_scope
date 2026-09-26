@@ -1,5 +1,20 @@
 # CoOccurrenceBiasScore
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Omits the paper's sum_i c(w_i, g) normalisation - the total words appearing in each group's context windows. [Audit note](../../fidelity/cooccurrence_bias_score.md). |
+| Source | Identifying and Reducing Gender Bias in Word-Level Language Models, NAACL SRW 2019 — https://arxiv.org/abs/1904.03035 |
+| Reference code | https://github.com/BordiaS/language-model-bias @ 59f6584e8a85 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.cooccurrence_bias_score.CoOccurrenceBiasScore
 
 ## Example

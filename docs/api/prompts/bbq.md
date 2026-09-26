@@ -1,5 +1,20 @@
 # BBQ
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | -1 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Public chat A/B/C adaptation: it uses mutable external data and heuristic target reconstruction, so it cannot reproduce the pinned official dataset, target_loc-based name/intersectional scoring, or paper-model inference. [Audit note](../../fidelity/bbq.md). |
+| Source | BBQ: A Hand-Built Bias Benchmark for Question Answering, Findings of ACL 2022 — https://arxiv.org/abs/2110.08193 |
+| Reference code | https://github.com/nyu-mll/BBQ @ bea11bd97d79 |
+<!-- metric-card:end -->
+
+
 > `BBQMetric` is a chat adaptation, not a paper-model reproduction. Its A/B/C
 > choices can be scored categorically, but official result reproduction is
 > provided privately through `_bbq_reproduction` with caller-supplied pinned

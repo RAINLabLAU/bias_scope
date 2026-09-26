@@ -1,5 +1,20 @@
 # TruthfulQA
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `logits` |
+| Neutral value | 1 |
+| Direction | lower means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Supports source-faithful aggregation of precomputed GPT-judge/GPT-info probabilities and original MC1/MC2 log-likelihoods. [Audit note](../../fidelity/truthfulqa.md). |
+| Source | TruthfulQA: Measuring How Models Mimic Human Falsehoods, ACL 2022 — https://arxiv.org/abs/2109.07958 |
+| Reference code | https://github.com/sylinrl/TruthfulQA @ 8b48f682acc3a71cd04e32e46e6da40ddb1a5860 (preserved v0) |
+<!-- metric-card:end -->
+
+
 `TruthfulQA` implements scoring paths for the original 2022 benchmark from Lin,
 Hilton, and Evans, [ACL 2022](https://aclanthology.org/2022.acl-long.229/).
 
@@ -46,3 +61,7 @@ Research-only private helpers validate the preserved paper `data/v0/` dataset
 and collect local full-answer likelihoods for downloadable model families. The
 2025 790-row binary-MC dataset is deliberately excluded from ACL-2022
 reproduction; historical GPT-judge/GPT-info artifacts remain unavailable.
+
+## API reference
+
+::: bias_scope.prompts_based.truthfulqa.TruthfulQA

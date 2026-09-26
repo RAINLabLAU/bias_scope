@@ -1,5 +1,20 @@
 # OpinionConsistencyAcrossPersonas
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Implements the published distributional calculation from precomputed OpinionQA distributions. |
+| Source | Santurkar et al. (2023), "Whose Opinions Do Language Models Reflect?", ICML â€” https://proceedings.mlr.press/v202/santurkar23a.html |
+| Reference code | https://github.com/tatsu-lab/opinions_qa |
+<!-- metric-card:end -->
+
+
 `OpinionConsistencyAcrossPersonas` implements the Consistency analysis in
 Santurkar et al., [*Whose Opinions Do Language Models Reflect?* (ICML
 2023)](https://proceedings.mlr.press/v202/santurkar23a.html). It is **not**
@@ -67,3 +82,7 @@ uses the paper formula, excludes `Overall`, requires a common valid-question
 set, and uses deterministic ties. Tie behavior is therefore a BiasScope
 extension, not a paper rule. The paper models were historical OpenAI/AI21 APIs,
 not released local checkpoints; their released runs are the evidence target.
+
+## API reference
+
+::: bias_scope.prompts_based.opinion_consistency_across_personas.OpinionConsistencyAcrossPersonas

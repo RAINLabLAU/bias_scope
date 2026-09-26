@@ -715,13 +715,13 @@ report (compare to a stored PNG hash or to the drawn data, not pixels).
 - [ ] Full `BiasSuite` on two real models (one HF, one LiteLLM); every applicable metric produces a `BiasResult` passing the runtime guards; report opens; numbers for the four v0.1 metrics agree with `results/emnlp/` within CI.
 - [ ] Regenerate every study figure and table from scratch with the one-command scripts; diff against the committed versions; any difference explained.
 - [ ] `render_ledger.py` passes with zero empty cells for every metric and feature; `check_manifest.py` passes.
-- [ ] Docs build (`mkdocs build --strict`) with no warnings; every metric page shows fidelity status, formula, and example.
+- [ ] Docs build (`mkdocs build --strict`) with no warnings; every metric page shows fidelity status, formula, and example. *(2026-09-26: passes on main with no warnings, and every metric page carries a generated card; `tests/test_docs.py` keeps it so. Not yet run from a fresh clone. RL-105.)*
 - [ ] Read `REVIEW_LATER.md` end to end; every `blocked` entry is reflected as an unticked box; every `verify` entry points at the file the maintainer must open.
 
 ### 11.2 Release and paper artefacts
 
 - [ ] `README.md`: suite/report/recommend quick start first; fidelity statuses visible in the metric list; "what's an adaptation" paragraph.
-- [ ] `docs/`: new pages for metadata, results, suite, recommend, judges, adapters, viz, fidelity index, inclusion criteria, roadmap, multilingual readiness table.
+- [ ] `docs/`: new pages for metadata, results, suite, recommend, judges, adapters, viz, fidelity index, inclusion criteria, roadmap, multilingual readiness table. *(2026-09-26: written, except judges and adapters, whose phases are not built. RL-105.)*
 - [ ] `CHANGELOG.md` for 0.2.0 listing every rename, every reimplementation, and every behaviour change with the reason.
 - [ ] Version bump to 0.2.0 in `pyproject.toml`; build; test install in a clean venv for each extra; PyPI release after maintainer approval.
 - [ ] `scripts/paper/`: generators for Table 1 (validation matrix), Table 2 (metric table with fidelity status and deviation notes), the agreement heatmap, the envelope figure, the dumbbell figure, and the effort table. Paper numbers must be produced by these scripts from `results/`, never typed by hand.
@@ -755,7 +755,7 @@ report (compare to a stored PNG hash or to the drawn data, not pixels).
 - [ ] Studies 10.1–10.3 complete with figures regenerable from one command.
 - [ ] Coverage ≥ 90% on `src/bias_scope`; `ruff check` clean with complexity cap 10; fast suite under 3 minutes on CPU; every `examples/` file runs in CI.
 - [ ] `results/verification/VERIFICATION.md` complete: every metric row has criteria 1–7 with evidence, every feature row has its acceptance checks, and Section 11.1 was executed from a fresh clone with `FINAL.md` written.
-- [ ] Readability pass: `docs/architecture.md` is under two pages and a new contributor can add a metric by copying one existing module, filling `MetricInfo`, writing the known-answer test, and adding one registry entry (documented as a 6-step checklist in `docs/contributing.md`).
+- [ ] Readability pass: `docs/architecture.md` is under two pages and a new contributor can add a metric by copying one existing module, filling `MetricInfo`, writing the known-answer test, and adding one registry entry (documented as a 6-step checklist in `docs/contributing.md`). *(2026-09-26: `docs/architecture.md` and the six-step checklist in `docs/contributing.md` are written; a new contributor still has to try it.)*
 - [ ] CI green on 3.10–3.13; 0.2.0 on PyPI; paper tables generated from `results/`.
 
 ---
@@ -834,6 +834,8 @@ paper or authors' code to cite for tool-wrapper functions.
 - [x] Item 14 (2026-09-21, by request) — the agent retrieves its own datasets. `third_party/` is git-ignored, so on a fresh clone every vendored file a loader reads is absent and `_require` merely named the command a human should run; the agent planned a run and then stopped on a missing file. New `src/bias_scope_agent/sources.py`: `_require` calls `ensure_metric_sources(hint, path)` before giving up (running `fetch_sources.py --metric <entry>` for the one entry whose file is missing, and continuing only if the file actually appeared), and `cli.py` runs `ensure_dataset_sources()` as a startup preflight so the data is on disk before the agent plans with it (`--no-fetch`, or `BIASSCOPE_AGENT_AUTO_FETCH=0`, opts out). Only paths under this repo's own `third_party/code` are ever fetched and each entry is tried once per process, so a test pointing a loader at `tmp_path` cannot reach the network. 13 new tests, one of which scans the loader modules so a new `_require` hint cannot drift out of the preflight list. RL-102.
   - **Two defects this exposed, both fixed:** `fetch_sources.py` claimed to shallow-clone but ran a plain `git clone`, which hung for 2h04m on `unintended-ml-bias-analysis` and blocked the 15 entries after it — now `--filter=blob:none`, which keeps the commit graph so the pinned `sha` still checks out (34 seconds, RL-103); and `CAT`/`ICAT`/`StereoSetMetric` carried a `code.url` and a pinned `sha` but no `local_path`, so the `stereoset` provider Item 9 shipped could never be fetched at all — recorded, fetched at the already-pinned `ead7d086`, CAT/ICAT feedable (RL-104).
   - **State after:** all 13 vendored dataset files the loaders read are on disk (CrowS-Pairs, StereoSet, sent-bias WEAT/SEAT, BOLD prompts and Wikipedia, HELM word lists, HONEST templates, HurtLex, WinoBias, DecodingTrust); the four Hub-backed providers download themselves. `pypdf` was never installed, so step 2 of every fetch had silently no-opped — all 43 papers now have their `.txt` alongside.
+
+- [x] Item 15 (2026-09-26, by request) - the Read the Docs site. `mkdocs build --strict` had been failing (three API pages named classes renamed in 0.2.0), 39 pages were in no nav, and the site described v0.1. Now: an Agent section (overview, configuration, datasets, running it, safeguards, reference), a Concepts section (architecture, metadata and fidelity, choosing metrics, backends, suite, results, visualization, multilingual), 10 new metric pages, and a generated metric card on every API page (`scripts/docs/render_api_pages.py`, from the registry). `tests/test_docs.py` fails on a metric with no page, a page outside the nav, a stale index or card, or a strict-build warning. RL-105 to RL-110; `PROGRESS.md` 2026-09-26.
 
 ---
 

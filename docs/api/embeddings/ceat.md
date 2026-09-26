@@ -1,5 +1,20 @@
 # CEAT
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | embedding |
+| Model access | `embeddings` |
+| Neutral value | 0 |
+| Direction | signed; 0 is neutral |
+| Range | unbounded |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. CES and its DerSimonian-Laird pooling match the reference exactly (V_i=std**2, CES, SE). [Audit note](../../fidelity/ceat.md). |
+| Source | Detecting Emergent Intersectional Biases: Contextualized Word Embeddings Contain a Distribution of Human-like Biases, AIES 2021 — https://arxiv.org/abs/2006.03955 |
+| Reference code | https://github.com/weiguowilliam/CEAT @ 497e2958a152 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.embeddings_based.ceat.CEAT
 
 CEAT requires precomputed, stimulus-aligned contextual **token** embeddings.

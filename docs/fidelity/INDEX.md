@@ -17,17 +17,17 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 
 ## Progress
 
-- Metrics in the library: **55**
-- Sources read: **55 / 55**
+- Metrics in the library: **56**
+- Sources read: **56 / 56**
 
 | Status | Count |
 |---|---|
-| faithful | 28 |
-| adaptation | 16 |
-| original | 9 |
+| faithful | 23 |
+| adaptation | 23 |
+| original | 8 |
 | mismatch | 2 |
 | unaudited | 0 |
-| **total** | **55** |
+| **total** | **56** |
 
 > **2 mismatch(es) outstanding.** PLAN.md Section 13
 > requires zero before v0.2.0.
@@ -36,10 +36,6 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 
 | Metric | Family | Status | Note |
 |---|---|---|---|
-| `AUL` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
-| `AULA` | probability | **faithful** | [aul_aula.md](aul_aula.md) |
-| `BBQMetric` | prompt | **adaptation** | [bbq.md](bbq.md) |
-| `BOLD` | prompt | **faithful** | [bold.md](bold.md) |
 | `CAT` | probability | **faithful** | [stereoset_family.md](stereoset_family.md) |
 | `CBS` | probability | **faithful** | [cbs_lmb.md](cbs_lmb.md) |
 | `CEAT` | embedding | **faithful** | [ceat.md](ceat.md) |
@@ -56,7 +52,6 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `MarkedPersons` | generated_text | **faithful** | [marked_persons.md](marked_persons.md) |
 | `PoliticalEvenHandedness` | prompt | **faithful** | [political_even_handedness.md](political_even_handedness.md) |
 | `SEAT` | embedding | **faithful** | [seat.md](seat.md) |
-| `SentenceBiasScore` | embedding | **faithful** | [sentence_bias_score.md](sentence_bias_score.md) |
 | `ToxicityProbability` | generated_text | **faithful** | [toxicity_family.md](toxicity_family.md) |
 | `TrustLLMDisparagement` | prompt | **faithful** | [trustllm.md](trustllm.md) |
 | `TrustLLMPreference` | prompt | **faithful** | [trustllm.md](trustllm.md) |
@@ -64,6 +59,11 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `TrustLLMStereotypeRecognition` | prompt | **faithful** | [trustllm.md](trustllm.md) |
 | `WEAT` | embedding | **faithful** | [weat.md](weat.md) |
 | `WinoBias` | prompt | **faithful** | [winobias.md](winobias.md) |
+| `AUL` | probability | **adaptation** | [aul_aula.md](aul_aula.md) |
+| `AULA` | probability | **adaptation** | [aul_aula.md](aul_aula.md) |
+| `AnalogicalReasoningBias` | prompt | **adaptation** | [API note](../api/prompts/analogical_reasoning_bias.md) |
+| `BBQMetric` | prompt | **adaptation** | [bbq.md](bbq.md) |
+| `BOLD` | prompt | **adaptation** | [bold.md](bold.md) |
 | `CoOccurrenceBiasScore` | generated_text | **adaptation** | [cooccurrence_bias_score.md](cooccurrence_bias_score.md) |
 | `DemographicRepresentation` | generated_text | **adaptation** | [demographic_representation.md](demographic_representation.md) |
 | `DiscrimEval` | prompt | **adaptation** | [discrim_eval.md](discrim_eval.md) |
@@ -71,20 +71,21 @@ metric cannot claim a fidelity its sources do not support, and cannot stay
 | `GenderPolarity` | generated_text | **adaptation** | [bold_metrics.md](bold_metrics.md) |
 | `HONEST` | generated_text | **adaptation** | [honest.md](honest.md) |
 | `LMB` | probability | **adaptation** | [cbs_lmb.md](cbs_lmb.md) |
+| `OpinionConsistencyAcrossPersonas` | prompt | **adaptation** | [API note](../api/prompts/opinion_consistency_across_personas.md) |
 | `PsycholinguisticNorms` | generated_text | **adaptation** | [bold_metrics.md](bold_metrics.md) |
 | `RealToxicityPrompts` | prompt | **adaptation** | [toxicity_family.md](toxicity_family.md) |
 | `RegardScore` | generated_text | **adaptation** | [regard_score.md](regard_score.md) |
+| `SentenceBiasScore` | embedding | **adaptation** | [sentence_bias_score.md](sentence_bias_score.md) |
 | `SocialGroupSubstitution` | generated_text | **adaptation** | [huang_metrics.md](huang_metrics.md) |
 | `StereoSetMetric` | prompt | **adaptation** | [stereoset_family.md](stereoset_family.md) |
 | `StereotypicalAssociations` | generated_text | **adaptation** | [stereotypical_associations.md](stereotypical_associations.md) |
 | `TofNof` | prompt | **adaptation** | [tofnof.md](tofnof.md) |
 | `TruthfulQA` | prompt | **adaptation** | [truthfulqa.md](truthfulqa.md) |
 | `UnQoverMetric` | prompt | **adaptation** | [unqover.md](unqover.md) |
-| `AnalogicalReasoningBias` | prompt | **original** | [originals.md](originals.md) |
+| `CounterfactualAnalogyDiagnostic` | prompt | **original** | [API note](../api/prompts/analogical_reasoning_bias.md) |
 | `IdentitySwapConsistency` | prompt | **original** | [originals.md](originals.md) |
 | `MeanScoreGap` | generated_text | **original** | [score_parity.md](score_parity.md) |
 | `OccupationPronounSkew` | prompt | **original** | [demographic_representation_bias.md](demographic_representation_bias.md) |
-| `OpinionConsistencyAcrossPersonas` | prompt | **adaptation** | [API note](../api/prompts/opinion_consistency_across_personas.md) |
 | `PairwiseLikelihoodPreference` | probability | **original** | [lpbs.md](lpbs.md) |
 | `StereotypeRuleHitRate` | generated_text | **original** | [stereotypical_associations.md](stereotypical_associations.md) |
 | `TopKFillDivergence` | probability | **original** | [disco.md](disco.md) |

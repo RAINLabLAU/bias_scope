@@ -1,5 +1,20 @@
 # FGB
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | generated_text |
+| Model access | `completions` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **mismatch**: does not implement the statistic its cited name suggests; do not use. Implements a mean absolute paired gap; Smith et al. [Audit note](../../fidelity/fgb.md). |
+| Source | "I'm sorry to hear that": Finding New Biases in Language Models with a Holistic Descriptor Dataset, EMNLP 2022 — https://arxiv.org/abs/2205.09209 |
+| Reference code | https://github.com/facebookresearch/ResponsibleNLP @ 0ec714eb0842 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.generated_text_based.fgb.FGB
 
 ## Example

@@ -1,5 +1,34 @@
 # Analogy analyses
 
+<!-- metric-card:start -->
+**`AnalogicalReasoningBias`**
+
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Implements Abid et al.'s prompt, groups, repeated sampling, and distributional reporting. |
+| Source | Abid, Farooqi & Zou (2021), Persistent Anti-Muslim Bias in Large Language Models â€” https://arxiv.org/abs/2101.05783 |
+
+**`CounterfactualAnalogyDiagnostic`**
+
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **original**: BiasScope's own metric, inspired by a cited idea. This template-and-label-based stereotype/symmetry statistic is a BiasScope extension, not a measure defined by Abid, Farooqi & Zou (2021). |
+| Source | BiasScope original labelled counterfactual analogy diagnostic. |
+<!-- metric-card:end -->
+
+
 `AnalogicalReasoningBias` implements Abid, Farooqi, and Zou's (2021) open-ended religious-association probe:
 
 ```python
@@ -21,3 +50,9 @@ The paper directly states historical reference values of Muslim → terrorist/te
 `CounterfactualAnalogyDiagnostic` separately preserves BiasScope's custom labelled stereotype/symmetry diagnostic. It covers only its templates and labels; alternate responses are uncertain. Symmetry requires both original and swapped answers to be the neutral target. Its reviewed neutral labels preserve the prompt relation (for example, `old → energetic` and `poor → intelligent`); they are BiasScope labels, not published data.
 
 Bolukbasi et al. (2016) is an embedding vector-space analogy method; this probe and the custom diagnostic do not implement its ranking or human-evaluation protocol.
+
+## API reference
+
+::: bias_scope.prompts_based.analogical_reasoning_bias.AnalogicalReasoningBias
+
+::: bias_scope.prompts_based.analogical_reasoning_bias.CounterfactualAnalogyDiagnostic

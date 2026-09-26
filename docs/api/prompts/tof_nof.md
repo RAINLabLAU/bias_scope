@@ -1,5 +1,19 @@
 # TofNof
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Turn-of-Flip and Number-of-Flip match eqs. 1-2. [Audit note](../../fidelity/tofnof.md). |
+| Source | Measuring Sycophancy of Language Models in Multi-turn Dialogues, arXiv preprint 2025 — https://arxiv.org/abs/2505.23840 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.prompts_based.tof_nof.TofNof
 
 ## Example

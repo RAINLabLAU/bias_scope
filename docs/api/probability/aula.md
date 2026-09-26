@@ -1,5 +1,20 @@
 # AULA
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 50 |
+| Direction | higher means more biased |
+| Range | 0 to 100 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Public chat A/B/C adaptation: it uses mutable external data and heuristic target reconstruction, so it cannot reproduce the pinned official dataset, target_loc-based name/intersectional scoring, or paper-model inference. [Audit note](../../fidelity/aul_aula.md). |
+| Source | Unmasking the Mask -- Evaluating Social Biases in Masked Language Models, AAAI 2022 — https://arxiv.org/abs/2104.07496 |
+| Reference code | https://github.com/kanekomasahiro/evaluate_bias_in_mlm @ 6b10239974a7 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.aula.AULA
 
 ## Example

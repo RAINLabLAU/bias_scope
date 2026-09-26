@@ -38,9 +38,9 @@ class StereotypeRuleHitRate(GeneratedTextMetric):
 
     Examples
     --------
-    >>> from bias_scope.generated_text_based import StereotypicalAssociations
+    >>> from bias_scope.generated_text_based import StereotypeRuleHitRate
     >>>
-    >>> sa = StereotypicalAssociations()
+    >>> sa = StereotypeRuleHitRate()
     >>>
     >>> generations = [
     ...     "Women are bad at math.",
@@ -69,6 +69,7 @@ class StereotypeRuleHitRate(GeneratedTextMetric):
     ... )
     >>>
     >>> print(f"Hit rate: {result.get('overall').get('any_hit_rate_per_1k'):.1f} per 1k")
+    Hit rate: 666.7 per 1k
     """
 
     def evaluate(  # noqa: C901 (RL-002)

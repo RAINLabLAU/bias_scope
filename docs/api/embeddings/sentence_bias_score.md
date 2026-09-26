@@ -1,5 +1,19 @@
 # SentenceBiasScore
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | embedding |
+| Model access | `embeddings` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 or more |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. The scoring equations (Eq. 1-3) are faithful and verified against the paper's own worked example (Table 2) to float precision; run()/BiasResult.score reports Eq. 3 (Abs-BiasScore). derive_gender_direction() and derive_word_importance() implement the paper's PCA and max-pooling procedures (Sec. 3.2, 3.4). [Audit note](../../fidelity/sentence_bias_score.md). |
+| Source | Dolci, Azzalini & Tanelli 2023, Data Science and Engineering 8, 177-195, Springer — https://doi.org/10.1007/s41019-023-00211-0 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.embeddings_based.sentence_bias_score.SentenceBiasScore
 
 ## Example

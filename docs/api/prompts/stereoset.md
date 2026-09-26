@@ -1,5 +1,20 @@
 # StereoSet
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 50 |
+| Direction | signed; 0 is neutral |
+| Range | 0 to 100 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. Two deviations from the likelihood protocol: the model makes a forced three-way A/B/C choice rather than having its likelihoods ranked pairwise, so lms and ss are prompt analogues rather than paper-equivalent scores; and scores are aggregated flat rather than averaged per target term. [Audit note](../../fidelity/stereoset_family.md). |
+| Source | StereoSet: Measuring stereotypical bias in pretrained language models, ACL 2021 — https://arxiv.org/abs/2004.09456 |
+| Reference code | https://github.com/moinnadeem/StereoSet @ ead7d086a64a |
+<!-- metric-card:end -->
+
+
 `StereoSetMetric` is a prompt-based A/B/C adaptation. Its forced-choice LMS and
 SS are not paper-equivalent likelihood scores, and its results must not be
 compared directly with published StereoSet tables. The paper-faithful evaluator

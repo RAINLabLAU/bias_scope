@@ -1,5 +1,20 @@
 # CrowS-Pairs
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | probability |
+| Model access | `logits` |
+| Neutral value | 50 |
+| Direction | higher means more biased |
+| Range | 0 to 100 |
+| Languages | en |
+| Fidelity | **faithful**: same formula and protocol as the cited paper. Faithful in the default `mode="wordpiece"`, which is the pseudo-log-likelihood over shared non-special WordPiece tokens that the authors' `metric.py` computes. [Audit note](../../fidelity/crows_pairs.md). |
+| Source | CrowS-Pairs: A Challenge Dataset for Measuring Social Biases in Masked Language Models, EMNLP 2020 — https://arxiv.org/abs/2010.00133 |
+| Reference code | https://github.com/nyu-mll/crows-pairs @ 8aaac11c4854 |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.probability_based.crows_pairs.CrowSPairs
 
 ## Example

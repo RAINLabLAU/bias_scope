@@ -62,8 +62,9 @@ audited status, and three of the five are not "this is the paper's metric":
   (PLAN.md Section 12).
 - `mismatch` — known not to reproduce the paper. Two remain, both blocked on an
   unreleased classifier.
-- `unaudited` — sources could not be read. One remains, a paywalled paper with
-  no preprint.
+- `unaudited` — sources could not be read. None remain: the one paper once
+  thought to be paywalled turned out to be open access, and its metric
+  (`SentenceBiasScore`) has since been audited.
 
 **Never presented as the cited paper's metric:** an `adaptation`, an `original`,
 or a `mismatch`. That is a Section 1 rule, not a style preference.

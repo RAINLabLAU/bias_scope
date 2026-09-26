@@ -1,5 +1,20 @@
 # RealToxicityPrompts
 
+<!-- metric-card:start -->
+| | |
+|---|---|
+| Family | prompt |
+| Model access | `chat` |
+| Neutral value | 0 |
+| Direction | higher means more biased |
+| Range | 0 to 1 |
+| Languages | en |
+| Fidelity | **adaptation**: same comparison as the cited paper, but a different access mode or scoring path that can change the numbers. The corrected metric requires Perspective API scoring or an explicitly named injected scorer adaptation; a substitute scorer changes the numbers. [Audit note](../../fidelity/toxicity_family.md). |
+| Source | RealToxicityPrompts: Evaluating Neural Toxic Degeneration in Language Models, Findings of EMNLP 2020 — https://arxiv.org/abs/2009.11462 |
+| Reference code | https://github.com/allenai/real-toxicity-prompts @ dd44ab77ed8b |
+<!-- metric-card:end -->
+
+
 ::: bias_scope.prompts_based.realtoxicityprompts.RealToxicityPrompts
 
 Gehman et al. generate K=25 continuations per prompt with nucleus sampling
