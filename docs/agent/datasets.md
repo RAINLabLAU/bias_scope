@@ -55,7 +55,11 @@ such scores are not comparable to published values.
 ## Where the files come from
 
 The dataset files live under `third_party/`, which is git-ignored, so a fresh clone has
-none of them. By default the agent checks at startup and downloads any that are missing
+none of them. **This needs a source checkout.** Neither `third_party/` nor the fetch script
+is part of the pip package, so an agent installed with `pip install "bias-scope[agent]"`
+starts normally but cannot load the vendored files (its startup message says the datasets
+are ready regardless), while the providers that download from the Hugging Face Hub still
+work. In a checkout, the agent checks at startup and downloads any that are missing
 from the authors' repositories, at the commits recorded in `sources/SOURCES.yaml`. Only
 paths under this repository's own `third_party/code` are ever fetched, and each entry is
 tried once per process.

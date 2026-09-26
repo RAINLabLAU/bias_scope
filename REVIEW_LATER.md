@@ -2663,3 +2663,18 @@ clone, but only at run time - a manifest test could catch it at commit time.
 **Chosen:** the first example corrected and given its expected output line; the second converted to a Google `Example:` section with `.get()` lookups. Both run under `tests/test_examples/test_docs_examples.py` and the BOLD doctest.
 **Where:** src/bias_scope/generated_text_based/stereotype_rule_hit_rate.py, src/bias_scope/prompts_based/bold.py, mkdocs.yml.
 **Risk if wrong:** `auto` needs a recent mkdocstrings-python (built here with 2.0.4); the `docs` extra's floor is `>=0.25.0`, which I did not test.
+
+## RL-111 · decide · 2026-09-26 · the sdist was about to ship other authors' papers and 16 MB of results
+**Encountered:** building 0.2.0 gave a 15.7 MB sdist (0.1.1 was 0.7 MB). With no sdist rules, hatch packs everything git tracks: `results/` (16 MB) and `biasscope papers/` (17 published PDFs by other authors, which must not be redistributed on PyPI). Caught by listing the tarball before uploading.
+**Chosen:** `[tool.hatch.build.targets.sdist] include` = src, tests, examples, `sources/SOURCES.yaml`, `validation/registry.yaml`, README, LICENSE, CHANGELOG, pyproject. The sdist is 0.65 MB. `tests/test_docs.py` skips when `docs/` is absent, since the sdist has no docs.
+**Where:** pyproject.toml; tests/test_docs.py.
+**Risk if wrong:** a test that reads another repository path would fail from an sdist; the wheel is unaffected.
+**To revisit:** the wheel packages only `src/`; nothing else was needed there.
+
+## RL-112 · verify · 2026-09-26 · a pip-installed agent cannot load the vendored datasets
+**Encountered:** in a clean venv (`pip install "bias_scope-0.2.0-py3-none-any.whl[agent]"`, run outside the repo) `bias-scope-agent` starts, and prints "datasets ready (0 fetched now, rest already on disk)" although `third_party/`, `sources/SOURCES.yaml` and `scripts/sources/fetch_sources.py` are not in the wheel. The dataset-backed providers that read a vendored file therefore have nothing to read.
+**Chosen:** documented in docs/agent/datasets.md and docs/getting-started/installation.md. No code change.
+**To revisit:** make the preflight say the datasets are unavailable outside a checkout, or ship a fetcher in the package.
+
+## RL-113 · finding · 2026-09-26 · release plumbing
+`bias_scope.__version__` said 0.1.0 while pyproject said 0.1.1 (RL-004 again); both are now 0.2.0. The twine installed here (older than 6) rejects Hatch's metadata version 2.5 (`'2.5' is not a valid metadata version`), so `twine check` and an upload from it fail; a current twine (7.0.0) in a clean venv passes. The release gates in PLAN.md Section 13 that are not met at 0.2.0: zero `mismatch` metrics (FGB and PGB remain, xfail), the fresh-clone verification in Section 11.1, and the paper-side items in Section 11.2.

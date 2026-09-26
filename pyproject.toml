@@ -1,6 +1,6 @@
 [project]
 name = "bias-scope"
-version = "0.1.1"
+version = "0.2.0"
 description = "A library for detecting biases in machine learning models."
 authors = [
     {name = "ChadiHelwe", email = "chadi.helwe@gmail.com"}
@@ -123,6 +123,22 @@ packages = ["src/bias_scope", "src/bias_scope_agent"]
 "src/bias_scope/prompts_based/stereoset_targets.json" = "bias_scope/prompts_based/stereoset_targets.json"
 "src/bias_scope/prompts_based/bold_targets.json" = "bias_scope/prompts_based/bold_targets.json"
 "src/bias_scope/prompts_based/bbq_targets.json" = "bias_scope/prompts_based/bbq_targets.json"
+
+[tool.hatch.build.targets.sdist]
+# Only what a source distribution needs. Without this, hatch packs everything
+# git tracks: results/ (16 MB of experiment output) and "biasscope papers/"
+# (other authors' published PDFs), which must not be redistributed on PyPI.
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/sources/SOURCES.yaml",
+    "/validation/registry.yaml",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+]
 
 [tool.hatch.build.targets.sdist.force-include]
 "src/bias_scope/prompts_based/sycon_table2_targets.json" = "src/bias_scope/prompts_based/sycon_table2_targets.json"

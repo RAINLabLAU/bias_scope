@@ -72,8 +72,11 @@ mkdocs serve
 ### Where the datasets come from
 
 Metrics that need the authors' datasets read them from `third_party/`, which is not part of
-the installed package. The agent downloads what it needs at startup. To fetch everything
-from a source checkout:
+the installed package, and neither is the script that fetches them. So this applies to a
+**source checkout** (`git clone` and `pip install -e .`), where the agent downloads what it
+needs at startup. A `pip install` of the agent starts normally, but the providers that read
+a vendored file cannot find one; supply your own inputs, or use a checkout. To fetch
+everything from a source checkout:
 
 ```bash
 python scripts/sources/fetch_sources.py --all

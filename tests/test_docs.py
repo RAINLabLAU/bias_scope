@@ -30,6 +30,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 SRC = ROOT / "src"
 
+#: The source distribution ships src/, tests/ and examples/ but not the docs or
+#: the scripts that generate them, so these tests only make sense in a checkout.
+pytestmark = pytest.mark.skipif(
+    not (DOCS / "index.md").is_file(), reason="docs/ is not part of this distribution",
+)
+
 AUTODOC = re.compile(r"^:::\s+([\w.]+)\s*$", re.MULTILINE)
 
 

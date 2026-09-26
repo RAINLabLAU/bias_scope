@@ -8,6 +8,8 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-26
+
 ### Added
 - **Documentation site brought up to 0.2.0.** The API pages for the renamed metrics
   (`MeanScoreGap`, `IdentitySwapConsistency`, `OccupationPronounSkew`) had pointed at
@@ -285,6 +287,9 @@ v0.2.0 is a breaking release; see `PLAN.md` Section 1 on backward compatibility.
   now states what the two modes are and cites the reproduction.
 
 ### Fixed
+- **Packaging.** `bias_scope.__version__` now matches the release (it had said 0.1.0), and the
+  source distribution no longer includes `results/` or the reference papers
+  (`REVIEW_LATER` RL-111, RL-113).
 - **The agent lost a whole conversation when a tool raised anything outside a
   four-type list** (a gated-repo 401 from inside `run_suite`). Any exception is
   now returned to the agent as a tool error it can report (RL-074).

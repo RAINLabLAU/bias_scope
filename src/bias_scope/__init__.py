@@ -16,7 +16,7 @@ Public API for bias detection metrics organized by category:
 
 from importlib import import_module
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 # Optional torch-backed metrics expose constructor stubs when torch is absent.

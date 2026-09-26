@@ -3296,3 +3296,21 @@ the Docs dashboard.
 
 `mkdocs build --strict`: no warnings, 11 s. `python -m ruff check src tests
 scripts/docs scripts/verification` clean.
+
+## 2026-09-26 (later) - releasing 0.2.0 to PyPI
+
+Asked to publish a new version so the new metrics and the agent reach PyPI. The
+latest there was 0.1.1.
+
+**Before uploading.** Bumped `pyproject.toml` and `bias_scope.__version__` to 0.2.0
+(the second had drifted to 0.1.0) and dated the CHANGELOG section. The first build
+gave a 15.7 MB sdist that contained `results/` and 17 third-party paper PDFs: fixed
+with an sdist include list (RL-111), 0.65 MB now. The wheel is 0.41 MB, both
+packages plus the target JSON files. `twine check` failed with the installed twine
+and passes with a current one (RL-113). A wheel installed into a clean venv imports,
+reports 0.2.0, runs a suite, keeps the deprecated aliases, and starts the agent; from
+a pip install the agent cannot load the vendored datasets (RL-112, documented).
+
+**State of the gates.** Full fast suite exit 0 before the version bump; 546 tests in
+the affected areas pass after it, ruff clean, `mkdocs build --strict` clean. Not met:
+zero `mismatch` metrics (FGB, PGB), the fresh-clone verification, the paper items.
